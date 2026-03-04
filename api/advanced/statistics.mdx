@@ -1,0 +1,440 @@
+---
+title: 'Statistics'
+description: 'Collect and analyze Z3 solver performance metrics'
+icon: 'chart-line'
+---
+
+## Overview
+
+Z3 provides detailed statistics about solver execution, including conflict counts, decision counts, memory usage, and theory-specific metrics. These statistics are essential for performance analysis, debugging, and optimization.
+
+## Collecting Statistics
+
+### Basic Statistics Retrieval
+
+```c
+Z3_solver solver = Z3_mk_solver(ctx);
+Z3_solver_inc_ref(ctx, solver);
+
+// Add constraints and check satisfiability
+Z3_solver_assert(ctx, solver, formula);
+Z3_lbool result = Z3_solver_check(ctx, solver);
+
+// Get statistics after solving
+Z3_stats stats = Z3_solver_get_statistics(ctx, solver);
+Z3_stats_inc_ref(ctx, stats);
+
+// Use statistics...
+
+Z3_stats_dec_ref(ctx, stats);
+Z3_solver_dec_ref(ctx, solver);
+```
+
+## Reading Statistics
+
+### Iterating Through All Statistics
+
+```c
+Z3_stats stats = Z3_solver_get_statistics(ctx, solver);
+Z3_stats_inc_ref(ctx, stats);
+
+unsigned size = Z3_stats_size(ctx, stats);
+printf("Statistics count: %u\n", size);
+
+for (unsigned i = 0; i < size; i++) {
+    Z3_string key = Z3_stats_get_key(ctx, stats, i);
+    
+    if (Z3_stats_is_uint(ctx, stats, i)) {
+        unsigned value = Z3_stats_get_uint_value(ctx, stats, i);
+        printf("  %s: %u\n", key, value);
+    } else if (Z3_stats_is_double(ctx, stats, i)) {
+        double value = Z3_stats_get_double_value(ctx, stats, i);
+        printf("  %s: %.2f\n", key, value);
+    }
+}
+
+Z3_stats_dec_ref(ctx, stats);
+```
+
+### Formatted Statistics Output
+
+```c
+Z3_stats stats = Z3_solver_get_statistics(ctx, solver);
+Z3_stats_inc_ref(ctx, stats);
+
+// Convert to SMT2 format string
+Z3_string stats_str = Z3_stats_to_string(ctx, stats);
+printf("Statistics:\n%s\n", stats_str);
+
+Z3_stats_dec_ref(ctx, stats);
+```
+
+Example output:
+```
+(:max-memory   12.34
+ :memory       10.50
+ :num-allocs   1234567
+ :rlimit-count 543210
+ :time         2.45
+ :mk-bool-var  128
+ :conflicts    4567
+ :decisions    8901)
+```
+
+## Key Statistics Categories
+
+### Core Solver Statistics
+
+```c
+// Helper function to get a specific statistic
+unsigned get_stat_uint(Z3_context ctx, Z3_stats stats, const char* key_name) {
+    unsigned size = Z3_stats_size(ctx, stats);
+    for (unsigned i = 0; i < size; i++) {
+        Z3_string key = Z3_stats_get_key(ctx, stats, i);
+        if (strcmp(key, key_name) == 0 && Z3_stats_is_uint(ctx, stats, i)) {
+            return Z3_stats_get_uint_value(ctx, stats, i);
+        }
+    }
+    return 0;
+}
+
+double get_stat_double(Z3_context ctx, Z3_stats stats, const char* key_name) {
+    unsigned size = Z3_stats_size(ctx, stats);
+    for (unsigned i = 0; i < size; i++) {
+        Z3_string key = Z3_stats_get_key(ctx, stats, i);
+        if (strcmp(key, key_name) == 0 && Z3_stats_is_double(ctx, stats, i)) {
+            return Z3_stats_get_double_value(ctx, stats, i);
+        }
+    }
+    return 0.0;
+}
+
+// Get key solver statistics
+Z3_stats stats = Z3_solver_get_statistics(ctx, solver);
+Z3_stats_inc_ref(ctx, stats);
+
+unsigned conflicts = get_stat_uint(ctx, stats, "conflicts");
+unsigned decisions = get_stat_uint(ctx, stats, "decisions");
+unsigned propagations = get_stat_uint(ctx, stats, "propagations");
+double time = get_stat_double(ctx, stats, "time");
+
+printf("Conflicts: %u\n", conflicts);
+printf("Decisions: %u\n", decisions);
+printf("Propagations: %u\n", propagations);
+printf("Time: %.3f seconds\n", time);
+
+Z3_stats_dec_ref(ctx, stats);
+```
+
+### Memory Statistics
+
+```c
+Z3_stats stats = Z3_solver_get_statistics(ctx, solver);
+Z3_stats_inc_ref(ctx, stats);
+
+double memory_mb = get_stat_double(ctx, stats, "memory");
+double max_memory_mb = get_stat_double(ctx, stats, "max-memory");
+unsigned num_allocs = get_stat_uint(ctx, stats, "num-allocs");
+
+printf("Current memory: %.2f MB\n", memory_mb);
+printf("Peak memory: %.2f MB\n", max_memory_mb);
+printf("Allocations: %u\n", num_allocs);
+
+Z3_stats_dec_ref(ctx, stats);
+```
+
+### Resource Limits
+
+```c
+Z3_stats stats = Z3_solver_get_statistics(ctx, solver);
+Z3_stats_inc_ref(ctx, stats);
+
+unsigned rlimit_count = get_stat_uint(ctx, stats, "rlimit-count");
+
+printf("Resource limit count: %u\n", rlimit_count);
+
+// Compare with configured limit
+Z3_params params = Z3_mk_params(ctx);
+Z3_params_inc_ref(ctx, params);
+Z3_symbol rlimit_sym = Z3_mk_string_symbol(ctx, "rlimit");
+Z3_params_set_uint(ctx, params, rlimit_sym, 1000000);
+Z3_solver_set_params(ctx, solver, params);
+
+printf("Configured limit: 1000000\n");
+printf("Used: %u (%.1f%%)\n", rlimit_count, (rlimit_count / 1000000.0) * 100);
+
+Z3_params_dec_ref(ctx, params);
+Z3_stats_dec_ref(ctx, stats);
+```
+
+## Theory-Specific Statistics
+
+### SAT Solver Statistics
+
+```c
+Z3_stats stats = Z3_solver_get_statistics(ctx, solver);
+Z3_stats_inc_ref(ctx, stats);
+
+// SAT-specific metrics
+unsigned mk_bool_var = get_stat_uint(ctx, stats, "mk-bool-var");
+unsigned conflicts = get_stat_uint(ctx, stats, "conflicts");
+unsigned decisions = get_stat_uint(ctx, stats, "decisions");
+unsigned restarts = get_stat_uint(ctx, stats, "restarts");
+unsigned minimized_lits = get_stat_uint(ctx, stats, "minimized-lits");
+
+printf("Boolean variables: %u\n", mk_bool_var);
+printf("Conflicts: %u\n", conflicts);
+printf("Decisions: %u\n", decisions);
+printf("Restarts: %u\n", restarts);
+printf("Minimized literals: %u\n", minimized_lits);
+
+Z3_stats_dec_ref(ctx, stats);
+```
+
+### Arithmetic Theory Statistics
+
+```c
+Z3_stats stats = Z3_solver_get_statistics(ctx, solver);
+Z3_stats_inc_ref(ctx, stats);
+
+// Arithmetic-specific metrics
+unsigned arith_conflicts = get_stat_uint(ctx, stats, "arith-conflicts");
+unsigned arith_bound_prop = get_stat_uint(ctx, stats, "arith-bound-propagations");
+unsigned arith_fixed = get_stat_uint(ctx, stats, "arith-fixed");
+
+printf("Arithmetic conflicts: %u\n", arith_conflicts);
+printf("Bound propagations: %u\n", arith_bound_prop);
+printf("Fixed variables: %u\n", arith_fixed);
+
+Z3_stats_dec_ref(ctx, stats);
+```
+
+### Array Theory Statistics
+
+```c
+Z3_stats stats = Z3_solver_get_statistics(ctx, solver);
+Z3_stats_inc_ref(ctx, stats);
+
+// Array-specific metrics
+unsigned array_axiom1 = get_stat_uint(ctx, stats, "array-axiom1");
+unsigned array_axiom2 = get_stat_uint(ctx, stats, "array-axiom2");
+unsigned array_extensionality = get_stat_uint(ctx, stats, "array-extensionality");
+
+printf("Array select-store axioms: %u\n", array_axiom1);
+printf("Array congruence axioms: %u\n", array_axiom2);
+printf("Array extensionality: %u\n", array_extensionality);
+
+Z3_stats_dec_ref(ctx, stats);
+```
+
+## Performance Analysis
+
+### Identifying Bottlenecks
+
+```c
+typedef struct {
+    double time;
+    unsigned conflicts;
+    unsigned decisions;
+    unsigned restarts;
+    double memory;
+} solver_profile;
+
+solver_profile get_profile(Z3_context ctx, Z3_stats stats) {
+    solver_profile profile;
+    profile.time = get_stat_double(ctx, stats, "time");
+    profile.conflicts = get_stat_uint(ctx, stats, "conflicts");
+    profile.decisions = get_stat_uint(ctx, stats, "decisions");
+    profile.restarts = get_stat_uint(ctx, stats, "restarts");
+    profile.memory = get_stat_double(ctx, stats, "max-memory");
+    return profile;
+}
+
+void analyze_performance(solver_profile profile) {
+    printf("\nPerformance Analysis:\n");
+    
+    if (profile.time > 10.0) {
+        printf("  WARNING: Long solving time (%.2f seconds)\n", profile.time);
+    }
+    
+    if (profile.conflicts > 100000) {
+        printf("  INFO: High conflict count (%u) - complex problem\n", 
+               profile.conflicts);
+    }
+    
+    if (profile.memory > 1000.0) {
+        printf("  WARNING: High memory usage (%.2f MB)\n", profile.memory);
+    }
+    
+    if (profile.decisions > 0 && profile.conflicts > 0) {
+        double conflict_rate = (double)profile.conflicts / profile.decisions;
+        printf("  Conflict rate: %.2f conflicts per decision\n", conflict_rate);
+    }
+    
+    if (profile.restarts > 0 && profile.conflicts > 0) {
+        double conflicts_per_restart = (double)profile.conflicts / profile.restarts;
+        printf("  Conflicts per restart: %.2f\n", conflicts_per_restart);
+    }
+}
+
+// Usage
+Z3_stats stats = Z3_solver_get_statistics(ctx, solver);
+Z3_stats_inc_ref(ctx, stats);
+
+solver_profile profile = get_profile(ctx, stats);
+analyze_performance(profile);
+
+Z3_stats_dec_ref(ctx, stats);
+```
+
+### Comparing Solver Configurations
+
+```c
+void compare_configurations(Z3_context ctx, Z3_ast formula) {
+    printf("Comparing solver configurations...\n\n");
+    
+    // Configuration 1: Default
+    Z3_solver s1 = Z3_mk_solver(ctx);
+    Z3_solver_inc_ref(ctx, s1);
+    Z3_solver_assert(ctx, s1, formula);
+    Z3_solver_check(ctx, s1);
+    Z3_stats stats1 = Z3_solver_get_statistics(ctx, s1);
+    Z3_stats_inc_ref(ctx, stats1);
+    
+    printf("Default configuration:\n");
+    printf("  Time: %.3f\n", get_stat_double(ctx, stats1, "time"));
+    printf("  Conflicts: %u\n", get_stat_uint(ctx, stats1, "conflicts"));
+    
+    // Configuration 2: Custom parameters
+    Z3_solver s2 = Z3_mk_solver(ctx);
+    Z3_solver_inc_ref(ctx, s2);
+    
+    Z3_params params = Z3_mk_params(ctx);
+    Z3_params_inc_ref(ctx, params);
+    Z3_symbol restart = Z3_mk_string_symbol(ctx, "sat.restart");
+    Z3_symbol geometric = Z3_mk_string_symbol(ctx, "geometric");
+    Z3_params_set_symbol(ctx, params, restart, geometric);
+    Z3_solver_set_params(ctx, s2, params);
+    
+    Z3_solver_assert(ctx, s2, formula);
+    Z3_solver_check(ctx, s2);
+    Z3_stats stats2 = Z3_solver_get_statistics(ctx, s2);
+    Z3_stats_inc_ref(ctx, stats2);
+    
+    printf("\nCustom configuration:\n");
+    printf("  Time: %.3f\n", get_stat_double(ctx, stats2, "time"));
+    printf("  Conflicts: %u\n", get_stat_uint(ctx, stats2, "conflicts"));
+    
+    // Cleanup
+    Z3_stats_dec_ref(ctx, stats1);
+    Z3_stats_dec_ref(ctx, stats2);
+    Z3_params_dec_ref(ctx, params);
+    Z3_solver_dec_ref(ctx, s1);
+    Z3_solver_dec_ref(ctx, s2);
+}
+```
+
+## Global Memory Statistics
+
+### Estimated Allocation Size
+
+```c
+// Get global memory allocation estimate
+uint64_t allocated = Z3_get_estimated_alloc_size();
+printf("Estimated total allocation: %llu bytes (%.2f MB)\n",
+       allocated, allocated / (1024.0 * 1024.0));
+```
+
+This function returns an estimate of total memory allocated by Z3, useful for monitoring memory consumption across multiple solvers and contexts.
+
+## Best Practices
+
+### When to Collect Statistics
+
+**Collect statistics to:**
+- Profile solver performance on benchmarks
+- Debug timeout or memory issues
+- Compare different solving strategies
+- Monitor production system health
+- Identify theory-specific bottlenecks
+
+### Interpreting Statistics
+
+1. **High conflict count**: Problem is complex, consider preprocessing or simplification
+2. **Low decision count**: Problem is easy or well-structured
+3. **High restart count**: SAT solver is struggling, try different restart strategies
+4. **Memory growth**: Problem size is large, consider incremental solving or memory limits
+5. **Long solving time with low conflicts**: Theory solver may be slow, try different theory options
+
+### Statistical Logging
+
+```c
+void log_statistics(FILE* log_file, Z3_context ctx, Z3_stats stats, 
+                   const char* problem_name) {
+    fprintf(log_file, "Problem: %s\n", problem_name);
+    fprintf(log_file, "Time: %.3f\n", get_stat_double(ctx, stats, "time"));
+    fprintf(log_file, "Memory: %.2f MB\n", get_stat_double(ctx, stats, "max-memory"));
+    fprintf(log_file, "Conflicts: %u\n", get_stat_uint(ctx, stats, "conflicts"));
+    fprintf(log_file, "Decisions: %u\n", get_stat_uint(ctx, stats, "decisions"));
+    fprintf(log_file, "\n");
+    fflush(log_file);
+}
+
+// Usage
+FILE* log = fopen("solver_stats.log", "a");
+Z3_stats stats = Z3_solver_get_statistics(ctx, solver);
+Z3_stats_inc_ref(ctx, stats);
+log_statistics(log, ctx, stats, "my_problem_001");
+Z3_stats_dec_ref(ctx, stats);
+fclose(log);
+```
+
+## Common Statistics Keys
+
+### Universal Statistics
+- `time` - Total solving time in seconds
+- `memory` - Current memory usage in MB
+- `max-memory` - Peak memory usage in MB
+- `rlimit-count` - Resource limit counter
+- `num-allocs` - Number of allocations
+
+### SAT Statistics
+- `conflicts` - Number of conflicts
+- `decisions` - Number of decisions
+- `propagations` - Number of propagations
+- `restarts` - Number of restarts
+- `mk-bool-var` - Boolean variables created
+
+### Theory Statistics
+- `arith-conflicts` - Arithmetic conflicts
+- `arith-bound-propagations` - Bound propagations
+- `array-axiom1` - Array select-store axioms
+- `bv-conflicts` - Bit-vector conflicts
+
+## API Reference
+
+### Statistics Management
+
+- `Z3_solver_get_statistics` - Get statistics from solver (api_solver.cpp:789)
+- `Z3_stats_inc_ref` - Increment reference counter (api_stats.cpp:39)
+- `Z3_stats_dec_ref` - Decrement reference counter (api_stats.cpp:47)
+- `Z3_stats_to_string` - Convert to string (api_stats.cpp:25)
+
+### Reading Statistics
+
+- `Z3_stats_size` - Get number of statistics (api_stats.cpp:56)
+- `Z3_stats_get_key` - Get statistic key name (api_stats.cpp:64)
+- `Z3_stats_is_uint` - Check if unsigned integer (api_stats.cpp:76)
+- `Z3_stats_is_double` - Check if double (api_stats.cpp:88)
+- `Z3_stats_get_uint_value` - Get unsigned value (api_stats.cpp:100)
+- `Z3_stats_get_double_value` - Get double value (api_stats.cpp:116)
+
+### Global Statistics
+
+- `Z3_get_estimated_alloc_size` - Get global memory estimate (api_stats.cpp:132)
+
+## See Also
+
+- [Parameters](/api/advanced/parameters) - Configuring solver behavior
+- [Solver API](/api/solver) - Using solvers
+- [Performance Tuning](/guide/performance) - Optimization strategies

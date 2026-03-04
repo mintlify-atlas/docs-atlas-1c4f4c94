@@ -1,0 +1,533 @@
+---
+title: Tactics
+description: Building custom solvers with Z3's tactic framework
+---
+
+## Overview
+
+**Tactics** are Z3's mechanism for composing symbolic reasoning steps into custom solving strategies. Think of tactics as transformations on goals that can be combined using **tacticals** (tactic combinators).
+
+From `src/tactic/tactic.h:60`:
+
+> Tactics process sets of formulas called Goals. When applied, four outcomes are possible:
+> 1. Proves the goal satisfiable
+> 2. Proves the goal unsatisfiable  
+> 3. Produces a sequence of subgoals
+> 4. Fails
+
+## Goals
+
+A **goal** is a set of formulas to be solved or transformed:
+
+```python
+from z3 import *
+
+x, y = Reals('x y')
+
+# Create a goal
+g = Goal()
+g.add(x > 0)
+g.add(y > 0)  
+g.add(x == y + 2)
+
+print(g)
+# Goal:
+#   x > 0
+#   y > 0
+#   x == y + 2
+```
+
+## Basic Tactics
+
+Z3 provides many built-in tactics:
+
+<CardGroup cols={2}>
+  <Card title="simplify" icon="wand-magic-sparkles">
+    Algebraic simplification and constant propagation
+  </Card>
+  <Card title="solve-eqs" icon="equals">
+    Gaussian elimination for variable solving
+  </Card>
+  <Card title="split-clause" icon="code-branch">
+    Split disjunctions into separate subgoals
+  </Card>
+  <Card title="smt" icon="brain">
+    Main SMT solver as a tactic
+  </Card>
+  <Card title="bit-blast" icon="explosion">
+    Convert bit-vectors to Boolean formulas
+  </Card>
+  <Card title="sat" icon="check">
+    SAT solver for Boolean formulas
+  </Card>
+  <Card title="qe" icon="sigma">
+    Quantifier elimination
+  </Card>
+  <Card title="propagate-values" icon="arrows-split-up-and-left">
+    Propagate constant values
+  </Card>
+</CardGroup>
+
+## Applying Tactics
+
+From `examples/c++/example.cpp:515`:
+
+```python
+from z3 import *
+
+x, y = Reals('x y')
+g = Goal()
+g.add(x > 0)
+g.add(y > 0)
+g.add(x == y + 2)
+
+# Apply simplify tactic
+t = Tactic('simplify')
+result = t(g)
+
+print(result)
+# Result is an ApplyResult containing transformed goal(s)
+for subgoal in result:
+    print(subgoal)
+```
+
+## Tactic Combinators (Tacticals)
+
+Tacticals combine tactics into more complex strategies:
+
+### Sequential Composition: `Then`
+
+Apply tactics in sequence:
+
+```python
+from z3 import *
+
+x, y = Reals('x y')
+g = Goal()
+g.add(x > 0)
+g.add(y > 0)
+g.add(x == y + 2)
+
+# Apply simplify, then solve-eqs
+t = Then('simplify', 'solve-eqs')
+result = t(g)
+
+print(result)
+```
+
+### Parallel Composition: `OrElse`
+
+Try first tactic; if it fails, try second:
+
+```python
+from z3 import *
+
+# Try tactic1, fall back to tactic2 if it fails
+t = OrElse('simplify', 'smt')
+```
+
+### Parallel: `ParOr`
+
+Run tactics in parallel, return first success:
+
+```python
+from z3 import *
+
+# Run both tactics in parallel
+t = ParOr('tactic1', 'tactic2', 'tactic3')
+```
+
+### Repeat: `Repeat`
+
+Repeatedly apply tactic until no progress:
+
+```python
+from z3 import *
+
+# Apply until fixpoint
+t = Repeat('simplify')
+
+# Apply at most n times
+t = Repeat('simplify', max=5)
+```
+
+### Conditional: `Cond`
+
+From `examples/c++/example.cpp:751`:
+
+```python
+from z3 import *
+
+x, y, z = Ints('x y z')
+g = Goal()
+g.add(x*x - y*y >= 0)
+
+# Use probe to check condition
+p = Probe('num-consts')
+
+# If more than 2 constants, use simplify; else use factor
+t = Cond(p > 2, 
+         Then('simplify'),
+         Then('factor'))
+
+result = t(g)
+print(result)
+```
+
+## Probes
+
+**Probes** measure properties of goals to guide tactic selection:
+
+```python
+from z3 import *
+
+x, y, z = Ints('x y z')
+g = Goal()
+g.add(x + y + z > 0)
+
+# Common probes
+num_consts = Probe('num-consts')
+num_exprs = Probe('num-exprs')
+is_qflia = Probe('is-qflia')  # Quantifier-free linear integer arithmetic
+
+print(f"Constants: {num_consts(g)}")
+print(f"Expressions: {num_exprs(g)}")
+print(f"Is QF_LIA: {is_qflia(g)}")
+```
+
+### Probe Combinators
+
+```python
+from z3 import *
+
+p1 = Probe('num-consts')
+p2 = Probe('size')
+
+# Boolean operations
+probe = And(p1 > 10, p2 < 100)
+
+# Arithmetic
+probe = p1 + p2
+probe = p1 * 2
+```
+
+## Split-Clause Example
+
+From `examples/c++/example.cpp:549`:
+
+```python
+from z3 import *
+
+x, y = Reals('x y')
+g = Goal()
+g.add(Or(x < 0, x > 0))  # Disjunction
+g.add(x == y + 1)
+g.add(y < 0)
+
+# Split clause into multiple subgoals
+t = Tactic('split-clause')
+result = t(g)
+
+# Creates subgoals for each disjunct
+for i, subgoal in enumerate(result):
+    print(f"Subgoal {i}:")
+    print(subgoal)
+```
+
+## Creating Custom Solvers
+
+From `examples/c++/example.cpp:599`:
+
+### Bit-Vector Solver
+
+```python
+from z3 import *
+
+# Build specialized bit-vector solver
+t = Then(
+    With('simplify', mul2concat=True),
+    'solve-eqs',
+    'bit-blast',
+    'aig',        # And-Inverted Graphs compression
+    'sat'
+)
+
+# Convert to solver
+s = t.solver()
+
+x = BitVec('x', 16)
+y = BitVec('y', 16)
+
+s.add(x*32 + y == 13)
+s.add((x & y) < 10)
+s.add(y > -100)
+
+if s.check() == sat:
+    m = s.model()
+    print(f"x = {m[x]}, y = {m[y]}")
+```
+
+### Integer Arithmetic via SAT
+
+From `examples/c++/example.cpp:649`:
+
+```python
+from z3 import *
+
+# Solve bounded integer arithmetic using SAT
+t = Then(
+    With('simplify', arith_lhs=True, som=True),
+    'normalize-bounds',
+    'lia2pb',      # Linear integer arithmetic to pseudo-Boolean
+    'pb2bv',       # Pseudo-Boolean to bit-vectors
+    'bit-blast',
+    'sat'
+)
+
+s = t.solver()
+
+x, y, z = Ints('x y z')
+s.add(x > 0, x < 10)
+s.add(y > 0, y < 10)
+s.add(z > 0, z < 10)
+s.add(3*y + 2*x == z)
+
+print(s.check())
+print(s.model())
+```
+
+## Tactic Parameters
+
+Configure tactics using `With`:
+
+```python
+from z3 import *
+
+# Configure simplify with parameters
+t = With('simplify',
+         som=True,              # Sum-of-monomials form
+         pull_cheap_ite=True,   # Pull cheap if-then-else  
+         push_ite_bv=True,      # Push if-then-else over bit-vectors
+         local_ctx=True,        # Use local context simplifier
+         flat=False)            # Don't flatten nested operations
+
+g = Goal()
+x = Int('x')
+g.add(x + x + x > 0)
+
+result = t(g)
+print(result)
+```
+
+## Using Tactics with Goals and Model Conversion
+
+From `examples/c++/example.cpp:680`:
+
+```python
+from z3 import *
+
+# Apply tactic to goal
+t = Then('simplify', 'normalize-bounds', 'solve-eqs')
+
+x, y, z = Ints('x y z')
+g = Goal()
+g.add(x > 10)
+g.add(y == x + 3)
+g.add(z > y)
+
+result = t(g)
+print("Transformed goal:")
+print(result)
+
+# Solve transformed subgoal
+s = Solver()
+for formula in result[0]:
+    s.add(formula)
+
+if s.check() == sat:
+    m = s.model()
+    print("Model for subgoal:", m)
+    
+    # Convert back to original goal
+    original_model = result[0].convert_model(m)
+    print("Model for original:", original_model)
+```
+
+## Fail-If with Probes
+
+From `examples/c++/example.cpp:715`:
+
+```python
+from z3 import *
+
+x, y, z = Ints('x y z')
+g = Goal()
+g.add(x + y + z > 0)
+
+# Probe: number of constants
+p = Probe('num-consts')
+print(f"Number of constants: {p(g)}")
+
+# Fail if goal has more than 2 constants
+t = Then(
+    FailIf(p > 2),
+    'simplify'
+)
+
+try:
+    result = t(g)
+    print(result)
+except Z3Exception as e:
+    print(f"Tactic failed: {e}")
+```
+
+## When Combinator
+
+```python
+from z3 import *
+
+# Only apply tactic if condition holds
+p = Probe('num-consts')
+t = When(p > 5, 'simplify')
+
+# Equivalent to:
+t = Cond(p > 5, Then('simplify'), Then('skip'))
+```
+
+## Try-For (Timeout)
+
+```python
+from z3 import *
+
+# Apply tactic with timeout (milliseconds)
+t = TryFor('smt', 5000)  # 5 second timeout
+
+# If timeout, tactic fails
+```
+
+## List Available Tactics
+
+```python
+from z3 import *
+
+# Get all tactic names
+tactics = tactics()
+for name in tactics:
+    print(name)
+
+# Get tactic description
+print(describe_tactics())
+```
+
+## Common Tactic Pipelines
+
+### Quantifier Elimination
+
+```python
+from z3 import *
+
+t = Then('qe', 'smt')
+s = t.solver()
+
+a, b, x = Ints('a b x')
+f = ForAll(x, Implies(x <= a, x < b))
+
+s.add(f)
+print(s.check())
+print(s.model())
+```
+
+### Simplification Pipeline
+
+```python
+from z3 import *
+
+t = Then(
+    'simplify',
+    'propagate-values',
+    'solve-eqs',
+    'elim-uncnstr',  # Eliminate unconstrained variables
+    'simplify'
+)
+```
+
+### Parallel Split Strategy
+
+```python
+from z3 import *
+
+# Split into subgoals and solve in parallel
+t = ParThen(
+    Repeat(OrElse('split-clause', 'skip')),
+    'smt'
+)
+```
+
+## Tactic Help
+
+```python
+from z3 import *
+
+# Get help for a specific tactic
+print(Tactic('simplify').help())
+
+# Get parameter descriptions
+print(Tactic('simplify').param_descrs())
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Start simple">
+    Begin with built-in tactics before creating complex pipelines.
+  </Accordion>
+  
+  <Accordion title="Use probes wisely">
+    Probes help select appropriate tactics based on problem structure.
+  </Accordion>
+  
+  <Accordion title="Profile your tactics">
+    Measure performance to find bottlenecks:
+    ```python
+    import time
+    start = time.time()
+    result = t(g)
+    print(f"Time: {time.time() - start}")
+    ```
+  </Accordion>
+  
+  <Accordion title="Consider solver directly">
+    For simple problems, the default `Solver()` is often sufficient.
+  </Accordion>
+</AccordionGroup>
+
+## Limitations
+
+<Warning>
+- Tactics don't support all solver features (e.g., push/pop)
+- Model conversion can be expensive for complex pipelines
+- Some tactics may not preserve equivalence (only equisatisfiability)
+- Interactive features like `check-sat-assuming` are limited
+</Warning>
+
+## Related Topics
+
+<CardGroup cols={3}>
+  <Card title="Solvers" href="/concepts/solvers">
+    Standard solver interface
+  </Card>
+  <Card title="SMT Solving" href="/concepts/smt-solving">
+    Core SMT concepts
+  </Card>
+  <Card title="Models" href="/concepts/models">
+    Working with solutions
+  </Card>
+</CardGroup>
+
+## References
+
+- Tactic framework: `src/tactic/tactic.h`
+- Tactic API: `src/api/api_tactic.cpp`
+- Built-in tactics: `src/tactic/*/`
+- Examples: `examples/c++/example.cpp:515-782`
+- Paper: "The Strategy Challenge in SMT Solving"

@@ -1,0 +1,559 @@
+---
+title: Models
+description: Understanding and working with satisfying assignments in Z3
+---
+
+## Overview
+
+A **model** is a satisfying assignment for a set of formulas. When Z3 determines a formula is satisfiable, it can produce a model that shows concrete values making the formula true.
+
+## Getting Models
+
+From `examples/c++/example.cpp:45`:
+
+<CodeGroup>
+```python Python
+from z3 import *
+
+x = Int('x')
+y = Int('y')
+
+s = Solver()
+s.add(x >= 1)
+s.add(y < x + 3)
+
+if s.check() == sat:
+    m = s.model()
+    print(m)
+    # Model:
+    #   x = 1
+    #   y = 0
+```
+
+```cpp C++
+#include <z3++.h>
+using namespace z3;
+
+context c;
+expr x = c.int_const("x");
+expr y = c.int_const("y");
+
+solver s(c);
+s.add(x >= 1);
+s.add(y < x + 3);
+
+if (s.check() == sat) {
+    model m = s.get_model();
+    std::cout << m << std::endl;
+    // x -> 1
+    // y -> 0
+}
+```
+
+```java Java
+import com.microsoft.z3.*;
+
+Context ctx = new Context();
+IntExpr x = ctx.mkIntConst("x");
+IntExpr y = ctx.mkIntConst("y");
+
+Solver s = ctx.mkSolver();
+s.add(ctx.mkGe(x, ctx.mkInt(1)));
+s.add(ctx.mkLt(y, ctx.mkAdd(x, ctx.mkInt(3))));
+
+if (s.check() == Status.SATISFIABLE) {
+    Model m = s.getModel();
+    System.out.println(m);
+}
+```
+</CodeGroup>
+
+## Model Evaluation
+
+From `examples/c++/example.cpp:56`:
+
+```python
+from z3 import *
+
+x = Int('x')
+y = Int('y')
+
+s = Solver()
+s.add(x >= 1)
+s.add(y < x + 3)
+
+if s.check() == sat:
+    m = s.model()
+    
+    # Evaluate individual variables
+    print(f"x = {m[x]}")  # x = 1
+    print(f"y = {m[y]}")  # y = 0
+    
+    # Evaluate expressions
+    print(f"x + y + 1 = {m.eval(x + y + 1)}")  # 2
+    print(f"x * y = {m.eval(x * y)}")          # 0
+```
+
+## Iterating Over Models
+
+From `examples/c++/example.cpp:58`:
+
+```python
+from z3 import *
+
+x = Int('x')
+y = Int('y')
+
+s = Solver()
+s.add(x >= 1)
+s.add(y < x + 3)
+
+if s.check() == sat:
+    m = s.model()
+    
+    # Iterate over all declarations in model
+    for decl in m.decls():
+        print(f"{decl.name()} = {m[decl]}")
+```
+
+### Structured Iteration
+
+From `examples/c++/example.cpp:59`:
+
+```python
+from z3 import *
+
+x = Int('x')
+y = Int('y')
+
+s = Solver()
+s.add(x >= 1)
+s.add(y < x + 3)
+
+if s.check() == sat:
+    m = s.model()
+    
+    # Model has size (number of interpretations)
+    print(f"Model size: {len(m)}")
+    
+    for i in range(len(m)):
+        decl = m[i]  # Get i-th declaration
+        
+        # For constants (0-arity functions)
+        if decl.arity() == 0:
+            print(f"{decl.name()} = {m[decl]}")
+        else:
+            # For functions, see function interpretations below
+            print(f"{decl.name()} is a function")
+```
+
+## Model Completeness
+
+<Note>
+Models may not assign values to **all** variables in your problem—only those relevant to satisfying the constraints.
+</Note>
+
+```python
+from z3 import *
+
+x = Int('x')
+y = Int('y')
+z = Int('z')  # Unconstrained
+
+s = Solver()
+s.add(x > y)
+
+if s.check() == sat:
+    m = s.model()
+    
+    print(f"x = {m[x]}")  # Has value
+    print(f"y = {m[y]}")  # Has value
+    print(f"z = {m[z]}")  # May be None or default value
+    
+    # Use eval with model_completion for unconstrained vars
+    print(m.eval(z, model_completion=True))  # Returns arbitrary value
+```
+
+## Function Interpretations
+
+Models can include interpretations of **uninterpreted functions**:
+
+From `examples/c++/example.cpp:77`:
+
+```python
+from z3 import *
+
+x, y = Ints('x y')
+f = Function('f', IntSort(), IntSort())
+
+s = Solver()
+s.add(x == y)
+s.add(f(x) != f(y))
+
+if s.check() == sat:
+    m = s.model()
+    print(m)
+else:
+    print("Unsatisfiable")  # This will be unsat
+```
+
+### Inspecting Function Interpretations
+
+```python
+from z3 import *
+
+x, y = Ints('x y')
+f = Function('f', IntSort(), IntSort())
+
+s = Solver()
+s.add(f(0) == 10)
+s.add(f(1) == 20)
+s.add(f(2) == 30)
+
+if s.check() == sat:
+    m = s.model()
+    
+    # Get function interpretation
+    f_interp = m[f]
+    
+    print("Function f interpretation:")
+    print(f_interp)
+    
+    # Evaluate function at specific points
+    print(f"f(0) = {f_interp(0)}")  # 10
+    print(f"f(1) = {f_interp(1)}")  # 20
+    print(f"f(5) = {f_interp(5)}")  # Default value (else case)
+```
+
+## Array Models
+
+```python
+from z3 import *
+
+A = Array('A', IntSort(), IntSort())
+i, j = Ints('i j')
+
+s = Solver()
+s.add(A[i] == 10)
+s.add(A[j] == 20)
+s.add(i != j)
+
+if s.check() == sat:
+    m = s.model()
+    
+    print("Array A interpretation:")
+    print(m[A])
+    
+    # Evaluate at specific indices
+    print(f"A[{m[i]}] = {m.eval(A[m[i]])}")
+    print(f"A[{m[j]}] = {m.eval(A[m[j]])}")
+```
+
+## Model Evaluation Options
+
+```python
+from z3 import *
+
+x = Int('x')
+y = Int('y')
+
+s = Solver()
+s.add(x > 0)
+
+if s.check() == sat:
+    m = s.model()
+    
+    # Default evaluation
+    val1 = m.eval(x + y)
+    
+    # Force model completion (assign values to unconstrained vars)
+    val2 = m.eval(x + y, model_completion=True)
+    
+    print(f"Without completion: {val1}")
+    print(f"With completion: {val2}")
+```
+
+## Creating Models Programmatically
+
+From `examples/c++/example.cpp:1354`:
+
+```python
+from z3 import *
+
+# Create empty model (requires Z3 4.8.8+)
+ctx = Context()
+m = Model(ctx)
+
+# Add constant interpretations
+a = Int('a')
+b = Int('b')
+
+m.add_const_interp(a.decl(), 0)
+m.add_const_interp(b.decl(), 1)
+
+# Evaluate in constructed model
+result = m.eval(a + b < 2)
+print(result)  # True
+```
+
+## Model Conversion
+
+When using tactics, you may need to convert models between goals:
+
+From `examples/c++/example.cpp:680`:
+
+```python
+from z3 import *
+
+x, y, z = Ints('x y z')
+
+# Create and transform goal
+g = Goal()
+g.add(x > 10)
+g.add(y == x + 3)
+g.add(z > y)
+
+t = Then('simplify', 'solve-eqs')
+result = t(g)
+
+# Solve transformed subgoal
+s = Solver()
+subgoal = result[0]
+for f in subgoal:
+    s.add(f)
+
+if s.check() == sat:
+    # Model for transformed problem
+    m_sub = s.model()
+    print("Subgoal model:", m_sub)
+    
+    # Convert back to original variables
+    m_orig = subgoal.convert_model(m_sub)
+    print("Original model:", m_orig)
+```
+
+## Model String Representation
+
+```python
+from z3 import *
+
+x, y = Ints('x y')
+s = Solver()
+s.add(x > y)
+
+if s.check() == sat:
+    m = s.model()
+    
+    # Default representation
+    print(str(m))
+    
+    # SMT-LIB format
+    print(m.sexpr())
+```
+
+## Evaluating Complex Expressions
+
+```python
+from z3 import *
+
+x, y, z = Ints('x y z')
+f = Function('f', IntSort(), IntSort())
+
+s = Solver()
+s.add(x == 5)
+s.add(y == x + 2)
+s.add(f(x) == 10)
+
+if s.check() == sat:
+    m = s.model()
+    
+    # Evaluate nested expressions
+    print(m.eval(f(x) + y))        # 17
+    print(m.eval(f(f(x))))         # f(10)
+    
+    # Evaluate Boolean formulas
+    print(m.eval(x > 0))           # True
+    print(m.eval(And(x > 0, y < 0))) # False
+```
+
+## Datatype Models
+
+```python
+from z3 import *
+
+# Define list datatype
+List = Datatype('List')
+List.declare('nil')
+List.declare('cons', ('head', IntSort()), ('tail', List))
+ListSort = List.create()
+
+# Constructors
+nil = ListSort.nil
+cons = ListSort.cons
+
+# Accessors
+head = ListSort.head
+tail = ListSort.tail
+
+l = Const('l', ListSort)
+
+s = Solver()
+s.add(l == cons(1, cons(2, cons(3, nil()))))
+
+if s.check() == sat:
+    m = s.model()
+    print(m[l])
+    # cons(1, cons(2, cons(3, nil)))
+    
+    print(m.eval(head(l)))        # 1
+    print(m.eval(head(tail(l))))  # 2
+```
+
+## Model Validation
+
+Verify a model satisfies the original constraints:
+
+```python
+from z3 import *
+
+def validate_model(solver, model):
+    """Check if model satisfies all assertions"""
+    for assertion in solver.assertions():
+        if not is_true(model.eval(assertion)):
+            print(f"Failed: {assertion}")
+            return False
+    return True
+
+x, y = Ints('x y')
+s = Solver()
+s.add(x > 0)
+s.add(y > x)
+s.add(x + y < 10)
+
+if s.check() == sat:
+    m = s.model()
+    if validate_model(s, m):
+        print("Model is valid!")
+```
+
+## Enumerating Multiple Models
+
+```python
+from z3 import *
+
+def all_models(solver, vars, max_models=10):
+    """Enumerate multiple models"""
+    models = []
+    count = 0
+    
+    while count < max_models and solver.check() == sat:
+        m = solver.model()
+        models.append(m)
+        
+        # Block this model
+        block = Or([v() != m[v] for v in vars])
+        solver.add(block)
+        
+        count += 1
+    
+    return models
+
+x = Int('x')
+y = Int('y')
+
+s = Solver()
+s.add(x >= 0, x <= 2)
+s.add(y >= 0, y <= 2)
+
+for i, m in enumerate(all_models(s, [x, y], max_models=5)):
+    print(f"Model {i+1}: x={m[x]}, y={m[y]}")
+```
+
+## Pretty Printing Models
+
+```python
+from z3 import *
+
+set_option("model.compact", False)  # Expanded format
+set_option("model.v2", True)        # Version 2 format
+
+x, y = Reals('x y')
+s = Solver()
+s.add(x*x + y*y == 1)
+s.add(x > 0)
+
+if s.check() == sat:
+    m = s.model()
+    print(m)
+    
+# Configure decimal precision
+set_option("pp.decimal", True)
+set_option("pp.decimal_precision", 10)
+
+if s.check() == sat:
+    m = s.model()
+    print(m)
+```
+
+## Model Parameters
+
+```python
+from z3 import *
+
+s = Solver()
+
+# Configure model generation
+s.set("model.compact", False)
+s.set("model.v2", True)
+
+x, y = Ints('x y')
+s.add(x > y)
+
+if s.check() == sat:
+    m = s.model()
+    print(m)
+```
+
+## Best Practices
+
+<AccordionGroup>
+  <Accordion title="Check before accessing">
+    Always verify `check() == sat` before calling `model()`:
+    ```python
+    if s.check() == sat:
+        m = s.model()  # Safe
+    ```
+  </Accordion>
+  
+  <Accordion title="Use model_completion wisely">
+    `model_completion=True` assigns arbitrary values to unconstrained variables. Use when you need complete assignments.
+  </Accordion>
+  
+  <Accordion title="Cache evaluations">
+    Model evaluation can be expensive. Cache results if evaluating the same expression multiple times.
+  </Accordion>
+  
+  <Accordion title="Validate models in debug mode">
+    During development, validate that models actually satisfy constraints.
+  </Accordion>
+</AccordionGroup>
+
+## Related Topics
+
+<CardGroup cols={3}>
+  <Card title="Solvers" href="/concepts/solvers">
+    Generating models with solvers
+  </Card>
+  <Card title="Expressions" href="/concepts/expressions">
+    Building expressions to evaluate
+  </Card>
+  <Card title="SMT Solving" href="/concepts/smt-solving">
+    Satisfiability and models
+  </Card>
+</CardGroup>
+
+## References
+
+- Model API: `src/api/api_model.cpp`
+- Model implementation: `src/model/model.h`
+- Examples: `examples/c++/example.cpp:45-66`, `examples/c++/example.cpp:252-270`

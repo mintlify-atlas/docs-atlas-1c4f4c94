@@ -1,0 +1,488 @@
+---
+title: 'Proofs'
+description: 'Generate and work with proof objects and unsat cores'
+icon: 'shield-check'
+---
+
+## Overview
+
+Z3 can generate formal proofs of unsatisfiability and produce unsat cores - minimal subsets of constraints that are unsatisfiable. These features are essential for formal verification, debugging unsatisfiable problems, and building trusted systems.
+
+## Enabling Proof Generation
+
+### Context Configuration
+
+Proof generation must be enabled when creating the Z3 context:
+
+```c
+// Create configuration with proof generation enabled
+Z3_config cfg = Z3_mk_config();
+Z3_set_param_value(cfg, "proof", "true");
+Z3_context ctx = Z3_mk_context(cfg);
+Z3_del_config(cfg);
+```
+
+**Important**: Proof generation cannot be enabled after context creation. You must set this parameter in the configuration.
+
+### Enabling Unsat Core Tracking
+
+```c
+Z3_solver solver = Z3_mk_solver(ctx);
+Z3_solver_inc_ref(ctx, solver);
+
+// Enable unsat core tracking via parameters
+Z3_params params = Z3_mk_params(ctx);
+Z3_params_inc_ref(ctx, params);
+
+Z3_symbol unsat_core = Z3_mk_string_symbol(ctx, "unsat_core");
+Z3_params_set_bool(ctx, params, unsat_core, true);
+
+Z3_solver_set_params(ctx, solver, params);
+Z3_params_dec_ref(ctx, params);
+```
+
+## Retrieving Proofs
+
+### Basic Proof Retrieval
+
+```c
+Z3_solver solver = Z3_mk_solver(ctx);
+Z3_solver_inc_ref(ctx, solver);
+
+// Add constraints
+Z3_ast x = Z3_mk_const(ctx, Z3_mk_string_symbol(ctx, "x"), 
+                       Z3_mk_int_sort(ctx));
+Z3_ast zero = Z3_mk_int(ctx, 0, Z3_mk_int_sort(ctx));
+Z3_ast one = Z3_mk_int(ctx, 1, Z3_mk_int_sort(ctx));
+
+// x > 0 and x < 0 (unsatisfiable)
+Z3_ast gt = Z3_mk_gt(ctx, x, zero);
+Z3_ast lt = Z3_mk_lt(ctx, x, zero);
+
+Z3_solver_assert(ctx, solver, gt);
+Z3_solver_assert(ctx, solver, lt);
+
+// Check satisfiability
+Z3_lbool result = Z3_solver_check(ctx, solver);
+
+if (result == Z3_L_FALSE) {
+    // Get the proof
+    Z3_ast proof = Z3_solver_get_proof(ctx, solver);
+    printf("Proof:\n%s\n", Z3_ast_to_string(ctx, proof));
+} else {
+    printf("Result is not UNSAT, no proof available\n");
+}
+
+Z3_solver_dec_ref(ctx, solver);
+```
+
+### Proof Structure
+
+Proofs in Z3 are AST nodes representing proof terms. They form a proof tree where:
+- Leaf nodes are axioms or assumptions
+- Internal nodes are inference rules
+- The root proves the final conclusion (false for unsatisfiability proofs)
+
+```c
+void print_proof_info(Z3_context ctx, Z3_ast proof) {
+    Z3_ast_kind kind = Z3_get_ast_kind(ctx, proof);
+    
+    if (kind == Z3_APP_AST) {
+        Z3_app app = Z3_to_app(ctx, proof);
+        Z3_func_decl decl = Z3_get_app_decl(ctx, app);
+        Z3_decl_kind dk = Z3_get_decl_kind(ctx, decl);
+        
+        printf("Proof rule: %s\n", Z3_func_decl_to_string(ctx, decl));
+        
+        unsigned num_args = Z3_get_app_num_args(ctx, app);
+        printf("Number of premises: %u\n", num_args);
+        
+        // Recursively process proof premises
+        for (unsigned i = 0; i < num_args; i++) {
+            Z3_ast arg = Z3_get_app_arg(ctx, app, i);
+            printf("  Premise %u: %s\n", i, Z3_ast_to_string(ctx, arg));
+        }
+    }
+}
+```
+
+## Working with Unsat Cores
+
+### Basic Unsat Core Extraction
+
+An unsat core is a minimal subset of assertions that is still unsatisfiable:
+
+```c
+Z3_solver solver = Z3_mk_solver(ctx);
+Z3_solver_inc_ref(ctx, solver);
+
+// Enable unsat core tracking
+Z3_params params = Z3_mk_params(ctx);
+Z3_params_inc_ref(ctx, params);
+Z3_symbol unsat_core = Z3_mk_string_symbol(ctx, "unsat_core");
+Z3_params_set_bool(ctx, params, unsat_core, true);
+Z3_solver_set_params(ctx, solver, params);
+Z3_params_dec_ref(ctx, params);
+
+// Create named assertions using assumptions
+Z3_ast x = Z3_mk_const(ctx, Z3_mk_string_symbol(ctx, "x"), 
+                       Z3_mk_int_sort(ctx));
+Z3_ast zero = Z3_mk_int(ctx, 0, Z3_mk_int_sort(ctx));
+Z3_ast one = Z3_mk_int(ctx, 1, Z3_mk_int_sort(ctx));
+Z3_ast two = Z3_mk_int(ctx, 2, Z3_mk_int_sort(ctx));
+
+Z3_ast c1 = Z3_mk_gt(ctx, x, zero);    // x > 0
+Z3_ast c2 = Z3_mk_lt(ctx, x, two);     // x < 2
+Z3_ast c3 = Z3_mk_lt(ctx, x, zero);    // x < 0 (conflicts with c1)
+
+// Assert without assumptions
+Z3_solver_assert(ctx, solver, c1);
+Z3_solver_assert(ctx, solver, c2);
+Z3_solver_assert(ctx, solver, c3);
+
+// Check with assumptions to enable unsat core
+Z3_ast assumptions[3] = {c1, c2, c3};
+Z3_lbool result = Z3_solver_check_assumptions(ctx, solver, 3, assumptions);
+
+if (result == Z3_L_FALSE) {
+    Z3_ast_vector core = Z3_solver_get_unsat_core(ctx, solver);
+    Z3_ast_vector_inc_ref(ctx, core);
+    
+    unsigned core_size = Z3_ast_vector_size(ctx, core);
+    printf("Unsat core size: %u\n", core_size);
+    
+    for (unsigned i = 0; i < core_size; i++) {
+        Z3_ast elem = Z3_ast_vector_get(ctx, core, i);
+        printf("Core element %u: %s\n", i, Z3_ast_to_string(ctx, elem));
+    }
+    
+    Z3_ast_vector_dec_ref(ctx, core);
+}
+
+Z3_solver_dec_ref(ctx, solver);
+```
+
+### Tracking Named Assertions
+
+For better unsat core reporting, use named tracking literals:
+
+```c
+Z3_solver solver = Z3_mk_solver(ctx);
+Z3_solver_inc_ref(ctx, solver);
+
+// Enable unsat core tracking
+Z3_params params = Z3_mk_params(ctx);
+Z3_params_inc_ref(ctx, params);
+Z3_symbol unsat_core = Z3_mk_string_symbol(ctx, "unsat_core");
+Z3_params_set_bool(ctx, params, unsat_core, true);
+Z3_solver_set_params(ctx, solver, params);
+Z3_params_dec_ref(ctx, params);
+
+// Create tracking literals
+Z3_ast track1 = Z3_mk_const(ctx, Z3_mk_string_symbol(ctx, "track1"), 
+                            Z3_mk_bool_sort(ctx));
+Z3_ast track2 = Z3_mk_const(ctx, Z3_mk_string_symbol(ctx, "track2"),
+                            Z3_mk_bool_sort(ctx));
+Z3_ast track3 = Z3_mk_const(ctx, Z3_mk_string_symbol(ctx, "track3"),
+                            Z3_mk_bool_sort(ctx));
+
+// Create constraints
+Z3_ast x = Z3_mk_const(ctx, Z3_mk_string_symbol(ctx, "x"), 
+                       Z3_mk_int_sort(ctx));
+Z3_ast zero = Z3_mk_int(ctx, 0, Z3_mk_int_sort(ctx));
+
+Z3_ast c1 = Z3_mk_gt(ctx, x, zero);
+Z3_ast c2 = Z3_mk_lt(ctx, x, zero);
+Z3_ast c3 = Z3_mk_eq(ctx, x, zero);
+
+// Assert with tracking literals
+Z3_ast implies1 = Z3_mk_implies(ctx, track1, c1);
+Z3_ast implies2 = Z3_mk_implies(ctx, track2, c2);
+Z3_ast implies3 = Z3_mk_implies(ctx, track3, c3);
+
+Z3_solver_assert(ctx, solver, implies1);
+Z3_solver_assert(ctx, solver, implies2);
+Z3_solver_assert(ctx, solver, implies3);
+
+// Check with tracking assumptions
+Z3_ast assumptions[3] = {track1, track2, track3};
+Z3_lbool result = Z3_solver_check_assumptions(ctx, solver, 3, assumptions);
+
+if (result == Z3_L_FALSE) {
+    Z3_ast_vector core = Z3_solver_get_unsat_core(ctx, solver);
+    Z3_ast_vector_inc_ref(ctx, core);
+    
+    printf("Conflicting constraints:\n");
+    unsigned core_size = Z3_ast_vector_size(ctx, core);
+    for (unsigned i = 0; i < core_size; i++) {
+        Z3_ast elem = Z3_ast_vector_get(ctx, core, i);
+        Z3_symbol sym = Z3_get_symbol_int(ctx, 
+            Z3_get_decl_name(ctx, Z3_get_app_decl(ctx, Z3_to_app(ctx, elem))));
+        printf("  %s\n", Z3_get_symbol_string(ctx, sym));
+    }
+    
+    Z3_ast_vector_dec_ref(ctx, core);
+}
+
+Z3_solver_dec_ref(ctx, solver);
+```
+
+## Minimizing Unsat Cores
+
+### Core Minimization Settings
+
+```c
+Z3_params params = Z3_mk_params(ctx);
+Z3_params_inc_ref(ctx, params);
+
+// Enable unsat core tracking
+Z3_symbol unsat_core = Z3_mk_string_symbol(ctx, "unsat_core");
+Z3_params_set_bool(ctx, params, unsat_core, true);
+
+// Enable SAT core minimization
+Z3_symbol sat_minimize = Z3_mk_string_symbol(ctx, "sat.core.minimize");
+Z3_params_set_bool(ctx, params, sat_minimize, true);
+
+// Enable SMT core minimization
+Z3_symbol smt_minimize = Z3_mk_string_symbol(ctx, "smt.core.minimize");
+Z3_params_set_bool(ctx, params, smt_minimize, true);
+
+Z3_solver_set_params(ctx, solver, params);
+Z3_params_dec_ref(ctx, params);
+```
+
+**Note**: Core minimization increases solving time but produces smaller, more useful cores.
+
+## Proof Applications
+
+### Verifying Unsatisfiability
+
+Proofs provide mathematical certainty of unsatisfiability:
+
+```c
+bool verify_unsat(Z3_context ctx, Z3_solver solver, Z3_ast formula) {
+    Z3_solver_push(ctx, solver);
+    Z3_solver_assert(ctx, solver, formula);
+    
+    Z3_lbool result = Z3_solver_check(ctx, solver);
+    
+    if (result == Z3_L_FALSE) {
+        Z3_ast proof = Z3_solver_get_proof(ctx, solver);
+        
+        // In a production system, you would validate the proof
+        // using a trusted proof checker
+        printf("Formula is provably UNSAT\n");
+        printf("Proof: %s\n", Z3_ast_to_string(ctx, proof));
+        
+        Z3_solver_pop(ctx, solver, 1);
+        return true;
+    }
+    
+    Z3_solver_pop(ctx, solver, 1);
+    return false;
+}
+```
+
+### Debugging Unsatisfiable Constraints
+
+Unsat cores help identify conflicting constraints:
+
+```c
+void debug_unsat_constraints(Z3_context ctx, Z3_ast* constraints, 
+                            unsigned num_constraints) {
+    Z3_solver solver = Z3_mk_solver(ctx);
+    Z3_solver_inc_ref(ctx, solver);
+    
+    // Enable unsat core
+    Z3_params params = Z3_mk_params(ctx);
+    Z3_params_inc_ref(ctx, params);
+    Z3_symbol unsat_core = Z3_mk_string_symbol(ctx, "unsat_core");
+    Z3_params_set_bool(ctx, params, unsat_core, true);
+    Z3_solver_set_params(ctx, solver, params);
+    Z3_params_dec_ref(ctx, params);
+    
+    // Assert all constraints
+    for (unsigned i = 0; i < num_constraints; i++) {
+        Z3_solver_assert(ctx, solver, constraints[i]);
+    }
+    
+    // Check with assumptions
+    Z3_lbool result = Z3_solver_check_assumptions(ctx, solver, 
+                                                   num_constraints, 
+                                                   constraints);
+    
+    if (result == Z3_L_FALSE) {
+        printf("Constraints are unsatisfiable\n");
+        
+        Z3_ast_vector core = Z3_solver_get_unsat_core(ctx, solver);
+        Z3_ast_vector_inc_ref(ctx, core);
+        
+        unsigned core_size = Z3_ast_vector_size(ctx, core);
+        printf("Minimal conflicting subset (%u constraints):\n", core_size);
+        
+        for (unsigned i = 0; i < core_size; i++) {
+            Z3_ast elem = Z3_ast_vector_get(ctx, core, i);
+            printf("  [%u] %s\n", i, Z3_ast_to_string(ctx, elem));
+        }
+        
+        Z3_ast_vector_dec_ref(ctx, core);
+    }
+    
+    Z3_solver_dec_ref(ctx, solver);
+}
+```
+
+### Incremental Debugging
+
+```c
+void incremental_debug(Z3_context ctx, Z3_ast* constraints, 
+                      unsigned num_constraints) {
+    printf("Testing subsets to find minimal conflict...\n");
+    
+    // Try adding constraints one by one
+    for (unsigned i = 1; i <= num_constraints; i++) {
+        Z3_solver solver = Z3_mk_solver(ctx);
+        Z3_solver_inc_ref(ctx, solver);
+        
+        // Add first i constraints
+        for (unsigned j = 0; j < i; j++) {
+            Z3_solver_assert(ctx, solver, constraints[j]);
+        }
+        
+        Z3_lbool result = Z3_solver_check(ctx, solver);
+        
+        if (result == Z3_L_FALSE) {
+            printf("First %u constraints are unsatisfiable\n", i);
+            
+            // Now get the unsat core to see which subset conflicts
+            Z3_params params = Z3_mk_params(ctx);
+            Z3_params_inc_ref(ctx, params);
+            Z3_symbol unsat_core = Z3_mk_string_symbol(ctx, "unsat_core");
+            Z3_params_set_bool(ctx, params, unsat_core, true);
+            Z3_solver_set_params(ctx, solver, params);
+            
+            Z3_solver_check_assumptions(ctx, solver, i, constraints);
+            Z3_ast_vector core = Z3_solver_get_unsat_core(ctx, solver);
+            Z3_ast_vector_inc_ref(ctx, core);
+            
+            unsigned core_size = Z3_ast_vector_size(ctx, core);
+            printf("Minimal core has %u constraints\n", core_size);
+            
+            Z3_ast_vector_dec_ref(ctx, core);
+            Z3_params_dec_ref(ctx, params);
+            Z3_solver_dec_ref(ctx, solver);
+            break;
+        }
+        
+        Z3_solver_dec_ref(ctx, solver);
+    }
+}
+```
+
+## Performance Considerations
+
+### Cost of Proof Generation
+
+Proof generation adds overhead:
+- Memory: Proofs can be large, especially for complex problems
+- Time: Proof construction adds 10-30% overhead
+- Storage: Saving proofs requires significant space
+
+```c
+// Measure overhead of proof generation
+void measure_proof_overhead(Z3_ast formula) {
+    // Without proofs
+    Z3_config cfg1 = Z3_mk_config();
+    Z3_context ctx1 = Z3_mk_context(cfg1);
+    Z3_del_config(cfg1);
+    
+    Z3_solver s1 = Z3_mk_solver(ctx1);
+    Z3_solver_inc_ref(ctx1, s1);
+    Z3_solver_assert(ctx1, s1, formula);
+    
+    clock_t start1 = clock();
+    Z3_solver_check(ctx1, s1);
+    clock_t end1 = clock();
+    double time1 = (double)(end1 - start1) / CLOCKS_PER_SEC;
+    
+    Z3_solver_dec_ref(ctx1, s1);
+    Z3_del_context(ctx1);
+    
+    // With proofs
+    Z3_config cfg2 = Z3_mk_config();
+    Z3_set_param_value(cfg2, "proof", "true");
+    Z3_context ctx2 = Z3_mk_context(cfg2);
+    Z3_del_config(cfg2);
+    
+    Z3_solver s2 = Z3_mk_solver(ctx2);
+    Z3_solver_inc_ref(ctx2, s2);
+    Z3_solver_assert(ctx2, s2, formula);
+    
+    clock_t start2 = clock();
+    Z3_solver_check(ctx2, s2);
+    clock_t end2 = clock();
+    double time2 = (double)(end2 - start2) / CLOCKS_PER_SEC;
+    
+    Z3_solver_dec_ref(ctx2, s2);
+    Z3_del_context(ctx2);
+    
+    printf("Time without proofs: %.3f seconds\n", time1);
+    printf("Time with proofs: %.3f seconds\n", time2);
+    printf("Overhead: %.1f%%\n", ((time2 - time1) / time1) * 100);
+}
+```
+
+## Best Practices
+
+### When to Use Proofs
+
+**Use proofs for:**
+- Formal verification requiring mathematical certainty
+- Debugging complex unsatisfiable formulas
+- Building certified tools and proof checkers
+- Academic research on proof systems
+- Trust verification in security-critical applications
+
+**Avoid proofs when:**
+- Performance is critical and verification isn't needed
+- Working with very large problems (memory constraints)
+- Running repeated queries (proof overhead accumulates)
+
+### When to Use Unsat Cores
+
+**Use unsat cores for:**
+- Debugging unsatisfiable constraint sets
+- Identifying minimal failing test cases
+- Root cause analysis of specification conflicts
+- Constraint relaxation and repair
+- Incremental constraint addition
+
+### Optimization Tips
+
+1. **Enable cores only when needed**: Unsat core tracking adds overhead
+2. **Use minimization selectively**: Minimize only when core quality matters
+3. **Name your assumptions**: Makes unsat cores easier to interpret
+4. **Cache proof results**: Don't recompute proofs for identical queries
+5. **Clean up references**: Proofs can be large; decrement references promptly
+
+## API Reference
+
+### Proof Retrieval
+
+- `Z3_solver_get_proof` - Get proof from solver (api_solver.cpp:727)
+
+### Unsat Core Retrieval
+
+- `Z3_solver_get_unsat_core` - Get unsat core (api_solver.cpp:742)
+- `Z3_solver_check_assumptions` - Check with assumptions for core tracking
+
+### Configuration
+
+- `Z3_set_param_value` - Set proof parameter in config
+- `Z3_mk_goal` - Create goal with proof support (z3_api.h:6358)
+
+## See Also
+
+- [Solver API](/api/solver) - Using solvers with proofs
+- [Parameters](/api/advanced/parameters) - Configuring proof generation
+- [Assumptions](/guide/assumptions) - Working with assumptions

@@ -1,0 +1,220 @@
+---
+title: 'C API Installation'
+description: 'Install and configure the Z3 C API'
+---
+
+The Z3 C API is the core interface to Z3 and is automatically included with all Z3 distributions. All other language bindings are built on top of the C API.
+
+## Prerequisites
+
+- C compiler (GCC, Clang, MSVC, or compatible)
+- CMake (optional, for building from source)
+- Python 3.x (for building from source)
+
+## Installation Options
+
+### Option 1: Pre-built Binaries (Recommended)
+
+Download the latest Z3 release for your platform from the [GitHub Releases page](https://github.com/Z3Prover/z3/releases).
+
+<CodeGroup>
+```bash Linux/macOS
+wget https://github.com/Z3Prover/z3/releases/download/z3-x.x.x/z3-x.x.x-x64-glibc-x.x.zip
+unzip z3-x.x.x-x64-glibc-x.x.zip
+cd z3-x.x.x-x64-glibc-x.x
+
+# Copy headers and libraries to system directories
+sudo cp include/*.h /usr/local/include/
+sudo cp bin/libz3.so /usr/local/lib/
+sudo ldconfig
+```
+
+```powershell Windows
+# Download z3-x.x.x-x64-win.zip from releases page
+# Extract to C:\z3
+
+# Add C:\z3\bin to your PATH environment variable
+```
+</CodeGroup>
+
+The pre-built binaries include:
+- `include/z3.h` - Main C API header
+- `include/z3_*.h` - Additional API headers
+- `bin/libz3.so` (Linux) / `bin/libz3.dylib` (macOS) / `bin/libz3.dll` (Windows) - Shared library
+
+### Option 2: Build from Source
+
+Building from source gives you the latest features and allows customization.
+
+<CodeGroup>
+```bash Using make
+git clone https://github.com/Z3Prover/z3.git
+cd z3
+python scripts/mk_make.py
+cd build
+make
+sudo make install
+```
+
+```bash Using CMake
+git clone https://github.com/Z3Prover/z3.git
+cd z3
+mkdir build
+cd build
+cmake ..
+make
+sudo make install
+```
+
+```powershell Windows (Visual Studio)
+git clone https://github.com/Z3Prover/z3.git
+cd z3
+python scripts/mk_make.py -x
+cd build
+nmake
+```
+</CodeGroup>
+
+### Option 3: Package Managers
+
+<CodeGroup>
+```bash Ubuntu/Debian
+sudo apt-get install libz3-dev
+```
+
+```bash Fedora/RHEL
+sudo dnf install z3-devel
+```
+
+```bash macOS (Homebrew)
+brew install z3
+```
+
+```bash vcpkg
+git clone https://github.com/microsoft/vcpkg.git
+cd vcpkg
+./bootstrap-vcpkg.sh  # or .bat on Windows
+./vcpkg install z3
+```
+</CodeGroup>
+
+## Verify Installation
+
+Create a test file `test_z3.c`:
+
+```c test_z3.c
+#include <stdio.h>
+#include <z3.h>
+
+int main() {
+    Z3_config cfg = Z3_mk_config();
+    Z3_context ctx = Z3_mk_context(cfg);
+    Z3_del_config(cfg);
+    
+    unsigned major, minor, build, revision;
+    Z3_get_version(&major, &minor, &build, &revision);
+    printf("Z3 version: %u.%u.%u.%u\n", major, minor, build, revision);
+    
+    Z3_del_context(ctx);
+    return 0;
+}
+```
+
+Compile and run:
+
+<CodeGroup>
+```bash Linux/macOS
+gcc test_z3.c -o test_z3 -lz3
+./test_z3
+```
+
+```powershell Windows (MSVC)
+cl test_z3.c /I"C:\z3\include" /link /LIBPATH:"C:\z3\bin" libz3.lib
+test_z3.exe
+```
+</CodeGroup>
+
+Expected output:
+```
+Z3 version: 4.x.x.x
+```
+
+## Linking with Z3
+
+### GCC/Clang
+
+```bash
+gcc your_program.c -o your_program -lz3
+```
+
+If Z3 is installed in a non-standard location:
+
+```bash
+gcc your_program.c -o your_program -I/path/to/z3/include -L/path/to/z3/lib -lz3
+```
+
+### CMake
+
+Add to your `CMakeLists.txt`:
+
+```cmake
+find_package(Z3 REQUIRED)
+target_link_libraries(your_target PRIVATE z3::libz3)
+```
+
+### Visual Studio
+
+1. Add include directory: Project Properties → C/C++ → General → Additional Include Directories: `C:\z3\include`
+2. Add library directory: Project Properties → Linker → General → Additional Library Directories: `C:\z3\bin`
+3. Add library: Project Properties → Linker → Input → Additional Dependencies: `libz3.lib`
+
+## Runtime Configuration
+
+### Linux/macOS
+
+If Z3 is not installed in a standard location, set `LD_LIBRARY_PATH` (Linux) or `DYLD_LIBRARY_PATH` (macOS):
+
+```bash
+export LD_LIBRARY_PATH=/path/to/z3/lib:$LD_LIBRARY_PATH
+```
+
+### Windows
+
+Ensure `libz3.dll` is in your PATH or in the same directory as your executable.
+
+## Troubleshooting
+
+### Header Not Found
+
+```
+fatal error: z3.h: No such file or directory
+```
+
+**Solution:** Add the Z3 include directory to your compiler's include path using `-I`.
+
+### Library Not Found
+
+```
+/usr/bin/ld: cannot find -lz3
+```
+
+**Solution:** Add the Z3 library directory using `-L` or install Z3 to a standard location.
+
+### Runtime Library Error
+
+```
+error while loading shared libraries: libz3.so: cannot open shared object file
+```
+
+**Solution:** Set `LD_LIBRARY_PATH` or run `sudo ldconfig` after installation.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Getting Started" icon="rocket" href="/bindings/c/getting-started">
+    Learn the basics of the Z3 C API
+  </Card>
+  <Card title="API Reference" icon="book" href="/bindings/c/api-reference">
+    Explore the complete C API documentation
+  </Card>
+</CardGroup>

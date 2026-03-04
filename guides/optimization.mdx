@@ -1,0 +1,316 @@
+---
+title: Optimization
+description: Learn how to use Z3's optimization features including MaxSMT, weighted constraints, and multi-objective optimization
+---
+
+Z3 provides powerful optimization capabilities through the `Optimize` context, allowing you to find solutions that maximize or minimize objectives while satisfying constraints. This is particularly useful for MaxSMT problems, resource allocation, scheduling, and multi-objective optimization.
+
+## Overview
+
+The Z3 optimization API extends standard satisfiability checking with the ability to:
+- **Minimize or maximize** arithmetic expressions
+- **Handle soft constraints** with weights (MaxSMT)
+- **Solve multi-objective** optimization problems
+- **Extract optimal models** with bounds on objectives
+
+## Basic Usage
+
+### Creating an Optimize Context
+
+```python
+from z3 import *
+
+# Create optimization context
+opt = Optimize()
+
+# Add hard constraints (must be satisfied)
+x = Int('x')
+y = Int('y')
+opt.add(x > 0, y > 0, x + y < 10)
+
+# Add optimization objectives
+opt.maximize(x + y)  # Maximize the sum
+
+# Check and get result
+if opt.check() == sat:
+    m = opt.model()
+    print(f"x = {m[x]}, y = {m[y]}")
+    print(f"Optimal value: {m.eval(x + y)}")
+```
+
+### Minimization Example
+
+```python
+from z3 import *
+
+opt = Optimize()
+
+# Variables
+x, y = Reals('x y')
+
+# Constraints
+opt.add(x >= 0, y >= 0)
+opt.add(x + 2*y >= 8)
+opt.add(2*x + y >= 10)
+
+# Minimize cost function
+cost = 3*x + 4*y
+opt.minimize(cost)
+
+if opt.check() == sat:
+    m = opt.model()
+    print(f"Minimum cost: {m.eval(cost)}")
+    print(f"x = {m[x]}, y = {m[y]}")
+```
+
+## Soft Constraints and MaxSMT
+
+Soft constraints can be violated, but each violation incurs a penalty. The optimizer tries to minimize the total penalty.
+
+### Adding Soft Constraints
+
+```python
+from z3 import *
+
+opt = Optimize()
+
+# Boolean variables representing preferences
+p1, p2, p3 = Bools('p1 p2 p3')
+
+# Hard constraint: at least one must be true
+opt.add(Or(p1, p2, p3))
+
+# Soft constraints with weights
+opt.add_soft(p1, weight=10)      # Prefer p1 (weight 10)
+opt.add_soft(p2, weight=5)       # Prefer p2 (weight 5)
+opt.add_soft(Not(p3), weight=3)  # Prefer p3 to be false (weight 3)
+
+if opt.check() == sat:
+    m = opt.model()
+    print(f"p1={m[p1]}, p2={m[p2]}, p3={m[p3]}")
+```
+
+### Weighted Constraint Groups
+
+You can group soft constraints using symbols to organize related constraints:
+
+```python
+from z3 import *
+
+opt = Optimize()
+x = Int('x')
+
+# Add soft constraints with group identifiers
+opt.add_soft(x > 5, weight=1, id='group1')
+opt.add_soft(x < 10, weight=1, id='group1')
+opt.add_soft(x % 2 == 0, weight=2, id='group2')
+
+if opt.check() == sat:
+    print(opt.model())
+```
+
+## Multi-Objective Optimization
+
+Z3 supports multiple objectives with lexicographic ordering (objectives are prioritized in order):
+
+```python
+from z3 import *
+
+opt = Optimize()
+
+x, y, z = Ints('x y z')
+
+# Constraints
+opt.add(x >= 0, y >= 0, z >= 0)
+opt.add(x + y + z <= 100)
+
+# Multiple objectives (in priority order)
+h1 = opt.maximize(x)        # First priority: maximize x
+h2 = opt.maximize(y)        # Second priority: maximize y
+h3 = opt.minimize(z)        # Third priority: minimize z
+
+if opt.check() == sat:
+    m = opt.model()
+    print(f"x = {m[x]}, y = {m[y]}, z = {m[z]}")
+    
+    # Get bounds for each objective
+    print(f"Objective 0 bounds: {opt.lower(h1)} - {opt.upper(h1)}")
+    print(f"Objective 1 bounds: {opt.lower(h2)} - {opt.upper(h2)}")
+    print(f"Objective 2 bounds: {opt.lower(h3)} - {opt.upper(h3)}")
+```
+
+## Advanced Features
+
+### Push/Pop with Optimization
+
+Like solvers, optimization contexts support backtracking:
+
+```python
+from z3 import *
+
+opt = Optimize()
+x = Int('x')
+
+opt.add(x >= 0)
+opt.maximize(x)
+
+opt.push()
+opt.add(x <= 10)
+print(opt.check())  # sat, x=10
+
+opt.pop()
+opt.push()
+opt.add(x <= 5)
+print(opt.check())  # sat, x=5
+```
+
+### Setting Initial Values
+
+Provide hints to guide the search (available in Z3 4.13.1+):
+
+```python
+from z3 import *
+
+opt = Optimize()
+x = Int('x')
+
+opt.add(x >= 0, x <= 100)
+opt.maximize(x)
+
+# Hint: start search near x=50
+opt.set_initial_value(x, IntVal(50))
+
+opt.check()
+print(opt.model())
+```
+
+### Retrieving Bounds
+
+For optimization objectives, you can retrieve lower and upper bounds:
+
+```python
+from z3 import *
+
+opt = Optimize()
+x = Real('x')
+
+opt.add(x >= 0, x <= 10)
+h = opt.maximize(x * x)
+
+if opt.check() == sat:
+    print(f"Lower bound: {opt.lower(h)}")
+    print(f"Upper bound: {opt.upper(h)}")
+    
+    # For more precise bounds with infinitesimals
+    lower_vec = opt.lower_as_vector(h)
+    print(f"Lower vector: {lower_vec}")  # [infinity_coeff, value, epsilon_coeff]
+```
+
+## Practical Example: Resource Allocation
+
+```python
+from z3 import *
+
+# Allocate tasks to workers minimizing total time
+opt = Optimize()
+
+# 3 workers, 5 tasks
+# task_time[i] = time required for task i
+task_times = [3, 5, 2, 7, 4]
+num_workers = 3
+num_tasks = len(task_times)
+
+# assignment[i] = worker assigned to task i (0, 1, or 2)
+assignment = [Int(f'task_{i}') for i in range(num_tasks)]
+
+# Each task assigned to a valid worker
+for i in range(num_tasks):
+    opt.add(assignment[i] >= 0, assignment[i] < num_workers)
+
+# Calculate total time for each worker
+worker_time = [Int(f'worker_{w}_time') for w in range(num_workers)]
+
+for w in range(num_workers):
+    time_expr = Sum([If(assignment[i] == w, task_times[i], 0) 
+                     for i in range(num_tasks)])
+    opt.add(worker_time[w] == time_expr)
+
+# Minimize maximum worker time (makespan)
+makespan = Int('makespan')
+for w in range(num_workers):
+    opt.add(makespan >= worker_time[w])
+
+opt.minimize(makespan)
+
+if opt.check() == sat:
+    m = opt.model()
+    print(f"Minimum makespan: {m[makespan]}")
+    for i in range(num_tasks):
+        worker = m[assignment[i]].as_long()
+        print(f"Task {i} (time={task_times[i]}) -> Worker {worker}")
+    for w in range(num_workers):
+        print(f"Worker {w} total time: {m[worker_time[w]]}")
+```
+
+## C API Reference
+
+The optimization API is available in C through `z3_optimization.h`:
+
+```c
+#include <z3.h>
+
+Z3_context ctx = Z3_mk_context(cfg);
+Z3_optimize opt = Z3_mk_optimize(ctx);
+
+// Add hard constraint
+Z3_optimize_assert(ctx, opt, constraint);
+
+// Add soft constraint with weight
+unsigned id = Z3_optimize_assert_soft(ctx, opt, soft_constraint, "10", Z3_mk_string_symbol(ctx, ""));
+
+// Add objective
+unsigned h = Z3_optimize_maximize(ctx, opt, objective_expr);
+
+// Check satisfiability
+Z3_lbool result = Z3_optimize_check(ctx, opt, 0, NULL);
+
+if (result == Z3_L_TRUE) {
+    Z3_model m = Z3_optimize_get_model(ctx, opt);
+    // Get bounds
+    Z3_ast lower = Z3_optimize_get_lower(ctx, opt, h);
+    Z3_ast upper = Z3_optimize_get_upper(ctx, opt, h);
+}
+
+Z3_optimize_dec_ref(ctx, opt);
+```
+
+## Key Functions
+
+| Function | Description |
+|----------|-------------|
+| `Z3_mk_optimize` | Create optimization context |
+| `Z3_optimize_assert` | Add hard constraint |
+| `Z3_optimize_assert_soft` | Add soft constraint with weight |
+| `Z3_optimize_maximize` | Add maximization objective |
+| `Z3_optimize_minimize` | Add minimization objective |
+| `Z3_optimize_check` | Check satisfiability and optimize |
+| `Z3_optimize_get_model` | Retrieve optimal model |
+| `Z3_optimize_get_lower` | Get lower bound for objective |
+| `Z3_optimize_get_upper` | Get upper bound for objective |
+| `Z3_optimize_push/pop` | Backtracking support |
+
+## Configuration Parameters
+
+Common parameters for optimization:
+
+```python
+opt.set('maxsat_engine', 'maxres')  # MaxSAT engine: 'core_maxsat', 'maxres', 'pd-maxres'
+opt.set('opt.priority', 'box')       # Multi-objective: 'lex', 'box', 'pareto'
+opt.set('timeout', 10000)            # Timeout in milliseconds
+```
+
+## See Also
+
+- [API Reference](/api-reference/optimize) - Complete Optimize API documentation
+- [Solver](/api-reference/solver) - Standard constraint solving
+- [Tactics](/guides/tactics) - Simplification and preprocessing strategies

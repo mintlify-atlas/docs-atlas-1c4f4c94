@@ -1,0 +1,581 @@
+---
+title: Solver API
+description: Incremental SMT solver interface
+---
+
+## Overview
+
+The Solver API provides an incremental interface for solving satisfiability problems. Solvers support assertions, backtracking (push/pop), and extracting models and unsat cores.
+
+## Types
+
+### Z3_solver
+
+Incremental solver object that can be specialized by tactics or logics.
+
+## Solver Creation
+
+### Z3_mk_solver
+
+```c
+Z3_solver Z3_API Z3_mk_solver(Z3_context c);
+```
+
+Create a general-purpose solver.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ResponseField name="return" type="Z3_solver">
+  New solver instance
+</ResponseField>
+
+**Description:**
+
+Creates a solver using the default SMT solver with strategic preprocessing.
+
+**Example:**
+
+```c
+Z3_solver solver = Z3_mk_solver(ctx);
+// Use solver...
+Z3_solver_dec_ref(ctx, solver);
+```
+
+### Z3_mk_simple_solver
+
+```c
+Z3_solver Z3_API Z3_mk_simple_solver(Z3_context c);
+```
+
+Create a simple solver without strategic preprocessing.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ResponseField name="return" type="Z3_solver">
+  New simple solver instance
+</ResponseField>
+
+**Description:**
+
+Faster startup but may be less efficient on complex problems.
+
+### Z3_mk_solver_for_logic
+
+```c
+Z3_solver Z3_API Z3_mk_solver_for_logic(Z3_context c, Z3_symbol logic);
+```
+
+Create a solver optimized for a specific logic.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="logic" type="Z3_symbol">
+  SMT-LIB logic name (e.g., "QF_LIA", "QF_BV")
+</ParamField>
+
+<ResponseField name="return" type="Z3_solver">
+  New solver instance
+</ResponseField>
+
+**Example:**
+
+```c
+Z3_solver solver = Z3_mk_solver_for_logic(
+    ctx, 
+    Z3_mk_string_symbol(ctx, "QF_LIA")
+);
+```
+
+### Z3_mk_solver_from_tactic
+
+```c
+Z3_solver Z3_API Z3_mk_solver_from_tactic(Z3_context c, Z3_tactic t);
+```
+
+Create a solver from a tactic.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="t" type="Z3_tactic">
+  Tactic to convert
+</ParamField>
+
+<ResponseField name="return" type="Z3_solver">
+  Solver based on tactic
+</ResponseField>
+
+## Reference Counting
+
+### Z3_solver_inc_ref
+
+```c
+void Z3_API Z3_solver_inc_ref(Z3_context c, Z3_solver s);
+```
+
+Increment the reference counter of the solver.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="s" type="Z3_solver">
+  Solver
+</ParamField>
+
+### Z3_solver_dec_ref
+
+```c
+void Z3_API Z3_solver_dec_ref(Z3_context c, Z3_solver s);
+```
+
+Decrement the reference counter of the solver.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="s" type="Z3_solver">
+  Solver
+</ParamField>
+
+## Assertions
+
+### Z3_solver_assert
+
+```c
+void Z3_API Z3_solver_assert(Z3_context c, Z3_solver s, Z3_ast a);
+```
+
+Assert a constraint into the solver.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="s" type="Z3_solver">
+  Solver
+</ParamField>
+
+<ParamField name="a" type="Z3_ast">
+  Boolean expression to assert
+</ParamField>
+
+**Example:**
+
+```c
+Z3_ast x = Z3_mk_const(ctx, Z3_mk_string_symbol(ctx, "x"), Z3_mk_int_sort(ctx));
+Z3_ast zero = Z3_mk_int(ctx, 0, Z3_mk_int_sort(ctx));
+Z3_ast constraint = Z3_mk_gt(ctx, x, zero);
+Z3_solver_assert(ctx, solver, constraint); // assert x > 0
+```
+
+### Z3_solver_assert_and_track
+
+```c
+void Z3_API Z3_solver_assert_and_track(
+    Z3_context c, 
+    Z3_solver s, 
+    Z3_ast a, 
+    Z3_ast p
+);
+```
+
+Assert a constraint with a tracking literal.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="s" type="Z3_solver">
+  Solver
+</ParamField>
+
+<ParamField name="a" type="Z3_ast">
+  Boolean expression to assert
+</ParamField>
+
+<ParamField name="p" type="Z3_ast">
+  Tracking literal (used for unsat cores)
+</ParamField>
+
+**Description:**
+
+The tracking literal allows identification of assertions in unsat cores.
+
+**Example:**
+
+```c
+Z3_ast track1 = Z3_mk_const(ctx, Z3_mk_string_symbol(ctx, "t1"), Z3_mk_bool_sort(ctx));
+Z3_solver_assert_and_track(ctx, solver, constraint1, track1);
+```
+
+## Satisfiability Checking
+
+### Z3_solver_check
+
+```c
+Z3_lbool Z3_API Z3_solver_check(Z3_context c, Z3_solver s);
+```
+
+Check if the current set of assertions is satisfiable.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="s" type="Z3_solver">
+  Solver
+</ParamField>
+
+<ResponseField name="return" type="Z3_lbool">
+  Z3_L_TRUE if satisfiable, Z3_L_FALSE if unsatisfiable, Z3_L_UNDEF if unknown
+</ResponseField>
+
+**Example:**
+
+```c
+Z3_lbool result = Z3_solver_check(ctx, solver);
+
+if (result == Z3_L_TRUE) {
+    printf("Satisfiable\n");
+    Z3_model model = Z3_solver_get_model(ctx, solver);
+    // Use model...
+    Z3_model_dec_ref(ctx, model);
+} else if (result == Z3_L_FALSE) {
+    printf("Unsatisfiable\n");
+} else {
+    printf("Unknown\n");
+}
+```
+
+### Z3_solver_check_assumptions
+
+```c
+Z3_lbool Z3_API Z3_solver_check_assumptions(
+    Z3_context c, 
+    Z3_solver s,
+    unsigned num_assumptions, 
+    Z3_ast const assumptions[]
+);
+```
+
+Check satisfiability under given assumptions.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="s" type="Z3_solver">
+  Solver
+</ParamField>
+
+<ParamField name="num_assumptions" type="unsigned">
+  Number of assumptions
+</ParamField>
+
+<ParamField name="assumptions" type="Z3_ast const[]">
+  Array of Boolean expressions
+</ParamField>
+
+<ResponseField name="return" type="Z3_lbool">
+  Satisfiability result
+</ResponseField>
+
+**Description:**
+
+Assumptions are temporary constraints only active for this check call.
+
+**Example:**
+
+```c
+Z3_ast assumptions[2] = {p, q};
+Z3_lbool result = Z3_solver_check_assumptions(ctx, solver, 2, assumptions);
+```
+
+## Models
+
+### Z3_solver_get_model
+
+```c
+Z3_model Z3_API Z3_solver_get_model(Z3_context c, Z3_solver s);
+```
+
+Retrieve the model for the last check (if satisfiable).
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="s" type="Z3_solver">
+  Solver
+</ParamField>
+
+<ResponseField name="return" type="Z3_model">
+  Model object (must increment reference)
+</ResponseField>
+
+**Note:** Model must be kept alive with `Z3_model_inc_ref`.
+
+## Unsat Cores
+
+### Z3_solver_get_unsat_core
+
+```c
+Z3_ast_vector Z3_API Z3_solver_get_unsat_core(Z3_context c, Z3_solver s);
+```
+
+Retrieve the unsat core from the last check (if unsatisfiable).
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="s" type="Z3_solver">
+  Solver
+</ParamField>
+
+<ResponseField name="return" type="Z3_ast_vector">
+  Subset of asserted constraints that are unsatisfiable
+</ResponseField>
+
+**Requirements:**
+
+- Context must be created with `unsat_core` enabled
+- Assertions must be tracked using `Z3_solver_assert_and_track`
+
+**Example:**
+
+```c
+Z3_config cfg = Z3_mk_config();
+Z3_set_param_value(cfg, "unsat_core", "true");
+Z3_context ctx = Z3_mk_context(cfg);
+
+Z3_solver solver = Z3_mk_solver(ctx);
+
+Z3_ast t1 = Z3_mk_const(ctx, Z3_mk_string_symbol(ctx, "t1"), Z3_mk_bool_sort(ctx));
+Z3_ast t2 = Z3_mk_const(ctx, Z3_mk_string_symbol(ctx, "t2"), Z3_mk_bool_sort(ctx));
+
+Z3_solver_assert_and_track(ctx, solver, constraint1, t1);
+Z3_solver_assert_and_track(ctx, solver, constraint2, t2);
+
+if (Z3_solver_check(ctx, solver) == Z3_L_FALSE) {
+    Z3_ast_vector core = Z3_solver_get_unsat_core(ctx, solver);
+    // Examine core...
+    Z3_ast_vector_dec_ref(ctx, core);
+}
+```
+
+## Backtracking
+
+### Z3_solver_push
+
+```c
+void Z3_API Z3_solver_push(Z3_context c, Z3_solver s);
+```
+
+Create a backtracking point.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="s" type="Z3_solver">
+  Solver
+</ParamField>
+
+**Description:**
+
+Saves the current state. Assertions added after push can be removed with pop.
+
+### Z3_solver_pop
+
+```c
+void Z3_API Z3_solver_pop(Z3_context c, Z3_solver s, unsigned n);
+```
+
+Backtrack n backtracking points.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="s" type="Z3_solver">
+  Solver
+</ParamField>
+
+<ParamField name="n" type="unsigned">
+  Number of scopes to pop
+</ParamField>
+
+**Example:**
+
+```c
+Z3_solver_push(ctx, solver);
+Z3_solver_assert(ctx, solver, constraint1);
+Z3_solver_check(ctx, solver); // Check with constraint1
+
+Z3_solver_push(ctx, solver);
+Z3_solver_assert(ctx, solver, constraint2);
+Z3_solver_check(ctx, solver); // Check with constraint1 and constraint2
+
+Z3_solver_pop(ctx, solver, 1); // Remove constraint2
+Z3_solver_check(ctx, solver); // Check with only constraint1
+
+Z3_solver_pop(ctx, solver, 1); // Remove constraint1
+```
+
+### Z3_solver_reset
+
+```c
+void Z3_API Z3_solver_reset(Z3_context c, Z3_solver s);
+```
+
+Remove all assertions from the solver.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="s" type="Z3_solver">
+  Solver
+</ParamField>
+
+## Solver Information
+
+### Z3_solver_get_num_scopes
+
+```c
+unsigned Z3_API Z3_solver_get_num_scopes(Z3_context c, Z3_solver s);
+```
+
+Return the number of backtracking points.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="s" type="Z3_solver">
+  Solver
+</ParamField>
+
+<ResponseField name="return" type="unsigned">
+  Number of scopes
+</ResponseField>
+
+### Z3_solver_get_assertions
+
+```c
+Z3_ast_vector Z3_API Z3_solver_get_assertions(Z3_context c, Z3_solver s);
+```
+
+Return the set of asserted formulas.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="s" type="Z3_solver">
+  Solver
+</ParamField>
+
+<ResponseField name="return" type="Z3_ast_vector">
+  Vector of assertions
+</ResponseField>
+
+### Z3_solver_get_reason_unknown
+
+```c
+Z3_string Z3_API Z3_solver_get_reason_unknown(Z3_context c, Z3_solver s);
+```
+
+Return a string describing why the last check returned unknown.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="s" type="Z3_solver">
+  Solver
+</ParamField>
+
+<ResponseField name="return" type="Z3_string">
+  Reason string
+</ResponseField>
+
+### Z3_solver_to_string
+
+```c
+Z3_string Z3_API Z3_solver_to_string(Z3_context c, Z3_solver s);
+```
+
+Convert solver state to a string (SMT-LIB format).
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="s" type="Z3_solver">
+  Solver
+</ParamField>
+
+<ResponseField name="return" type="Z3_string">
+  String representation
+</ResponseField>
+
+## Complete Example
+
+```c
+#include <z3.h>
+#include <stdio.h>
+
+int main() {
+    Z3_config cfg = Z3_mk_config();
+    Z3_set_param_value(cfg, "model", "true");
+    Z3_context ctx = Z3_mk_context(cfg);
+    Z3_del_config(cfg);
+    
+    Z3_solver solver = Z3_mk_solver(ctx);
+    Z3_solver_inc_ref(ctx, solver);
+    
+    // Create variables
+    Z3_sort int_sort = Z3_mk_int_sort(ctx);
+    Z3_ast x = Z3_mk_const(ctx, Z3_mk_string_symbol(ctx, "x"), int_sort);
+    Z3_ast y = Z3_mk_const(ctx, Z3_mk_string_symbol(ctx, "y"), int_sort);
+    
+    // Create constraints: x + y = 10, x > 0
+    Z3_ast args[2] = {x, y};
+    Z3_ast sum = Z3_mk_add(ctx, 2, args);
+    Z3_ast ten = Z3_mk_int(ctx, 10, int_sort);
+    Z3_ast zero = Z3_mk_int(ctx, 0, int_sort);
+    
+    Z3_solver_assert(ctx, solver, Z3_mk_eq(ctx, sum, ten));
+    Z3_solver_assert(ctx, solver, Z3_mk_gt(ctx, x, zero));
+    
+    // Check satisfiability
+    Z3_lbool result = Z3_solver_check(ctx, solver);
+    
+    if (result == Z3_L_TRUE) {
+        printf("Satisfiable\n");
+        Z3_model model = Z3_solver_get_model(ctx, solver);
+        Z3_model_inc_ref(ctx, model);
+        printf("%s\n", Z3_model_to_string(ctx, model));
+        Z3_model_dec_ref(ctx, model);
+    } else if (result == Z3_L_FALSE) {
+        printf("Unsatisfiable\n");
+    } else {
+        printf("Unknown\n");
+    }
+    
+    Z3_solver_dec_ref(ctx, solver);
+    Z3_del_context(ctx);
+    return 0;
+}
+```

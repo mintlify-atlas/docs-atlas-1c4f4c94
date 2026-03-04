@@ -1,0 +1,413 @@
+---
+title: Array Theory
+description: Extensional array theory with select and store operations
+---
+
+The array theory in Z3 provides reasoning about arrays with arbitrary index and element types. Arrays follow the theory of extensionality: two arrays are equal if they have the same values at all indices.
+
+## Array Sorts
+
+Create an array sort with index and element types:
+
+```python
+from z3 import *
+
+# Array from integers to integers
+A = Array('A', IntSort(), IntSort())
+
+# Array from bit-vectors to booleans
+B = Array('B', BitVecSort(32), BoolSort())
+
+# Array from strings to reals
+C = Array('C', StringSort(), RealSort())
+```
+
+**C API**: `Z3_mk_array_sort(c, domain, range)` (api_array.cpp:26)
+
+### Multi-Dimensional Arrays
+
+Create arrays with multiple indices:
+
+```python
+# 2D array: Array[Int, Int, Int]
+Matrix = Array('Matrix', IntSort(), IntSort(), IntSort())
+
+# 3D array
+Tensor = Array('Tensor', IntSort(), IntSort(), IntSort(), RealSort())
+```
+
+**C API**: `Z3_mk_array_sort_n(c, n, domain, range)` (api_array.cpp:37)
+
+## Basic Operations
+
+### Select
+
+Read a value from an array at a given index:
+
+```python
+A = Array('A', IntSort(), IntSort())
+x = Int('x')
+
+# Read value at index 5
+val = A[5]
+# Or using Select explicitly
+val = Select(A, 5)
+
+solve(A[5] == 10, A[5] == x)
+# [A = [5 -> 10, else -> 0], x = 10]
+```
+
+**C API**: `Z3_mk_select(c, a, i)` (api_array.cpp:51)
+
+**Multi-index**: `Z3_mk_select_n(c, a, n, idxs)` (api_array.cpp:76)
+
+### Store
+
+Write a value to an array at a given index:
+
+```python
+A = Array('A', IntSort(), IntSort())
+
+# Store 42 at index 5
+B = Store(A, 5, 42)
+# Or using array notation
+B = A[5] = 42  # Not valid Python syntax, use Store
+
+solve(B[5] == 42, B[3] == A[3])
+# Store preserves all other values
+```
+
+**C API**: `Z3_mk_store(c, a, i, v)` (api_array.cpp:106)
+
+**Multi-index**: `Z3_mk_store_n(c, a, n, idxs, v)` (api_array.cpp:134)
+
+## Array Properties
+
+### Extensionality
+
+Arrays are equal if they have the same values at all indices:
+
+```python
+A = Array('A', IntSort(), IntSort())
+B = Array('B', IntSort(), IntSort())
+
+solve(A == B, A[0] == 1, B[0] == 2)
+# unsat - arrays differ at index 0
+
+solve(A == B, ForAll([x], A[x] == B[x]))
+# sat - arrays are equal
+```
+
+### Default Values
+
+Arrays can have default values for uninitialized indices:
+
+```python
+# Create array with default value
+A = K(IntSort(), 0)  # All elements are 0
+
+solve(A[5] == 0, A[100] == 0)
+# sat
+```
+
+**C API**: `Z3_mk_const_array(c, domain, v)` creates array where all elements equal `v` (api_array.cpp:191)
+
+### Array Default Accessor
+
+Get the default value of an array:
+
+**C API**: `Z3_mk_array_default(c, array)` (api_array.cpp:210)
+
+## Advanced Operations
+
+### Map
+
+Apply a function to every element of arrays:
+
+```python
+A = Array('A', IntSort(), IntSort())
+B = Array('B', IntSort(), IntSort())
+
+# Map addition over two arrays
+# C = λi. A[i] + B[i]
+plus = Function('plus', IntSort(), IntSort(), IntSort())
+C = Map(plus, A, B)
+```
+
+**C API**: `Z3_mk_map(c, f, n, args)` (api_array.cpp:166)
+
+### Array Extensionality
+
+Find an index where two arrays differ:
+
+```python
+A = Array('A', IntSort(), IntSort())
+B = Array('B', IntSort(), IntSort())
+
+s = Solver()
+s.add(A != B)
+
+if s.check() == sat:
+    # Get index where arrays differ
+    # Use Z3_mk_array_ext in C API
+    pass
+```
+
+**C API**: `Z3_mk_array_ext(c, arg1, arg2)` returns an index where arrays differ if they're not equal (api_array.cpp:270)
+
+## Set Operations
+
+Z3 implements sets as arrays from elements to booleans:
+
+```python
+# Set of integers
+S = Set('S', IntSort())
+T = Set('T', IntSort())
+```
+
+### Empty and Full Sets
+
+```python
+# Empty set
+empty = EmptySet(IntSort())
+
+# Full set (universal set)
+full = FullSet(IntSort())
+```
+
+**C API**: `Z3_mk_empty_set`, `Z3_mk_full_set` (api_array.cpp:247, 256)
+
+### Set Membership
+
+```python
+S = Set('S', IntSort())
+x = Int('x')
+
+solve(IsMember(x, S), x == 5)
+# x is in set S
+```
+
+**C API**: `Z3_mk_set_member(c, elem, set)` (api_array.cpp:284)
+
+### Set Operations
+
+```python
+S = Set('S', IntSort())
+T = Set('T', IntSort())
+
+# Union
+U = Union(S, T)
+
+# Intersection
+I = Intersection(S, T)
+
+# Difference
+D = SetDifference(S, T)
+
+# Complement
+C = SetComplement(S)
+
+# Subset
+solve(IsSubset(S, T))
+```
+
+**C API**:
+- `Z3_mk_set_union` (api_array.cpp:265)
+- `Z3_mk_set_intersect` (api_array.cpp:266)
+- `Z3_mk_set_difference` (api_array.cpp:267)
+- `Z3_mk_set_complement` (api_array.cpp:268)
+- `Z3_mk_set_subset` (api_array.cpp:269)
+
+### Add/Remove Elements
+
+```python
+S = Set('S', IntSort())
+
+# Add element
+S2 = SetAdd(S, 5)
+
+# Remove element
+S3 = SetDel(S, 5)
+```
+
+**C API**: `Z3_mk_set_add`, `Z3_mk_set_del` (api_array.cpp:288, 292)
+
+## Complete Examples
+
+### Example 1: Array Update Sequence
+
+```python
+from z3 import *
+
+A = Array('A', IntSort(), IntSort())
+
+# Sequence of updates
+B = Store(A, 1, 10)
+C = Store(B, 2, 20)
+D = Store(C, 3, 30)
+
+s = Solver()
+s.add(D[1] == 10)
+s.add(D[2] == 20)
+s.add(D[3] == 30)
+s.add(D[4] == A[4])  # Index 4 unchanged
+
+print(s.check())  # sat
+```
+
+### Example 2: Array Equality
+
+```python
+from z3 import *
+
+A = Array('A', IntSort(), IntSort())
+B = Array('B', IntSort(), IntSort())
+
+# Two arrays are equal iff they agree at all indices
+x = Int('x')
+
+s = Solver()
+s.add(ForAll([x], A[x] == B[x]))
+s.add(A[0] == 5)
+
+if s.check() == sat:
+    m = s.model()
+    # B[0] must also be 5
+    print(m.evaluate(B[0]))  # 5
+```
+
+### Example 3: Sparse Array Initialization
+
+```python
+from z3 import *
+
+# Create array with default value 0
+A = K(IntSort(), 0)
+
+# Set specific indices
+A = Store(A, 10, 100)
+A = Store(A, 20, 200)
+A = Store(A, 30, 300)
+
+solve(
+    A[10] == 100,
+    A[15] == 0,    # Default value
+    A[20] == 200,
+    A[99] == 0     # Default value
+)
+```
+
+### Example 4: Multi-Dimensional Array
+
+```python
+from z3 import *
+
+# 2D matrix: rows and columns
+Matrix = Array('Matrix', IntSort(), IntSort(), IntSort())
+
+s = Solver()
+
+# Set Matrix[1][2] = 42
+Matrix = Store(Matrix, 1, 2, 42)
+
+# Set Matrix[3][4] = 99
+Matrix = Store(Matrix, 3, 4, 99)
+
+s.add(Select(Matrix, 1, 2) == 42)
+s.add(Select(Matrix, 3, 4) == 99)
+
+print(s.check())  # sat
+```
+
+### Example 5: Set Operations
+
+```python
+from z3 import *
+
+S = Set('S', IntSort())
+T = Set('T', IntSort())
+
+x, y, z = Ints('x y z')
+
+s = Solver()
+
+# x is in S
+s.add(IsMember(x, S))
+
+# y is in T
+s.add(IsMember(y, T))
+
+# z is in both S and T (intersection)
+s.add(IsMember(z, Intersection(S, T)))
+
+s.add(x == 5)
+s.add(y == 10)
+s.add(z == 7)
+
+if s.check() == sat:
+    m = s.model()
+    print(f"x={m[x]}, y={m[y]}, z={m[z]}")
+    # S contains at least {5, 7}
+    # T contains at least {7, 10}
+```
+
+### Example 6: As-Array Construction
+
+Create an array from a function:
+
+```python
+from z3 import *
+
+# Define a function
+f = Function('f', IntSort(), IntSort())
+
+# Create array from function
+# A[i] = f(i) for all i
+A = Lambda([x], f(x))
+
+solve(A[5] == 10, f(5) == 10)
+```
+
+**C API**: `Z3_mk_as_array(c, f)` (api_array.cpp:272)
+
+## Query Functions
+
+### Get Array Sort Information
+
+```python
+# Check number of indices
+# Get domain and range sorts
+```
+
+**C API**:
+- `Z3_get_array_arity(c, s)` - number of indices (api_array.cpp:302)
+- `Z3_get_array_sort_domain(c, t)` - domain sort (api_array.cpp:315)
+- `Z3_get_array_sort_domain_n(c, t, idx)` - nth domain sort (api_array.cpp:329)
+- `Z3_get_array_sort_range(c, t)` - range sort (api_array.cpp:343)
+
+## Theory Axioms
+
+The array theory is defined by two key axioms:
+
+1. **Read-over-Write (same index)**:
+   `Select(Store(A, i, v), i) = v`
+
+2. **Read-over-Write (different index)**:
+   `i ≠ j ⟹ Select(Store(A, i, v), j) = Select(A, j)`
+
+3. **Extensionality**:
+   `(∀i. Select(A, i) = Select(B, i)) ⟹ A = B`
+
+## Implementation Notes
+
+- Arrays are functional and immutable (Store creates a new array)
+- The theory is decidable for quantifier-free formulas
+- Array values are represented symbolically (not stored explicitly)
+- Efficient for sparse updates and reads
+- No built-in bounds checking (arrays are infinite)
+
+## References
+
+- Implementation: `src/api/api_array.cpp`
+- Theory plugin: `src/ast/array_decl_plugin.h`
+- Solver: `src/smt/theory_array.h`

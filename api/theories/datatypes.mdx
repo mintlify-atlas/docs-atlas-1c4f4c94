@@ -1,0 +1,460 @@
+---
+title: Algebraic Datatypes
+description: User-defined recursive and non-recursive datatypes in Z3
+---
+
+Algebraic datatypes (ADTs) allow you to define structured data types similar to enums, structs, and recursive types in programming languages. Z3 supports constructors, accessors, and recognizers for datatypes.
+
+## Simple Datatypes
+
+### Enumeration Types
+
+Create simple enumerations:
+
+```python
+from z3 import *
+
+# Define an enumeration
+Color, (red, green, blue) = EnumSort('Color', ['red', 'green', 'blue'])
+
+c = Const('c', Color)
+solve(Or(c == red, c == blue), c != red)
+# [c = blue]
+```
+
+**C API**: `Z3_mk_enumeration_sort(c, name, n, enum_names, enum_consts, enum_testers)` (api_datatype.cpp:88)
+
+### Tuple Types
+
+Create product types (tuples):
+
+```python
+# Define a tuple type
+Pair = Datatype('Pair')
+Pair.declare('mk_pair', ('first', IntSort()), ('second', IntSort()))
+Pair = Pair.create()
+
+# Create tuple instance
+p = Const('p', Pair)
+mk_pair = Pair.mk_pair
+first = Pair.first
+second = Pair.second
+
+solve(
+    p == mk_pair(10, 20),
+    first(p) == 10,
+    second(p) == 20
+)
+```
+
+**C API**: `Z3_mk_tuple_sort(c, name, num_fields, field_names, field_sorts, mk_tuple_decl, proj_decls)` (api_datatype.cpp:26)
+
+## Recursive Datatypes
+
+### List Type
+
+Define recursive list structures:
+
+```python
+from z3 import *
+
+# Define list of integers
+IntList = Datatype('IntList')
+IntList.declare('nil')
+IntList.declare('cons', ('head', IntSort()), ('tail', IntList))
+IntList = IntList.create()
+
+# Constructors and accessors
+nil = IntList.nil
+cons = IntList.cons
+head = IntList.head
+tail = IntList.tail
+
+# Build list [1, 2, 3]
+list123 = cons(1, cons(2, cons(3, nil)))
+
+s = Solver()
+list_var = Const('list_var', IntList)
+s.add(head(list_var) == 1)
+s.add(head(tail(list_var)) == 2)
+
+if s.check() == sat:
+    print(s.model())
+```
+
+**C API**: `Z3_mk_list_sort(c, name, elem_sort, nil_decl, is_nil_decl, cons_decl, is_cons_decl, head_decl, tail_decl)` (api_datatype.cpp:157)
+
+### Tree Type
+
+Define binary trees:
+
+```python
+from z3 import *
+
+# Define binary tree of integers
+Tree = Datatype('Tree')
+Tree.declare('leaf', ('value', IntSort()))
+Tree.declare('node', ('left', Tree), ('right', Tree), ('value', IntSort()))
+Tree = Tree.create()
+
+leaf = Tree.leaf
+node = Tree.node
+value = Tree.value
+left = Tree.left
+right = Tree.right
+
+# Build tree
+#       5
+#      / \
+#     3   7
+tree = node(leaf(3), leaf(7), 5)
+
+solve(
+    value(tree) == 5,
+    value(left(tree)) == 3,
+    value(right(tree)) == 7
+)
+```
+
+## Constructor Operations
+
+### Define Constructors
+
+```python
+from z3 import *
+
+# Create datatype with multiple constructors
+Shape = Datatype('Shape')
+Shape.declare('circle', ('radius', IntSort()))
+Shape.declare('rectangle', ('width', IntSort()), ('height', IntSort()))
+Shape = Shape.create()
+
+circle = Shape.circle
+rectangle = Shape.rectangle
+radius = Shape.radius
+width = Shape.width
+height = Shape.height
+
+s = Const('s', Shape)
+solve(s == circle(10), radius(s) == 10)
+# [s = circle(10)]
+```
+
+**C API**: `Z3_mk_constructor(c, name, tester, num_fields, field_names, sorts, sort_refs)` (api_datatype.cpp:220)
+
+### Recognizers (Type Tests)
+
+Test which constructor was used:
+
+```python
+Shape = Datatype('Shape')
+Shape.declare('circle', ('radius', IntSort()))
+Shape.declare('rectangle', ('width', IntSort()), ('height', IntSort()))
+Shape = Shape.create()
+
+circle = Shape.circle
+rectangle = Shape.rectangle
+is_circle = Shape.is_circle
+is_rectangle = Shape.is_rectangle
+
+s = Const('s', Shape)
+solve(s == circle(5), is_circle(s))
+# sat - s is indeed a circle
+
+solve(s == circle(5), is_rectangle(s))
+# unsat - s cannot be both circle and rectangle
+```
+
+**C API**: Recognizers are created automatically with each constructor
+
+### Accessors (Field Access)
+
+Access fields of constructed values:
+
+```python
+Shape = Datatype('Shape')
+Shape.declare('rectangle', ('width', IntSort()), ('height', IntSort()))
+Shape = Shape.create()
+
+rectangle = Shape.rectangle
+width = Shape.width
+height = Shape.height
+
+s = Const('s', Shape)
+solve(
+    s == rectangle(10, 20),
+    width(s) == 10,
+    height(s) > 15
+)
+```
+
+**C API**: Accessors are retrieved via `Z3_query_constructor` (api_datatype.cpp:259)
+
+## Mutually Recursive Datatypes
+
+Define multiple datatypes that reference each other:
+
+```python
+from z3 import *
+
+# Tree and TreeList that reference each other
+Tree = Datatype('Tree')
+TreeList = Datatype('TreeList')
+
+# Tree can contain a list of trees
+Tree.declare('leaf', ('val', IntSort()))
+Tree.declare('node', ('children', TreeList))
+
+# TreeList is a list of trees
+TreeList.declare('nil')
+TreeList.declare('cons', ('head', Tree), ('tail', TreeList))
+
+# Create both datatypes together
+Tree, TreeList = CreateDatatypes(Tree, TreeList)
+
+leaf = Tree.leaf
+node = Tree.node
+nil = TreeList.nil
+cons = TreeList.cons
+
+# Build tree with children
+tree_with_children = node(cons(leaf(1), cons(leaf(2), nil)))
+```
+
+**C API**: `Z3_mk_datatypes(c, num_sorts, sort_names, sorts, constructor_lists)` (api_datatype.cpp:456)
+
+## Polymorphic Datatypes
+
+Create datatypes parameterized by type variables:
+
+```python
+from z3 import *
+
+# Generic Option type: Option[T]
+# Some(T) | None
+T = DeclareSort('T')
+Option = Datatype('Option')
+Option.declare('some', ('value', T))
+Option.declare('none')
+
+# This creates a polymorphic datatype
+# Use for specific types:
+IntOption = Option.create()
+```
+
+**C API**: `Z3_mk_polymorphic_datatype(c, name, num_parameters, parameters, num_constructors, constructors)` (api_datatype.cpp:378)
+
+## Update Operations
+
+Update fields of datatype values:
+
+```python
+from z3 import *
+
+Pair = Datatype('Pair')
+Pair.declare('mk_pair', ('first', IntSort()), ('second', IntSort()))
+Pair = Pair.create()
+
+mk_pair = Pair.mk_pair
+first = Pair.first
+second = Pair.second
+
+p = Const('p', Pair)
+
+# Update field (creates new value with updated field)
+# Not directly in Python API, use reconstruction
+p2 = mk_pair(99, second(p))
+
+solve(p == mk_pair(1, 2), p2 == mk_pair(99, 2))
+```
+
+**C API**: `Z3_datatype_update_field(c, f, t, v)` (api_datatype.cpp:669)
+
+## Query Functions
+
+Get information about datatypes:
+
+```python
+# Check if datatype is recursive
+# Get number of constructors
+# Get constructor functions
+# Get accessors
+```
+
+**C API**:
+- `Z3_is_recursive_datatype_sort(c, t)` (api_datatype.cpp:498)
+- `Z3_get_datatype_sort_num_constructors(c, t)` (api_datatype.cpp:508)
+- `Z3_get_datatype_sort_constructor(c, t, idx)` (api_datatype.cpp:543)
+- `Z3_get_datatype_sort_recognizer(c, t, idx)` (api_datatype.cpp:552)
+- `Z3_get_datatype_sort_constructor_accessor(c, t, idx_c, idx_a)` (api_datatype.cpp:575)
+
+## Complete Examples
+
+### Example 1: Expression Tree
+
+```python
+from z3 import *
+
+# Define expression tree
+Expr = Datatype('Expr')
+Expr.declare('const', ('val', IntSort()))
+Expr.declare('add', ('left', Expr), ('right', Expr))
+Expr.declare('mul', ('left', Expr), ('right', Expr))
+Expr = Expr.create()
+
+const = Expr.const
+add = Expr.add
+mul = Expr.mul
+val = Expr.val
+left = Expr.left
+right = Expr.right
+
+# Define evaluation function
+def eval_expr(e, result):
+    is_const = Expr.is_const
+    is_add = Expr.is_add
+    is_mul = Expr.is_mul
+    
+    return If(is_const(e),
+              result == val(e),
+              If(is_add(e),
+                 Exists([lval, rval],
+                        And(eval_expr(left(e), lval),
+                            eval_expr(right(e), rval),
+                            result == lval + rval)),
+                 Exists([lval, rval],
+                        And(eval_expr(left(e), lval),
+                            eval_expr(right(e), rval),
+                            result == lval * rval))))
+
+# Build expression: (2 + 3) * 4
+expr = mul(add(const(2), const(3)), const(4))
+
+result = Int('result')
+s = Solver()
+# We would need to properly encode eval_expr
+print(f"Expression: (2 + 3) * 4 = 20")
+```
+
+### Example 2: Option Type (Maybe)
+
+```python
+from z3 import *
+
+# Option type for integers
+IntOption = Datatype('IntOption')
+IntOption.declare('some', ('value', IntSort()))
+IntOption.declare('none')
+IntOption = IntOption.create()
+
+some = IntOption.some
+none = IntOption.none
+is_some = IntOption.is_some
+is_none = IntOption.is_none
+value = IntOption.value
+
+x = Const('x', IntOption)
+y = Int('y')
+
+solve(
+    is_some(x),
+    value(x) == y,
+    y > 10
+)
+# [x = some(11), y = 11]
+
+solve(is_none(x), is_some(x))
+# unsat - cannot be both
+```
+
+### Example 3: JSON-like Structure
+
+```python
+from z3 import *
+
+# JSON value representation
+JSON = Datatype('JSON')
+JSON.declare('null')
+JSON.declare('boolean', ('bool_val', BoolSort()))
+JSON.declare('number', ('num_val', IntSort()))
+JSON.declare('string', ('str_val', StringSort()))
+JSON = JSON.create()
+
+null = JSON.null
+boolean = JSON.boolean
+number = JSON.number
+string = JSON.string
+
+j = Const('j', JSON)
+solve(
+    JSON.is_number(j),
+    JSON.num_val(j) > 0
+)
+# [j = number(1)]
+```
+
+### Example 4: State Machine
+
+```python
+from z3 import *
+
+# Define states
+State, (idle, running, paused, stopped) = EnumSort(
+    'State', ['idle', 'running', 'paused', 'stopped']
+)
+
+current = Const('current', State)
+next_state = Const('next_state', State)
+event = String('event')
+
+# Transition rules
+s = Solver()
+s.add(
+    Or(
+        And(current == idle, event == "start", next_state == running),
+        And(current == running, event == "pause", next_state == paused),
+        And(current == paused, event == "resume", next_state == running),
+        And(current == running, event == "stop", next_state == stopped)
+    )
+)
+
+s.add(current == idle)
+s.add(event == "start")
+
+if s.check() == sat:
+    m = s.model()
+    print(f"Next state: {m[next_state]}")  # running
+```
+
+## Pattern Matching
+
+Use recognizers and accessors to implement pattern matching:
+
+```python
+def process_shape(s):
+    """Pattern match on shape"""
+    return If(is_circle(s),
+              "Circle with radius " + str(radius(s)),
+              If(is_rectangle(s),
+                 "Rectangle " + str(width(s)) + "x" + str(height(s)),
+                 "Unknown shape"))
+```
+
+## Theory Features
+
+- **Constructors are injective**: Different arguments produce different values
+- **Constructors are disjoint**: Values from different constructors are always distinct
+- **Acyclic constraint**: Prevents infinite values in recursive types
+- **Exhaustive**: Every value is constructed by exactly one constructor
+
+## Implementation Notes
+
+- Datatypes compile to uninterpreted functions with axioms
+- Recognizers enforce constructor disjointness
+- Accessors are only valid after recognizer check
+- Recursive types require special encoding to ensure termination
+
+## References
+
+- Implementation: `src/api/api_datatype.cpp`
+- Theory plugin: `src/ast/datatype_decl_plugin.h`

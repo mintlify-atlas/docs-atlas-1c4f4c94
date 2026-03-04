@@ -1,0 +1,422 @@
+---
+title: Installation
+description: Install and build Z3 Go bindings
+icon: download
+---
+
+The Z3 Go bindings provide a comprehensive interface to Z3's C API using CGO. The bindings are included in the Z3 source repository and must be built from source.
+
+## Requirements
+
+<CardGroup cols={2}>
+  <Card title="Go" icon="golang">
+    - Go 1.20 or later
+    - CGO enabled (default)
+  </Card>
+  <Card title="Build Tools" icon="hammer">
+    - C/C++ compiler (gcc, clang, or MSVC)
+    - CMake 3.4+ or Python 3.x
+    - Git
+  </Card>
+</CardGroup>
+
+## Build Z3 with Go Bindings
+
+The Go bindings must be built as part of the Z3 library.
+
+### Method 1: CMake (Recommended)
+
+<Steps>
+  <Step title="Clone Z3 Repository">
+    ```bash
+    git clone https://github.com/Z3Prover/z3.git
+    cd z3
+    ```
+  </Step>
+
+  <Step title="Configure with CMake">
+    ```bash
+    mkdir build && cd build
+    cmake -DBUILD_GO_BINDINGS=ON ..
+    ```
+    
+    <Tip>
+      Add `-DCMAKE_BUILD_TYPE=Release` for optimized builds.
+    </Tip>
+  </Step>
+
+  <Step title="Build Z3">
+    <CodeGroup>
+    ```bash Linux/macOS
+    make -j$(nproc)
+    ```
+    
+    ```bash Windows
+    cmake --build . --config Release
+    ```
+    </CodeGroup>
+  </Step>
+
+  <Step title="Verify Build">
+    The build creates:
+    - `libz3.so` / `libz3.dylib` / `z3.dll` - Z3 shared library
+    - Go bindings in `src/api/go/`
+    
+    ```bash
+    ls -la build/libz3.*
+    ls -la src/api/go/
+    ```
+  </Step>
+</Steps>
+
+### Method 2: Python Build System
+
+<Steps>
+  <Step title="Clone and Configure">
+    ```bash
+    git clone https://github.com/Z3Prover/z3.git
+    cd z3
+    python scripts/mk_make.py --go
+    ```
+  </Step>
+
+  <Step title="Build">
+    ```bash
+    cd build
+    make -j$(nproc)
+    ```
+  </Step>
+</Steps>
+
+## Set Up Go Environment
+
+After building Z3, configure your Go environment to use the bindings.
+
+### Linux / macOS
+
+```bash
+export LD_LIBRARY_PATH=/path/to/z3/build:$LD_LIBRARY_PATH
+export CGO_CFLAGS="-I/path/to/z3/src/api"
+export CGO_LDFLAGS="-L/path/to/z3/build -lz3"
+```
+
+Add to `~/.bashrc` or `~/.zshrc` for permanent configuration:
+
+```bash ~/.bashrc
+# Z3 Go bindings
+export Z3_ROOT="$HOME/z3"
+export LD_LIBRARY_PATH="$Z3_ROOT/build:$LD_LIBRARY_PATH"
+export CGO_CFLAGS="-I$Z3_ROOT/src/api"
+export CGO_LDFLAGS="-L$Z3_ROOT/build -lz3"
+```
+
+### macOS Specific
+
+On macOS, use `DYLD_LIBRARY_PATH` instead:
+
+```bash
+export DYLD_LIBRARY_PATH=/path/to/z3/build:$DYLD_LIBRARY_PATH
+export CGO_CFLAGS="-I/path/to/z3/src/api"
+export CGO_LDFLAGS="-L/path/to/z3/build -lz3"
+```
+
+### Windows
+
+```cmd
+set PATH=C:\path\to\z3\build\Release;%PATH%
+set CGO_CFLAGS=-IC:\path\to\z3\src\api
+set CGO_LDFLAGS=-LC:\path\to\z3\build\Release -lz3
+```
+
+For PowerShell:
+
+```powershell
+$env:Path = "C:\path\to\z3\build\Release;" + $env:Path
+$env:CGO_CFLAGS = "-IC:\path\to\z3\src\api"
+$env:CGO_LDFLAGS = "-LC:\path\to\z3\build\Release -lz3"
+```
+
+## Using Go Modules
+
+The Z3 Go bindings use Go modules. Your project should reference the Z3 repository:
+
+### go.mod
+
+```go go.mod
+module myproject
+
+go 1.20
+
+require github.com/Z3Prover/z3/src/api/go v0.0.0
+
+replace github.com/Z3Prover/z3/src/api/go => /path/to/z3/src/api/go
+```
+
+<Note>
+  The `replace` directive points to your local Z3 build since the Go bindings are not published to a Go module registry.
+</Note>
+
+### Using in Your Code
+
+```go main.go
+package main
+
+import (
+    "fmt"
+    "github.com/Z3Prover/z3/src/api/go"
+)
+
+func main() {
+    ctx := z3.NewContext()
+    x := ctx.MkIntConst("x")
+    fmt.Println("Created Z3 context and variable:", x.String())
+}
+```
+
+## Verification
+
+Test your installation:
+
+```go test.go
+package main
+
+import (
+    "fmt"
+    "github.com/Z3Prover/z3/src/api/go"
+)
+
+func main() {
+    // Create context
+    ctx := z3.NewContext()
+    fmt.Println("Z3 Go bindings installed successfully!")
+    
+    // Simple test
+    x := ctx.MkIntConst("x")
+    zero := ctx.MkInt(0, ctx.MkIntSort())
+    constraint := ctx.MkGt(x, zero)
+    
+    solver := ctx.NewSolver()
+    solver.Assert(constraint)
+    
+    if solver.Check() == z3.Satisfiable {
+        fmt.Println("✓ Solver working correctly")
+        model := solver.Model()
+        if val, ok := model.Eval(x, true); ok {
+            fmt.Println("✓ Model evaluation working:", val.String())
+        }
+    }
+}
+```
+
+Run it:
+
+```bash
+go run test.go
+```
+
+Expected output:
+```
+Z3 Go bindings installed successfully!
+✓ Solver working correctly
+✓ Model evaluation working: 1
+```
+
+## Installation Options
+
+### System-Wide Installation
+
+To install Z3 system-wide:
+
+<CodeGroup>
+```bash Linux
+sudo make install
+# Usually installs to /usr/local/lib
+sudo ldconfig
+```
+
+```bash macOS
+sudo make install
+# Usually installs to /usr/local/lib
+```
+
+```bash Windows (PowerShell as Admin)
+cmake --build . --target install
+# Installs to C:\Program Files\z3
+```
+</CodeGroup>
+
+After system installation, you may not need `LD_LIBRARY_PATH`:
+
+```bash
+export CGO_CFLAGS="-I/usr/local/include"
+export CGO_LDFLAGS="-lz3"
+```
+
+### Static Linking
+
+For static linking, build Z3 as a static library:
+
+```bash
+cmake -DBUILD_GO_BINDINGS=ON -DBUILD_LIBZ3_SHARED=OFF ..
+make
+```
+
+Then link statically:
+
+```bash
+export CGO_LDFLAGS="-L/path/to/z3/build -lz3 -lstdc++ -lpthread -lm"
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="undefined reference to Z3_* errors">
+    **Problem**: Linker can't find Z3 library.
+    
+    **Solution**:
+    - Verify `CGO_LDFLAGS` includes `-L/path/to/build -lz3`
+    - Check that `libz3.so` exists in the build directory
+    - On Linux: Run `sudo ldconfig` after system install
+    - On Windows: Ensure `z3.dll` is in PATH
+  </Accordion>
+
+  <Accordion title="z3.h: No such file or directory">
+    **Problem**: Compiler can't find Z3 headers.
+    
+    **Solution**:
+    - Verify `CGO_CFLAGS` includes `-I/path/to/z3/src/api`
+    - Check that `z3.h` exists in `src/api/z3.h`
+  </Accordion>
+
+  <Accordion title="cannot find package">
+    **Problem**: Go can't find the Z3 package.
+    
+    **Solution**:
+    - Check your `go.mod` has the correct `replace` directive
+    - Verify the path points to `z3/src/api/go` (not just `z3`)
+    - Run `go mod tidy`
+  </Accordion>
+
+  <Accordion title="shared library error at runtime">
+    **Problem**: `error while loading shared libraries: libz3.so`
+    
+    **Solution**:
+    - Set `LD_LIBRARY_PATH` (Linux) or `DYLD_LIBRARY_PATH` (macOS)
+    - Or install Z3 system-wide and run `ldconfig`
+    - On Windows: Ensure directory with `z3.dll` is in PATH
+  </Accordion>
+
+  <Accordion title="CGO not enabled">
+    **Problem**: CGO is disabled.
+    
+    **Solution**:
+    ```bash
+    export CGO_ENABLED=1
+    go env -w CGO_ENABLED=1
+    ```
+  </Accordion>
+
+  <Accordion title="Build fails on macOS">
+    **Problem**: XCode command line tools or compiler missing.
+    
+    **Solution**:
+    ```bash
+    xcode-select --install
+    brew install cmake
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Docker Setup
+
+Use Docker for isolated development:
+
+```dockerfile Dockerfile
+FROM golang:1.21
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    cmake \
+    git
+
+# Build Z3
+RUN git clone https://github.com/Z3Prover/z3.git /z3 && \
+    cd /z3 && \
+    mkdir build && \
+    cd build && \
+    cmake -DBUILD_GO_BINDINGS=ON .. && \
+    make -j$(nproc)
+
+# Set environment
+ENV LD_LIBRARY_PATH=/z3/build:$LD_LIBRARY_PATH
+ENV CGO_CFLAGS="-I/z3/src/api"
+ENV CGO_LDFLAGS="-L/z3/build -lz3"
+
+WORKDIR /app
+```
+
+## Platform-Specific Notes
+
+<Tabs>
+  <Tab title="Linux">
+    Most Linux distributions work out of the box with gcc/g++.
+    
+    Install dependencies:
+    ```bash
+    # Ubuntu/Debian
+    sudo apt-get install build-essential cmake git
+    
+    # Fedora/RHEL
+    sudo dnf install gcc gcc-c++ cmake git
+    
+    # Arch
+    sudo pacman -S base-devel cmake git
+    ```
+  </Tab>
+
+  <Tab title="macOS">
+    Requires XCode command line tools:
+    ```bash
+    xcode-select --install
+    brew install cmake
+    ```
+    
+    Apple Silicon (M1/M2) works but ensure you're using native Go:
+    ```bash
+    go env GOARCH  # Should show arm64
+    ```
+  </Tab>
+
+  <Tab title="Windows">
+    Requires Visual Studio or MinGW:
+    
+    **Visual Studio** (Recommended):
+    - Install Visual Studio 2019 or later
+    - Include "Desktop development with C++"
+    - Use "x64 Native Tools Command Prompt"
+    
+    **MinGW**:
+    ```bash
+    # Install via MSYS2
+    pacman -S mingw-w64-x86_64-gcc cmake
+    ```
+  </Tab>
+</Tabs>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Getting Started" icon="rocket" href="/bindings/go/getting-started">
+    Learn the basics with examples
+  </Card>
+  <Card title="API Reference" icon="book" href="/bindings/go/api-reference">
+    Complete API documentation
+  </Card>
+  <Card title="Examples" icon="code" href="https://github.com/Z3Prover/z3/tree/master/examples/go">
+    Example programs on GitHub
+  </Card>
+  <Card title="Build Guide" icon="hammer" href="/building/cmake">
+    Detailed build instructions
+  </Card>
+</CardGroup>

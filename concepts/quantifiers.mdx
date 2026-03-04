@@ -1,0 +1,569 @@
+---
+title: Quantifiers
+description: Understanding quantified formulas, patterns, and instantiation in Z3
+---
+
+## Overview
+
+**Quantifiers** allow expressing properties over infinite domains. Z3 supports:
+- **Universal quantification** (∀): "for all" 
+- **Existential quantification** (∃): "there exists"
+- **Lambda expressions**: anonymous functions
+
+## Basic Quantifiers
+
+<CodeGroup>
+```python Python
+from z3 import *
+
+# Universal quantifier: ∀x. P(x)
+x = Int('x')
+f = Function('f', IntSort(), IntSort())
+
+formula = ForAll(x, f(x) >= 0)
+print(formula)
+# ForAll(x, f(x) >= 0)
+
+# Existential quantifier: ∃x. P(x)
+formula2 = Exists(x, And(x > 0, x < 10))
+print(formula2)
+# Exists(x, And(x > 0, x < 10))
+```
+
+```cpp C++
+#include <z3++.h>
+using namespace z3;
+
+context c;
+expr x = c.int_const("x");
+expr y = c.int_const("y");
+sort I = c.int_sort();
+func_decl f = function("f", I, I, I);
+
+// ForAll(x, y, f(x,y) >= 0)
+expr_vector bound(c);
+bound.push_back(x);
+bound.push_back(y);
+
+expr body = f(x, y) >= 0;
+expr formula = forall(bound, body);
+```
+
+```java Java
+import com.microsoft.z3.*;
+
+Context ctx = new Context();
+IntExpr x = ctx.mkIntConst("x");
+FuncDecl f = ctx.mkFuncDecl("f", 
+    new Sort[]{ctx.getIntSort()}, 
+    ctx.getIntSort());
+
+// ForAll x, f(x) >= 0
+BoolExpr body = ctx.mkGe(
+    (IntExpr)f.apply(x), 
+    ctx.mkInt(0)
+);
+BoolExpr formula = ctx.mkForall(
+    new Expr[]{x},
+    body,
+    1,  // weight
+    null, null, null, null
+);
+```
+</CodeGroup>
+
+## Multiple Variables
+
+```python
+from z3 import *
+
+x, y = Ints('x y')
+f = Function('f', IntSort(), IntSort(), IntSort())
+
+# ForAll x, y. f(x,y) >= 0
+formula = ForAll([x, y], f(x, y) >= 0)
+
+# Mixed quantifiers: ∀x. ∃y. P(x,y)
+formula2 = ForAll(x, Exists(y, x + y == 0))
+print(formula2)
+```
+
+## Quantifier Example
+
+From `examples/c++/example.cpp:368`:
+
+```python
+from z3 import *
+
+x, y, a = Ints('x y a')
+f = Function('f', IntSort(), IntSort(), IntSort())
+
+s = Solver()
+
+# Enable model-based quantifier instantiation
+s.set("mbqi", True)
+
+# ∀x,y. f(x,y) >= 0
+s.add(ForAll([x, y], f(x, y) >= 0))
+
+# But f(a,a) < a
+s.add(f(a, a) < a)
+
+print(s.check())  # sat
+print(s.model())
+
+# Adding constraint makes it unsat
+s.add(a < 0)
+print(s.check())  # unsat
+```
+
+## Quantifier Instantiation
+
+Z3 handles quantifiers through **instantiation**: replacing bound variables with concrete terms.
+
+### Instantiation Strategies
+
+<CardGroup cols={2}>
+  <Card title="E-matching" icon="puzzle-piece">
+    Pattern-based instantiation using triggers
+  </Card>
+  <Card title="MBQI" icon="brain">
+    Model-Based Quantifier Instantiation
+  </Card>
+  <Card title="QSAT" icon="wand-magic-sparkles">
+    Quantified SAT encoding
+  </Card>
+  <Card title="QE" icon="equals">
+    Quantifier Elimination (when applicable)
+  </Card>
+</CardGroup>
+
+## Patterns (Triggers)
+
+**Patterns** guide when quantifiers should be instantiated:
+
+```python
+from z3 import *
+
+x, y = Ints('x y')
+f = Function('f', IntSort(), IntSort())
+g = Function('g', IntSort(), IntSort())
+
+# Pattern: instantiate when f(t) appears
+pattern = f(x)
+formula = ForAll(x, f(x) == g(x), patterns=[pattern])
+
+print(formula)
+```
+
+### Why Patterns Matter
+
+<Warning>
+Without patterns, Z3 may:
+- Instantiate too frequently (performance issues)
+- Instantiate too rarely (incompleteness)
+- Make poor instantiation choices
+
+Good patterns balance coverage and efficiency.
+</Warning>
+
+### Multi-Patterns
+
+```python
+from z3 import *
+
+x = Int('x')
+f = Function('f', IntSort(), IntSort())
+g = Function('g', IntSort(), IntSort())
+
+# Require BOTH f(x) and g(x) to appear
+multi_pattern = MultiPattern(f(x), g(x))
+formula = ForAll(x, f(x) == g(x), patterns=[multi_pattern])
+```
+
+### No Patterns
+
+Explicitly exclude terms from triggering:
+
+```python
+from z3 import *
+
+x, y = Ints('x y')
+f = Function('f', IntSort(), IntSort(), IntSort())
+g = Function('g', IntSort(), IntSort())
+
+# Don't instantiate on g(x)
+formula = ForAll([x, y], 
+    Implies(g(x) > 0, f(x, y) > 0),
+    patterns=[f(x, y)],  # Only trigger on f
+    no_patterns=[g(x)]   # Don't trigger on g
+)
+```
+
+## Quantifier Weights
+
+Control instantiation priority:
+
+```python
+from z3 import *
+
+x = Int('x')
+f = Function('f', IntSort(), IntSort())
+
+# Higher weight = lower priority (instantiated less)
+low_priority = ForAll(x, f(x) >= 0, weight=10)
+high_priority = ForAll(x, f(x) <= 100, weight=1)
+```
+
+## Quantifier IDs and Skolem IDs
+
+From `src/api/api_quant.cpp:27`:
+
+```python
+from z3 import *
+
+x = Int('x')
+f = Function('f', IntSort(), IntSort())
+
+# Named quantifier for debugging
+formula = ForAll(x, f(x) >= 0, 
+    qid="my_quantifier",
+    skid="my_skolem")
+
+print(formula)
+```
+
+## Lambda Expressions
+
+From `src/api/api_quant.cpp:144`:
+
+```python
+from z3 import *
+
+x, y = Ints('x y')
+
+# Lambda: λx. x + 1
+lambda_expr = Lambda(x, x + 1)
+
+# Apply lambda
+result = lambda_expr(5)
+print(simplify(result))  # 6
+
+# Multi-argument lambda: λ(x,y). x + y
+lambda2 = Lambda([x, y], x + y)
+result2 = lambda2(3, 4)
+print(simplify(result2))  # 7
+```
+
+### Lambda with Arrays
+
+```python
+from z3 import *
+
+A = Array('A', IntSort(), IntSort())
+i = Int('i')
+
+# Update function: λA,i. Store(A, i, 0)
+update = Lambda([A, i], Store(A, i, 0))
+
+B = Array('B', IntSort(), IntSort())
+j = Int('j')
+result = update(B, j)
+print(result)
+# Store(B, j, 0)
+```
+
+## Existential Quantifiers
+
+```python
+from z3 import *
+
+x = Int('x')
+
+# ∃x. x > 0 ∧ x < 10
+formula = Exists(x, And(x > 0, x < 10))
+
+s = Solver()
+s.add(formula)
+
+if s.check() == sat:
+    m = s.model()
+    print(m)
+    # Model may not show witness (depends on how it was derived)
+```
+
+### Eliminating Existentials
+
+<Note>
+Existential quantifiers can often be eliminated by Skolemization or quantifier elimination tactics.
+</Note>
+
+```python
+from z3 import *
+
+x, a = Ints('x a')
+
+# ∃x. x > a
+formula = Exists(x, x > a)
+
+# Simplifies to: True (always satisfiable)
+print(simplify(formula))  # True
+
+# ∀a. ∃x. x > a
+formula2 = ForAll(a, Exists(x, x > a))
+print(simplify(formula2))  # True
+```
+
+## Quantifier Alternation
+
+```python
+from z3 import *
+
+x, y, z = Ints('x y z')
+
+# ∀x. ∃y. ∀z. P(x,y,z)
+formula = ForAll(x, 
+    Exists(y, 
+        ForAll(z, x + y > z)
+    )
+)
+
+print(formula)
+```
+
+## Model-Based Quantifier Instantiation (MBQI)
+
+```python
+from z3 import *
+
+x, y = Ints('x y')
+f = Function('f', IntSort(), IntSort(), IntSort())
+
+s = Solver()
+s.set("mbqi", True)  # Enable MBQI
+
+# Without MBQI, this might return unknown
+s.add(ForAll([x, y], f(x, y) == x + y))
+s.add(f(3, 4) == 10)
+
+print(s.check())  # unsat (3+4 != 10)
+```
+
+## Quantifier Elimination
+
+From `examples/c++/example.cpp:784`:
+
+```python
+from z3 import *
+
+# Use quantifier elimination tactic
+t = Then('qe', 'smt')
+s = t.solver()
+
+a, b, x = Ints('a b x')
+
+# ∀x. (x ≤ a → x < b)
+f = ForAll(x, Implies(x <= a, x < b))
+
+s.add(f)
+print(s.check())  # sat
+
+m = s.model()
+print(m)
+# Result: a < b (quantifier eliminated)
+```
+
+## Quantified Bit-Vectors
+
+```python
+from z3 import *
+
+x = BitVec('x', 32)
+
+# ∀x. x + 0 == x
+formula = ForAll(x, x + 0 == x)
+
+s = Solver()
+s.add(Not(formula))
+
+print(s.check())  # unsat (tautology)
+```
+
+## Quantified Arrays
+
+```python
+from z3 import *
+
+A = Array('A', IntSort(), IntSort())
+i, v = Ints('i v')
+
+# ∀i. (Store(A, i, v))[i] == v
+formula = ForAll(i, Select(Store(A, i, v), i) == v)
+
+prove(formula)  # Array axiom
+```
+
+## Nested Quantifiers with Functions
+
+```python
+from z3 import *
+
+x, y = Ints('x y')
+f = Function('f', IntSort(), IntSort())
+
+# ∀x. (∃y. f(y) == x)
+formula = ForAll(x, Exists(y, f(y) == x))
+
+# This says f is surjective
+s = Solver()
+s.set("mbqi", True)
+s.add(formula)
+
+if s.check() == sat:
+    m = s.model()
+    print(m[f])
+    # Shows interpretation of f
+```
+
+## Quantifier Debugging
+
+```python
+from z3 import *
+
+set_option("verbose", 2)
+set_option("qi.max_instances", 1000)  # Max instantiations
+set_option("qi.profile", True)         # Profile quantifier instantiation
+
+x = Int('x')
+f = Function('f', IntSort(), IntSort())
+
+s = Solver()
+s.add(ForAll(x, f(x) > 0))
+s.add(f(5) < 0)
+
+print(s.check())
+print(s.statistics())
+```
+
+## Common Patterns
+
+### Axiomatizing Functions
+
+```python
+from z3 import *
+
+x, y = Ints('x y')
+f = Function('f', IntSort(), IntSort())
+
+# Axiom: f is monotonic
+monotonic = ForAll([x, y], 
+    Implies(x <= y, f(x) <= f(y)),
+    patterns=[f(x), f(y)]
+)
+
+s = Solver()
+s.add(monotonic)
+s.add(f(0) == 0)
+s.add(f(10) == 10)
+s.add(f(5) > 6)
+
+print(s.check())  # sat or unsat depending on constraints
+```
+
+### Universal Constraints
+
+```python
+from z3 import *
+
+A = Array('A', IntSort(), IntSort())
+i = Int('i')
+
+# All array elements are positive
+all_positive = ForAll(i, A[i] > 0)
+
+s = Solver()
+s.set("mbqi", True)
+s.add(all_positive)
+s.add(A[5] == -1)
+
+print(s.check())  # unsat
+```
+
+## Quantifier-Free Fragments
+
+<Tip>
+Whenever possible, use **quantifier-free** formulas. They're much more efficient:
+
+- QF_LIA: Quantifier-Free Linear Integer Arithmetic
+- QF_BV: Quantifier-Free Bit-Vectors  
+- QF_UFLIA: QF Linear Integer Arithmetic with Uninterpreted Functions
+</Tip>
+
+## Performance Tips
+
+<AccordionGroup>
+  <Accordion title="Provide good patterns">
+    Choose patterns that:
+    - Cover all relevant terms
+    - Avoid overly general triggers
+    - Balance between too few and too many instantiations
+  </Accordion>
+  
+  <Accordion title="Use appropriate weights">
+    Higher weights for less important quantifiers:
+    ```python
+    ForAll(x, P(x), weight=10)  # Low priority
+    ```
+  </Accordion>
+  
+  <Accordion title="Enable MBQI for finite domains">
+    MBQI works well when the domain is effectively finite:
+    ```python
+    s.set("mbqi", True)
+    ```
+  </Accordion>
+  
+  <Accordion title="Consider quantifier elimination">
+    For linear arithmetic, quantifier elimination is often complete:
+    ```python
+    t = Then('qe', 'smt')
+    ```
+  </Accordion>
+  
+  <Accordion title="Limit instantiations">
+    Prevent runaway instantiation:
+    ```python
+    set_option("smt.qi.max_instances", 10000)
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Known Limitations
+
+<Warning>
+- Quantifiers make satisfiability **undecidable** in general
+- Z3 may return `unknown` for complex quantified formulas
+- Poor patterns can cause non-termination or performance issues
+- Not all theories support effective quantifier reasoning
+</Warning>
+
+## Related Topics
+
+<CardGroup cols={3}>
+  <Card title="Expressions" href="/concepts/expressions">
+    Building quantified formulas
+  </Card>
+  <Card title="Solvers" href="/concepts/solvers">
+    Solving quantified formulas
+  </Card>
+  <Card title="Tactics" href="/concepts/tactics">
+    Quantifier elimination tactics
+  </Card>
+</CardGroup>
+
+## References
+
+- Quantifier API: `src/api/api_quant.cpp`
+- Quantifier theory: `src/smt/smt_quantifier.cpp`
+- Examples: `examples/c++/example.cpp:368-392`
+- Pattern matching: `parsers/util/pattern_validation.h`

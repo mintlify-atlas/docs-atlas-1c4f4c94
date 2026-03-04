@@ -1,0 +1,479 @@
+---
+title: 'Java API Reference'
+description: 'Complete reference for the Z3 Java API'
+---
+
+The Z3 Java API provides an object-oriented interface to Z3. All classes are in the `com.microsoft.z3` package.
+
+## Core Classes
+
+### Context
+
+The central class that manages all Z3 objects.
+
+<ResponseField name="Context" type="class">
+  The main context class. All Z3 objects are created and managed through a context.
+  
+  ```java
+  // Constructor
+  Context()
+  Context(HashMap<String, String> settings)
+  
+  // Configuration settings:
+  // "model" -> "true" | "false"    // Enable model generation
+  // "proof" -> "true" | "false"    // Enable proof generation
+  // "timeout" -> "milliseconds"    // Set timeout
+  ```
+</ResponseField>
+
+<ParamField path="mkSolver()" type="Solver">
+  Create a new solver instance.
+  ```java
+  Solver mkSolver()
+  Solver mkSolver(Symbol logic)  // For specific logic (e.g., QF_LIA)
+  Solver mkSolver(Tactic t)      // Using a tactic
+  ```
+</ParamField>
+
+<ParamField path="mkParams()" type="Params">
+  Create a parameter set for configuring solvers and tactics.
+</ParamField>
+
+### Solver
+
+Incremental satisfiability solver.
+
+<ResponseField name="Solver" type="class">
+  Main interface for checking satisfiability.
+  
+  ```java
+  void add(BoolExpr... constraints)       // Add constraints
+  void add(BoolExpr constraint)           // Add single constraint
+  Status check()                          // Check satisfiability
+  Status check(Expr... assumptions)       // Check with assumptions
+  Model getModel()                        // Get model (if SAT)
+  Expr[] getUnsatCore()                   // Get unsat core (if UNSAT)
+  void push()                             // Create backtracking point
+  void pop()                              // Backtrack
+  void pop(int n)                         // Backtrack n scopes
+  void reset()                            // Reset solver
+  ```
+</ResponseField>
+
+### Status
+
+Enumeration for solver results.
+
+<ResponseField name="Status" type="enum">
+  ```java
+  Status.SATISFIABLE      // Formula is satisfiable
+  Status.UNSATISFIABLE    // Formula is unsatisfiable
+  Status.UNKNOWN          // Result is unknown
+  ```
+</ResponseField>
+
+### Model
+
+A satisfying assignment for constraints.
+
+<ResponseField name="Model" type="class">
+  ```java
+  Expr evaluate(Expr t, boolean modelCompletion)  // Evaluate expression
+  FuncDecl[] getConstDecls()                       // Get all constants
+  FuncDecl[] getFuncDecls()                        // Get all functions
+  Expr getConstInterp(FuncDecl decl)              // Get constant value
+  FuncInterp getFuncInterp(FuncDecl decl)         // Get function interpretation
+  String toString()                                 // String representation
+  ```
+</ResponseField>
+
+## Expression Classes
+
+### Expr
+
+Base class for all expressions.
+
+<ResponseField name="Expr" type="abstract class">
+  ```java
+  Sort getSort()                    // Get the sort (type) of expression
+  boolean isConst()                 // Check if constant
+  boolean isInt()                   // Check if integer
+  boolean isBool()                  // Check if boolean
+  String toString()                 // String representation
+  String getSExpr()                 // S-expression representation
+  ```
+</ResponseField>
+
+### BoolExpr
+
+Boolean expressions.
+
+<ResponseField name="BoolExpr" type="class extends Expr">
+  Represents Boolean formulas.
+</ResponseField>
+
+<ParamField path="mkTrue()" type="BoolExpr">
+  Create the `true` constant.
+  ```java
+  BoolExpr mkTrue()
+  ```
+</ParamField>
+
+<ParamField path="mkFalse()" type="BoolExpr">
+  Create the `false` constant.
+  ```java
+  BoolExpr mkFalse()
+  ```
+</ParamField>
+
+<ParamField path="mkBoolConst()" type="BoolExpr">
+  Create a Boolean variable.
+  ```java
+  BoolExpr mkBoolConst(String name)
+  BoolExpr mkBoolConst(Symbol name)
+  ```
+</ParamField>
+
+<ParamField path="Boolean Operations" type="BoolExpr">
+  ```java
+  BoolExpr mkNot(BoolExpr a)
+  BoolExpr mkAnd(BoolExpr... args)
+  BoolExpr mkOr(BoolExpr... args)
+  BoolExpr mkImplies(BoolExpr t1, BoolExpr t2)
+  BoolExpr mkIff(BoolExpr t1, BoolExpr t2)
+  BoolExpr mkXor(BoolExpr t1, BoolExpr t2)
+  ```
+</ParamField>
+
+### ArithExpr
+
+Base class for arithmetic expressions (Int and Real).
+
+<ResponseField name="ArithExpr" type="abstract class extends Expr">
+  Base for `IntExpr` and `RealExpr`.
+</ResponseField>
+
+### IntExpr
+
+Integer expressions.
+
+<ResponseField name="IntExpr" type="class extends ArithExpr">
+  Represents integer terms.
+</ResponseField>
+
+<ParamField path="mkInt()" type="IntExpr">
+  Create integer constants.
+  ```java
+  IntExpr mkInt(int value)
+  IntExpr mkInt(long value)
+  IntExpr mkInt(String numeral)
+  ```
+</ParamField>
+
+<ParamField path="mkIntConst()" type="IntExpr">
+  Create integer variables.
+  ```java
+  IntExpr mkIntConst(String name)
+  IntExpr mkIntConst(Symbol name)
+  ```
+</ParamField>
+
+### RealExpr
+
+Real (rational) expressions.
+
+<ResponseField name="RealExpr" type="class extends ArithExpr">
+  Represents real terms.
+</ResponseField>
+
+<ParamField path="mkReal()" type="RealExpr">
+  Create real constants.
+  ```java
+  RealExpr mkReal(int num, int den)     // Fraction
+  RealExpr mkReal(int value)
+  RealExpr mkReal(long value)
+  RealExpr mkReal(String numeral)       // "3.14" or "22/7"
+  ```
+</ParamField>
+
+<ParamField path="mkRealConst()" type="RealExpr">
+  Create real variables.
+  ```java
+  RealExpr mkRealConst(String name)
+  RealExpr mkRealConst(Symbol name)
+  ```
+</ParamField>
+
+### Arithmetic Operations
+
+<ParamField path="Arithmetic" type="ArithExpr">
+  ```java
+  ArithExpr mkAdd(ArithExpr... args)          // Addition
+  ArithExpr mkSub(ArithExpr... args)          // Subtraction
+  ArithExpr mkMul(ArithExpr... args)          // Multiplication
+  ArithExpr mkDiv(ArithExpr t1, ArithExpr t2) // Division
+  IntExpr mkMod(IntExpr t1, IntExpr t2)       // Modulo
+  IntExpr mkRem(IntExpr t1, IntExpr t2)       // Remainder
+  ArithExpr mkUnaryMinus(ArithExpr t)         // Negation
+  ArithExpr mkPower(ArithExpr t1, ArithExpr t2) // Exponentiation
+  ```
+</ParamField>
+
+### Comparison Operations
+
+<ParamField path="Comparisons" type="BoolExpr">
+  ```java
+  BoolExpr mkEq(Expr t1, Expr t2)             // Equality
+  BoolExpr mkDistinct(Expr... args)           // Pairwise distinct
+  BoolExpr mkLt(ArithExpr t1, ArithExpr t2)   // Less than
+  BoolExpr mkLe(ArithExpr t1, ArithExpr t2)   // Less than or equal
+  BoolExpr mkGt(ArithExpr t1, ArithExpr t2)   // Greater than
+  BoolExpr mkGe(ArithExpr t1, ArithExpr t2)   // Greater than or equal
+  ```
+</ParamField>
+
+## Bit-Vector Operations
+
+<ParamField path="Bit-Vectors" type="BitVecExpr">
+  ```java
+  BitVecSort mkBitVecSort(int size)           // Create BV sort
+  BitVecExpr mkBV(int value, int size)        // Create BV constant
+  BitVecExpr mkBVConst(String name, int size) // Create BV variable
+  
+  // Arithmetic
+  BitVecExpr mkBVAdd(BitVecExpr t1, BitVecExpr t2)
+  BitVecExpr mkBVSub(BitVecExpr t1, BitVecExpr t2)
+  BitVecExpr mkBVMul(BitVecExpr t1, BitVecExpr t2)
+  BitVecExpr mkBVSDiv(BitVecExpr t1, BitVecExpr t2)  // Signed division
+  BitVecExpr mkBVUDiv(BitVecExpr t1, BitVecExpr t2)  // Unsigned division
+  
+  // Bitwise
+  BitVecExpr mkBVAND(BitVecExpr t1, BitVecExpr t2)
+  BitVecExpr mkBVOR(BitVecExpr t1, BitVecExpr t2)
+  BitVecExpr mkBVXOR(BitVecExpr t1, BitVecExpr t2)
+  BitVecExpr mkBVNot(BitVecExpr t)
+  BitVecExpr mkBVNeg(BitVecExpr t)
+  
+  // Shifts
+  BitVecExpr mkBVSHL(BitVecExpr t1, BitVecExpr t2)   // Shift left
+  BitVecExpr mkBVLSHR(BitVecExpr t1, BitVecExpr t2)  // Logical shift right
+  BitVecExpr mkBVASHR(BitVecExpr t1, BitVecExpr t2)  // Arithmetic shift right
+  ```
+</ParamField>
+
+## Array Operations
+
+<ParamField path="Arrays" type="ArrayExpr">
+  ```java
+  ArraySort mkArraySort(Sort domain, Sort range)  // Create array sort
+  ArrayExpr mkArrayConst(String name, Sort domain, Sort range)
+  ArrayExpr mkConstArray(Sort domain, Expr value) // Constant array
+  
+  Expr mkSelect(ArrayExpr a, Expr i)              // Array read: a[i]
+  ArrayExpr mkStore(ArrayExpr a, Expr i, Expr v)  // Array write: a[i] := v
+  ```
+</ParamField>
+
+## Quantifiers
+
+<ParamField path="mkForall()" type="BoolExpr">
+  Create universal quantifier.
+  ```java
+  BoolExpr mkForall(
+      Expr[] boundVars,        // Quantified variables
+      BoolExpr body,            // Body
+      int weight,               // Weight (for instantiation)
+      Pattern[] patterns,       // Patterns (triggers)
+      Expr[] noPatterns,        // No-patterns
+      Symbol quantifierID,      // Quantifier ID
+      Symbol skolemID           // Skolem ID
+  )
+  
+  // Simplified version
+  BoolExpr mkForall(Expr[] boundVars, BoolExpr body, int weight, 
+                    Pattern[] patterns, Expr[] noPatterns, 
+                    Symbol qid, Symbol skid)
+  ```
+</ParamField>
+
+<ParamField path="mkExists()" type="BoolExpr">
+  Create existential quantifier (same signature as `mkForall`).
+</ParamField>
+
+<ParamField path="mkPattern()" type="Pattern">
+  Create a pattern (trigger) for quantifiers.
+  ```java
+  Pattern mkPattern(Expr... terms)
+  ```
+</ParamField>
+
+## Datatypes
+
+<ParamField path="Datatypes" type="DatatypeSort">
+  ```java
+  // Create constructor
+  Constructor mkConstructor(
+      Symbol name,              // Constructor name
+      Symbol recognizer,        // Recognizer name (is_name)
+      Symbol[] fieldNames,      // Field names
+      Sort[] sorts,             // Field types (null for recursive)
+      int[] sortRefs            // References to other datatypes
+  )
+  
+  // Create datatype
+  DatatypeSort mkDatatype(Symbol name, Constructor[] constructors)
+  
+  // Create mutually recursive datatypes
+  Sort[] mkDatatypeSorts(Symbol[] names, Constructor[][] constructors)
+  ```
+</ParamField>
+
+## Tactics and Goals
+
+<ParamField path="Tactics" type="Tactic">
+  ```java
+  Tactic mkTactic(String name)                    // Create tactic
+  Tactic andThen(Tactic... tactics)               // Sequential composition
+  Tactic orElse(Tactic t1, Tactic t2)            // Try t1, if fails use t2
+  Tactic repeat(Tactic t, int max)                // Repeat tactic
+  Tactic tryFor(Tactic t, int ms)                 // Run with timeout
+  
+  Goal mkGoal(boolean models, boolean unsatCores, boolean proofs)
+  ApplyResult apply(Tactic t, Goal g)             // Apply tactic to goal
+  ```
+</ParamField>
+
+## Optimization
+
+<ParamField path="Optimize" type="Optimize">
+  ```java
+  Optimize mkOptimize()                           // Create optimizer
+  
+  void add(BoolExpr... constraints)               // Add constraints
+  Optimize.Handle maximize(ArithExpr obj)         // Maximize objective
+  Optimize.Handle minimize(ArithExpr obj)         // Minimize objective
+  Status check()                                   // Check and optimize
+  Model getModel()                                 // Get optimal model
+  ```
+</ParamField>
+
+## Utilities
+
+<ParamField path="Version" type="class">
+  ```java
+  static int getMajor()
+  static int getMinor()
+  static int getBuildNumber()
+  static int getRevisionNumber()
+  static String getFullVersion()      // "4.x.x.x"
+  static String getString()            // "Z3 4.x.x"
+  ```
+</ParamField>
+
+<ParamField path="Symbol" type="class">
+  ```java
+  Symbol mkSymbol(String name)        // Create string symbol
+  Symbol mkSymbol(int i)              // Create integer symbol
+  ```
+</ParamField>
+
+<ParamField path="Sort" type="class">
+  ```java
+  Sort getIntSort()                   // Get integer sort
+  Sort getRealSort()                  // Get real sort
+  Sort getBoolSort()                  // Get boolean sort
+  Sort getStringSort()                // Get string sort
+  ```
+</ParamField>
+
+## SMT-LIB Parsing
+
+<ParamField path="parseSMTLIB2String()" type="BoolExpr[]">
+  Parse SMT-LIB2 format string.
+  ```java
+  BoolExpr[] parseSMTLIB2String(
+      String str,                     // SMT-LIB2 string
+      Symbol[] sortNames,             // Sort name bindings
+      Sort[] sorts,                   // Sort values
+      Symbol[] declNames,             // Declaration name bindings
+      FuncDecl[] decls                // Declaration values
+  )
+  
+  // Simple version
+  BoolExpr[] parseSMTLIB2String(String str)
+  ```
+</ParamField>
+
+<ParamField path="parseSMTLIB2File()" type="BoolExpr[]">
+  Parse SMT-LIB2 format file (same parameters as `parseSMTLIB2String`).
+</ParamField>
+
+## Exception Handling
+
+<ResponseField name="Z3Exception" type="class extends Exception">
+  Exception thrown by Z3 operations.
+  ```java
+  try {
+      // Z3 operations
+  } catch (Z3Exception e) {
+      System.err.println("Z3 error: " + e.getMessage());
+  }
+  ```
+</ResponseField>
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Use Try-With-Resources" icon="shield-check">
+    Always use try-with-resources for `Context` to ensure cleanup.
+    ```java
+    try (Context ctx = new Context()) {
+        // Use Z3
+    }
+    ```
+  </Card>
+  
+  <Card title="Check Status First" icon="check-circle">
+    Always check solver status before accessing results.
+    ```java
+    if (solver.check() == Status.SATISFIABLE) {
+        Model m = solver.getModel();
+    }
+    ```
+  </Card>
+  
+  <Card title="Enable Model Generation" icon="gear">
+    Set configuration if you need models.
+    ```java
+    HashMap<String, String> cfg = new HashMap<>();
+    cfg.put("model", "true");
+    Context ctx = new Context(cfg);
+    ```
+  </Card>
+  
+  <Card title="Use Typed Expressions" icon="code">
+    Prefer typed expressions for safety.
+    ```java
+    IntExpr x = ctx.mkIntConst("x");
+    // Better than:
+    Expr x = ctx.mkIntConst("x");
+    ```
+  </Card>
+</CardGroup>
+
+## Resources
+
+<CardGroup cols={2}>
+  <Card title="Official Java API Docs" icon="external-link" href="https://z3prover.github.io/api/html/namespacecom_1_1microsoft_1_1z3.html">
+    Complete Javadoc documentation
+  </Card>
+  <Card title="Java Examples" icon="code" href="https://github.com/Z3Prover/z3/tree/master/examples/java">
+    Example programs on GitHub
+  </Card>
+  <Card title="Getting Started" icon="rocket" href="/bindings/java/getting-started">
+    Learn the basics
+  </Card>
+  <Card title="Z3 Guide" icon="book-open" href="https://microsoft.github.io/z3guide/">
+    Interactive tutorial
+  </Card>
+</CardGroup>

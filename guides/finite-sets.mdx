@@ -1,0 +1,498 @@
+---
+title: Finite Sets
+description: Use Z3's FiniteSets theory for reasoning about finite set operations, membership, and cardinality
+---
+
+Z3 4.17.0 introduced a new **FiniteSets** theory solver for reasoning about finite sets. This theory provides operations for creating, manipulating, and querying finite sets over any base sort.
+
+<Note>
+The FiniteSets theory was added in **Z3 version 4.17.0**. Support for `set.range` and `set.map` is partial. Support for `set.size` exists but without optimization.
+</Note>
+
+## Overview
+
+The FiniteSets theory provides:
+- **Set construction**: Empty sets, singletons, ranges
+- **Set operations**: Union, intersection, difference
+- **Predicates**: Membership, subset
+- **Functions**: Size, map, filter
+- **Base sorts**: Sets over any sort (integers, booleans, custom datatypes, etc.)
+
+## Basic Set Operations
+
+### Creating Sets
+
+```python
+from z3 import *
+
+# Create finite set sort over integers
+IntSet = SetSort(IntSort())
+
+# Empty set
+empty = EmptySet(IntSet)
+
+# Singleton set
+singleton = SetSingleton(IntVal(5))
+
+# Union to build sets
+set1 = SetUnion(SetSingleton(IntVal(1)), SetSingleton(IntVal(2)))
+set2 = SetUnion(SetSingleton(IntVal(3)), 
+                SetUnion(SetSingleton(IntVal(4)), SetSingleton(IntVal(5))))
+
+# Set from range: {low, low+1, ..., high-1}
+range_set = SetRange(IntVal(1), IntVal(10))  # {1, 2, 3, ..., 9}
+```
+
+### Set Operations
+
+```python
+from z3 import *
+
+IntSet = SetSort(IntSort())
+
+A = Const('A', IntSet)
+B = Const('B', IntSet)
+
+# Union: A ∪ B
+union = SetUnion(A, B)
+
+# Intersection: A ∩ B
+intersect = SetIntersect(A, B)
+
+# Difference: A \ B (elements in A but not in B)
+diff = SetDifference(A, B)
+
+# Membership: x ∈ A
+x = Int('x')
+member = SetMember(x, A)
+
+# Subset: A ⊆ B
+subset = SetSubset(A, B)
+
+# Example: prove (A ∪ B) \ B = A \ B
+s = Solver()
+lhs = SetDifference(SetUnion(A, B), B)
+rhs = SetDifference(A, B)
+s.add(lhs != rhs)
+print(s.check())  # unsat (property holds)
+```
+
+### Set Cardinality
+
+```python
+from z3 import *
+
+IntSet = SetSort(IntSort())
+A = Const('A', IntSet)
+
+# Cardinality: |A|
+card = SetSize(A)
+
+s = Solver()
+
+# Create specific set
+my_set = SetUnion(SetSingleton(IntVal(1)), 
+                  SetUnion(SetSingleton(IntVal(2)), SetSingleton(IntVal(3))))
+
+s.add(A == my_set)
+s.add(card == SetSize(A))
+
+if s.check() == sat:
+    m = s.model()
+    print(f"Set: {m[A]}")
+    print(f"Size: {m.eval(card)}")
+```
+
+## Membership and Subset Constraints
+
+### Membership Constraints
+
+```python
+from z3 import *
+
+s = Solver()
+
+IntSet = SetSort(IntSort())
+A = Const('A', IntSet)
+x, y, z = Ints('x y z')
+
+# Elements in set
+s.add(SetMember(x, A))
+s.add(SetMember(y, A))
+s.add(Not(SetMember(z, A)))
+
+# Constraints on elements
+s.add(x > 0)
+s.add(y > x)
+s.add(z > y)
+
+# Set size
+s.add(SetSize(A) == 2)
+
+if s.check() == sat:
+    m = s.model()
+    print(f"A = {m[A]}")
+    print(f"x = {m[x]}, y = {m[y]}, z = {m[z]}")
+```
+
+### Subset Relationships
+
+```python
+from z3 import *
+
+s = Solver()
+
+IntSet = SetSort(IntSort())
+A = Const('A', IntSet)
+B = Const('B', IntSet)
+C = Const('C', IntSet)
+
+# A ⊆ B ⊆ C
+s.add(SetSubset(A, B))
+s.add(SetSubset(B, C))
+
+# C has exactly 5 elements
+s.add(SetSize(C) == 5)
+
+# A is non-empty
+s.add(SetSize(A) > 0)
+
+# B is strictly between A and C
+s.add(A != B)
+s.add(B != C)
+
+if s.check() == sat:
+    m = s.model()
+    print(f"A = {m[A]}")
+    print(f"B = {m[B]}")
+    print(f"C = {m[C]}")
+```
+
+## Advanced Operations
+
+### Set Mapping
+
+Apply a function to all elements of a set:
+
+```python
+from z3 import *
+
+s = Solver()
+
+IntSet = SetSort(IntSort())
+A = Const('A', IntSet)
+
+# Function: double each element
+x = Int('x')
+double = Lambda([x], x * 2)
+
+# Map function over set
+B = SetMap(double, A)
+
+# Original set: {1, 2, 3}
+s.add(A == SetUnion(SetSingleton(IntVal(1)),
+                    SetUnion(SetSingleton(IntVal(2)), 
+                            SetSingleton(IntVal(3)))))
+
+if s.check() == sat:
+    m = s.model()
+    print(f"Original: {m[A]}")
+    print(f"Doubled: {m[B]}")  # Should be {2, 4, 6}
+```
+
+<Warning>
+Support for `set.map` is currently **partial** in Z3 4.17.0. Some complex mapping operations may not be fully supported.
+</Warning>
+
+### Set Filtering
+
+Filter elements based on a predicate:
+
+```python
+from z3 import *
+
+s = Solver()
+
+IntSet = SetSort(IntSort())
+A = Const('A', IntSet)
+
+# Predicate: keep only even numbers
+x = Int('x')
+is_even = Lambda([x], x % 2 == 0)
+
+# Filter set
+evens = SetFilter(is_even, A)
+
+# Original set: range 1..10
+s.add(A == SetRange(IntVal(1), IntVal(11)))
+
+if s.check() == sat:
+    m = s.model()
+    print(f"Original: {m[A]}")
+    print(f"Evens: {m.eval(evens)}")
+```
+
+### Integer Ranges
+
+```python
+from z3 import *
+
+s = Solver()
+
+IntSet = SetSort(IntSort())
+
+# Range: {low, low+1, ..., high-1}
+range1 = SetRange(IntVal(1), IntVal(5))   # {1, 2, 3, 4}
+range2 = SetRange(IntVal(3), IntVal(8))   # {3, 4, 5, 6, 7}
+
+# Intersection of ranges
+intersection = SetIntersect(range1, range2)
+
+s.add(SetSize(intersection) > 0)
+
+if s.check() == sat:
+    m = s.model()
+    print(f"Range 1: {m.eval(range1)}")
+    print(f"Range 2: {m.eval(range2)}")
+    print(f"Intersection: {m.eval(intersection)}")
+    print(f"Intersection size: {m.eval(SetSize(intersection))}")
+```
+
+<Note>
+Support for `set.range` is **partial** in the current implementation. Basic range operations work, but complex range constraints may have limitations.
+</Note>
+
+## Sets Over Different Sorts
+
+### Boolean Sets
+
+```python
+from z3 import *
+
+BoolSet = SetSort(BoolSort())
+
+# There are only 4 possible boolean sets
+empty = EmptySet(BoolSet)
+just_true = SetSingleton(BoolVal(True))
+just_false = SetSingleton(BoolVal(False))
+both = SetUnion(SetSingleton(BoolVal(True)), SetSingleton(BoolVal(False)))
+
+s = Solver()
+B = Const('B', BoolSet)
+
+# B is non-empty and not the full set
+s.add(B != empty)
+s.add(B != both)
+
+if s.check() == sat:
+    m = s.model()
+    print(f"B = {m[B]}")  # Either {True} or {False}
+```
+
+### Sets of Bit-Vectors
+
+```python
+from z3 import *
+
+BV8Set = SetSort(BitVecSort(8))
+
+A = Const('A', BV8Set)
+s = Solver()
+
+# Set contains specific bit-vectors
+s.add(SetMember(BitVecVal(0xFF, 8), A))
+s.add(SetMember(BitVecVal(0x00, 8), A))
+s.add(SetSize(A) == 2)
+
+if s.check() == sat:
+    print(s.model()[A])
+```
+
+### Sets of Custom Datatypes
+
+```python
+from z3 import *
+
+# Define a datatype
+Person = Datatype('Person')
+Person.declare('person', ('name', StringSort()), ('age', IntSort()))
+Person = Person.create()
+
+# Set of persons
+PersonSet = SetSort(Person)
+
+group = Const('group', PersonSet)
+s = Solver()
+
+# Create some people
+alice = Person.person(StringVal("Alice"), IntVal(30))
+bob = Person.person(StringVal("Bob"), IntVal(25))
+
+# Add to set
+s.add(SetMember(alice, group))
+s.add(SetMember(bob, group))
+s.add(SetSize(group) == 2)
+
+if s.check() == sat:
+    print(s.model()[group])
+```
+
+## Practical Examples
+
+### Sudoku Constraints
+
+```python
+from z3 import *
+
+def all_different_set(cells):
+    """All cells have different values using sets"""
+    IntSet = SetSort(IntSort())
+    value_set = Const('values', IntSet)
+    
+    constraints = []
+    
+    # Each cell value is in the set
+    for cell in cells:
+        constraints.append(SetMember(cell, value_set))
+    
+    # Set has same size as number of cells (all different)
+    constraints.append(SetSize(value_set) == len(cells))
+    
+    return And(constraints)
+
+# Sudoku row constraint
+row = [Int(f'cell_{i}') for i in range(9)]
+s = Solver()
+
+# Each cell 1-9
+for cell in row:
+    s.add(cell >= 1, cell <= 9)
+
+# All different
+s.add(all_different_set(row))
+
+if s.check() == sat:
+    m = s.model()
+    print([m[cell] for cell in row])
+```
+
+### Set Partitioning Problem
+
+```python
+from z3 import *
+
+# Partition {1,2,3,4,5,6} into two sets with equal sum
+s = Solver()
+
+IntSet = SetSort(IntSort())
+A = Const('A', IntSet)
+B = Const('B', IntSet)
+
+# Full set
+full_set = SetRange(IntVal(1), IntVal(7))  # {1,2,3,4,5,6}
+
+# A and B partition the full set
+s.add(SetUnion(A, B) == full_set)
+s.add(SetIntersect(A, B) == EmptySet(IntSet))
+
+# Both non-empty
+s.add(SetSize(A) > 0)
+s.add(SetSize(B) > 0)
+
+# Equal sums (using helper function)
+def set_sum(S):
+    # This is conceptual - actual implementation would need
+    # to enumerate or use quantifiers
+    result = Int('sum')
+    # ... implementation details ...
+    return result
+
+# For this example, we'll constrain manually
+s.add(SetSize(A) == 3)  # Force specific partition structure
+
+if s.check() == sat:
+    m = s.model()
+    print(f"Set A: {m[A]}")
+    print(f"Set B: {m[B]}")
+```
+
+## C API Reference
+
+The C API for finite sets (defined in `api_finite_set.cpp`):
+
+```c
+#include <z3.h>
+
+// Create finite set sort
+Z3_sort elem_sort = Z3_mk_int_sort(ctx);
+Z3_sort set_sort = Z3_mk_finite_set_sort(ctx, elem_sort);
+
+// Check if sort is finite set
+bool is_set = Z3_is_finite_set_sort(ctx, set_sort);
+
+// Get base sort
+Z3_sort base = Z3_get_finite_set_sort_basis(ctx, set_sort);
+
+// Empty set
+Z3_ast empty = Z3_mk_finite_set_empty(ctx, set_sort);
+
+// Singleton
+Z3_ast elem = Z3_mk_int(ctx, 5, Z3_mk_int_sort(ctx));
+Z3_ast singleton = Z3_mk_finite_set_singleton(ctx, elem);
+
+// Operations
+Z3_ast union_set = Z3_mk_finite_set_union(ctx, set1, set2);
+Z3_ast intersect = Z3_mk_finite_set_intersect(ctx, set1, set2);
+Z3_ast diff = Z3_mk_finite_set_difference(ctx, set1, set2);
+
+// Membership
+Z3_ast member = Z3_mk_finite_set_member(ctx, elem, set);
+
+// Subset
+Z3_ast subset = Z3_mk_finite_set_subset(ctx, set1, set2);
+
+// Size
+Z3_ast size = Z3_mk_finite_set_size(ctx, set);
+
+// Map (partial support)
+Z3_ast mapped = Z3_mk_finite_set_map(ctx, func, set);
+
+// Filter
+Z3_ast filtered = Z3_mk_finite_set_filter(ctx, predicate, set);
+
+// Range
+Z3_ast range = Z3_mk_finite_set_range(ctx, low, high);
+```
+
+## Key Functions
+
+| Function | Description |
+|----------|-------------|
+| `Z3_mk_finite_set_sort` | Create finite set sort |
+| `Z3_mk_finite_set_empty` | Create empty set |
+| `Z3_mk_finite_set_singleton` | Create singleton set |
+| `Z3_mk_finite_set_union` | Set union |
+| `Z3_mk_finite_set_intersect` | Set intersection |
+| `Z3_mk_finite_set_difference` | Set difference |
+| `Z3_mk_finite_set_member` | Membership test |
+| `Z3_mk_finite_set_subset` | Subset test |
+| `Z3_mk_finite_set_size` | Set cardinality |
+| `Z3_mk_finite_set_map` | Map function over set (partial) |
+| `Z3_mk_finite_set_filter` | Filter set by predicate |
+| `Z3_mk_finite_set_range` | Integer range (partial) |
+
+## Current Limitations
+
+As noted in the Z3 4.17.0 release notes:
+
+- **`set.range` support is partial**: Basic integer ranges work, but complex range operations may be limited
+- **`set.map` support is partial**: Simple mappings work, but complex transformations may not be fully supported  
+- **`set.size` lacks optimization**: Cardinality constraints work but are not optimized. Performance may be slower for large sets or complex size constraints
+
+For production use, test your specific use case and file GitHub issues for improvements.
+
+## See Also
+
+- [RELEASE_NOTES.md](https://github.com/Z3Prover/z3/blob/master/RELEASE_NOTES.md) - Z3 4.17.0 release information
+- [Arrays](/guides/arrays) - Related theory for arrays and maps
+- [Datatypes](/guides/datatypes) - Custom sorts for set elements

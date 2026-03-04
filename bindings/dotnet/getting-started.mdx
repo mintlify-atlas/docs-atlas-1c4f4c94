@@ -1,0 +1,553 @@
+---
+title: '.NET API Getting Started'
+description: 'Learn the basics of using Z3 from .NET'
+---
+
+The Z3 .NET API provides a modern, object-oriented interface to Z3 for C#, F#, and other .NET languages.
+
+## Basic Workflow
+
+A typical Z3 .NET program follows this pattern:
+
+1. Create a `Context` (manages all Z3 objects)
+2. Create expressions and constraints
+3. Create a `Solver` and assert constraints
+4. Check satisfiability
+5. Extract results (models, proofs, etc.)
+6. Dispose the context
+
+## Hello Z3
+
+Let's start with a minimal example:
+
+```csharp
+using System;
+using Microsoft.Z3;
+
+class HelloZ3
+{
+    static void Main()
+    {
+        using (Context ctx = new Context())
+        {
+            Console.WriteLine($"Z3 version: {Microsoft.Z3.Version.ToString()}");
+            Console.WriteLine("Context created successfully!");
+        }
+    }
+}
+```
+
+<Note>
+  The `Context` class implements `IDisposable`. Always use `using` statements or manually call `Dispose()` to prevent memory leaks.
+</Note>
+
+## Creating a Context
+
+The `Context` is the central object that manages all Z3 operations:
+
+```csharp
+using Microsoft.Z3;
+
+// Basic context
+using (Context ctx = new Context())
+{
+    // Use Z3...
+}
+
+// Context with custom configuration
+var cfg = new Dictionary<string, string>
+{
+    { "model", "true" },       // Enable model generation
+    { "proof", "false" },      // Disable proof generation
+    { "timeout", "1000" }      // Set timeout to 1 second
+};
+
+using (Context ctx = new Context(cfg))
+{
+    // Use Z3...
+}
+```
+
+## Creating Expressions
+
+### Boolean Expressions
+
+```csharp
+using (Context ctx = new Context())
+{
+    // Boolean constants
+    BoolExpr bTrue = ctx.MkTrue();
+    BoolExpr bFalse = ctx.MkFalse();
+    
+    // Boolean variables
+    BoolExpr x = ctx.MkBoolConst("x");
+    BoolExpr y = ctx.MkBoolConst("y");
+    
+    // Logical operations
+    BoolExpr notX = ctx.MkNot(x);
+    BoolExpr xAndY = ctx.MkAnd(x, y);
+    BoolExpr xOrY = ctx.MkOr(x, y);
+    BoolExpr xImpliesY = ctx.MkImplies(x, y);
+    BoolExpr xIffY = ctx.MkIff(x, y);
+}
+```
+
+### Integer Expressions
+
+```csharp
+using (Context ctx = new Context())
+{
+    // Integer constants
+    IntExpr zero = ctx.MkInt(0);
+    IntExpr five = ctx.MkInt(5);
+    
+    // Integer variables
+    IntExpr x = ctx.MkIntConst("x");
+    IntExpr y = ctx.MkIntConst("y");
+    
+    // Arithmetic operations
+    ArithExpr xPlusY = ctx.MkAdd(x, y);
+    ArithExpr xMinusY = ctx.MkSub(x, y);
+    ArithExpr xTimesY = ctx.MkMul(x, y);
+    IntExpr xDivY = ctx.MkDiv(x, y);
+    IntExpr xModY = ctx.MkMod(x, y);
+    
+    // Comparisons
+    BoolExpr xEqY = ctx.MkEq(x, y);
+    BoolExpr xLtY = ctx.MkLt(x, y);
+    BoolExpr xLeY = ctx.MkLe(x, y);
+    BoolExpr xGtY = ctx.MkGt(x, y);
+    BoolExpr xGeY = ctx.MkGe(x, y);
+}
+```
+
+### Real Expressions
+
+```csharp
+using (Context ctx = new Context())
+{
+    // Real constants
+    RealExpr half = ctx.MkReal(1, 2);      // 1/2
+    RealExpr pi = ctx.MkReal("3.14159");
+    
+    // Real variables
+    RealExpr x = ctx.MkRealConst("x");
+    RealExpr y = ctx.MkRealConst("y");
+    
+    // Operations work similarly to integers
+    ArithExpr sum = ctx.MkAdd(x, y);
+    ArithExpr product = ctx.MkMul(x, y);
+}
+```
+
+## Using Solvers
+
+### Basic Solving
+
+```csharp
+using System;
+using Microsoft.Z3;
+
+class BasicSolving
+{
+    static void Main()
+    {
+        using (Context ctx = new Context())
+        {
+            // Create variables
+            IntExpr x = ctx.MkIntConst("x");
+            IntExpr y = ctx.MkIntConst("y");
+            
+            // Create constraints: x > 0 AND y > x
+            BoolExpr c1 = ctx.MkGt(x, ctx.MkInt(0));
+            BoolExpr c2 = ctx.MkGt(y, x);
+            
+            // Create solver and add constraints
+            Solver solver = ctx.MkSolver();
+            solver.Assert(c1);
+            solver.Assert(c2);
+            
+            // Check satisfiability
+            Status result = solver.Check();
+            
+            if (result == Status.SATISFIABLE)
+            {
+                Console.WriteLine("SAT");
+                Model model = solver.Model;
+                Console.WriteLine($"Model: {model}");
+                
+                // Evaluate expressions in the model
+                Console.WriteLine($"x = {model.Evaluate(x)}");
+                Console.WriteLine($"y = {model.Evaluate(y)}");
+            }
+            else if (result == Status.UNSATISFIABLE)
+            {
+                Console.WriteLine("UNSAT");
+            }
+            else
+            {
+                Console.WriteLine("UNKNOWN");
+            }
+        }
+    }
+}
+```
+
+### Incremental Solving with Push/Pop
+
+```csharp
+using (Context ctx = new Context())
+{
+    IntExpr x = ctx.MkIntConst("x");
+    Solver solver = ctx.MkSolver();
+    
+    // Add base constraint
+    solver.Assert(ctx.MkGt(x, ctx.MkInt(0)));
+    
+    // Push: save state
+    solver.Push();
+    solver.Assert(ctx.MkLt(x, ctx.MkInt(5)));
+    Console.WriteLine($"Check 1: {solver.Check()}");  // SAT: x in (0, 5)
+    
+    // Pop: restore state
+    solver.Pop();
+    
+    // Add different constraint
+    solver.Push();
+    solver.Assert(ctx.MkGt(x, ctx.MkInt(100)));
+    Console.WriteLine($"Check 2: {solver.Check()}");  // SAT: x > 100
+    solver.Pop();
+}
+```
+
+## Complete Example: Proving De Morgan's Law
+
+Prove that `¬(x ∧ y) ⟺ (¬x ∨ ¬y)`:
+
+```csharp
+using System;
+using Microsoft.Z3;
+
+class DeMorgan
+{
+    static void Main()
+    {
+        using (Context ctx = new Context())
+        {
+            // Create boolean variables
+            BoolExpr x = ctx.MkBoolConst("x");
+            BoolExpr y = ctx.MkBoolConst("y");
+            
+            // Build the formula: ¬(x ∧ y) ⟺ (¬x ∨ ¬y)
+            BoolExpr leftSide = ctx.MkNot(ctx.MkAnd(x, y));
+            BoolExpr rightSide = ctx.MkOr(ctx.MkNot(x), ctx.MkNot(y));
+            BoolExpr conjecture = ctx.MkIff(leftSide, rightSide);
+            
+            // To prove, we show the negation is unsatisfiable
+            BoolExpr negation = ctx.MkNot(conjecture);
+            
+            Solver solver = ctx.MkSolver();
+            solver.Assert(negation);
+            
+            Status result = solver.Check();
+            
+            if (result == Status.UNSATISFIABLE)
+            {
+                Console.WriteLine("De Morgan's law is valid!");
+            }
+            else
+            {
+                Console.WriteLine("De Morgan's law is not valid (unexpected)");
+            }
+        }
+    }
+}
+```
+
+## Complete Example: Solving Equations
+
+Find values satisfying a system of equations:
+
+```csharp
+using System;
+using Microsoft.Z3;
+
+class SolveEquations
+{
+    static void Main()
+    {
+        using (Context ctx = new Context())
+        {
+            // Variables
+            IntExpr x = ctx.MkIntConst("x");
+            IntExpr y = ctx.MkIntConst("y");
+            
+            // Equations:
+            // x + y > 5
+            // x - y < 2
+            // x > 0
+            BoolExpr eq1 = ctx.MkGt(ctx.MkAdd(x, y), ctx.MkInt(5));
+            BoolExpr eq2 = ctx.MkLt(ctx.MkSub(x, y), ctx.MkInt(2));
+            BoolExpr eq3 = ctx.MkGt(x, ctx.MkInt(0));
+            
+            Solver solver = ctx.MkSolver();
+            solver.Assert(eq1, eq2, eq3);
+            
+            if (solver.Check() == Status.SATISFIABLE)
+            {
+                Model model = solver.Model;
+                Console.WriteLine("Solution found:");
+                Console.WriteLine($"x = {model.Evaluate(x)}");
+                Console.WriteLine($"y = {model.Evaluate(y)}");
+                
+                // Verify
+                var xVal = ((IntNum)model.Evaluate(x)).Int;
+                var yVal = ((IntNum)model.Evaluate(y)).Int;
+                Console.WriteLine("\nVerification:");
+                Console.WriteLine($"x + y = {xVal + yVal} > 5? {xVal + yVal > 5}");
+                Console.WriteLine($"x - y = {xVal - yVal} < 2? {xVal - yVal < 2}");
+                Console.WriteLine($"x = {xVal} > 0? {xVal > 0}");
+            }
+            else
+            {
+                Console.WriteLine("No solution found");
+            }
+        }
+    }
+}
+```
+
+## Working with Arrays
+
+```csharp
+using (Context ctx = new Context())
+{
+    // Create array sort: Int -> Int
+    Sort intSort = ctx.IntSort;
+    ArraySort arraySort = ctx.MkArraySort(intSort, intSort);
+    
+    // Create array variable
+    ArrayExpr a = (ArrayExpr)ctx.MkConst("a", arraySort);
+    
+    // Select element at index 0
+    IntExpr elem0 = (IntExpr)ctx.MkSelect(a, ctx.MkInt(0));
+    
+    // Store value 42 at index 0
+    ArrayExpr a2 = ctx.MkStore(a, ctx.MkInt(0), ctx.MkInt(42));
+    
+    // Create constraint: a2[0] == 42
+    Solver solver = ctx.MkSolver();
+    solver.Assert(ctx.MkEq(ctx.MkSelect(a2, ctx.MkInt(0)), ctx.MkInt(42)));
+    
+    Console.WriteLine(solver.Check());  // SATISFIABLE
+}
+```
+
+## Working with Quantifiers
+
+```csharp
+using (Context ctx = new Context())
+{
+    // Create a universal quantifier: forall x. x >= 0 => x + 1 > 0
+    IntExpr x = ctx.MkIntConst("x");
+    BoolExpr body = ctx.MkImplies(
+        ctx.MkGe(x, ctx.MkInt(0)),
+        ctx.MkGt(ctx.MkAdd(x, ctx.MkInt(1)), ctx.MkInt(0))
+    );
+    
+    BoolExpr forall = ctx.MkForall(
+        new Expr[] { x },           // Quantified variables
+        body,                        // Body
+        1,                           // Weight
+        null                         // Patterns
+    );
+    
+    // Prove the formula
+    Solver solver = ctx.MkSolver();
+    solver.Assert(ctx.MkNot(forall));
+    
+    if (solver.Check() == Status.UNSATISFIABLE)
+    {
+        Console.WriteLine("Formula is valid!");
+    }
+}
+```
+
+## Exception Handling
+
+```csharp
+using System;
+using Microsoft.Z3;
+
+class ExceptionHandling
+{
+    static void Main()
+    {
+        try
+        {
+            using (Context ctx = new Context())
+            {
+                Solver solver = ctx.MkSolver();
+                
+                // Your Z3 operations
+                IntExpr x = ctx.MkIntConst("x");
+                solver.Assert(ctx.MkGt(x, ctx.MkInt(0)));
+                
+                Status result = solver.Check();
+                Console.WriteLine($"Result: {result}");
+            }
+        }
+        catch (Z3Exception ex)
+        {
+            Console.WriteLine($"Z3 error: {ex.Message}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"General error: {ex.Message}");
+        }
+    }
+}
+```
+
+## F# Example
+
+Z3 works beautifully with F#:
+
+```fsharp
+open Microsoft.Z3
+open System
+
+[<EntryPoint>]
+let main argv =
+    use ctx = new Context()
+    
+    // Create variables
+    let x = ctx.MkIntConst("x")
+    let y = ctx.MkIntConst("y")
+    
+    // Create constraints: x + y > 5 AND x - y < 2
+    let c1 = ctx.MkGt(ctx.MkAdd(x, y), ctx.MkInt(5))
+    let c2 = ctx.MkLt(ctx.MkSub(x, y), ctx.MkInt(2))
+    
+    // Solve
+    let solver = ctx.MkSolver()
+    solver.Assert(c1, c2)
+    
+    match solver.Check() with
+    | Status.SATISFIABLE ->
+        printfn "SAT"
+        printfn "Model: %O" solver.Model
+        printfn "x = %O" (solver.Model.Evaluate(x))
+        printfn "y = %O" (solver.Model.Evaluate(y))
+    | Status.UNSATISFIABLE ->
+        printfn "UNSAT"
+    | _ ->
+        printfn "UNKNOWN"
+    
+    0
+```
+
+## Printing and Debugging
+
+```csharp
+using (Context ctx = new Context())
+{
+    IntExpr x = ctx.MkIntConst("x");
+    IntExpr y = ctx.MkIntConst("y");
+    BoolExpr formula = ctx.MkGt(ctx.MkAdd(x, y), ctx.MkInt(5));
+    
+    // Print expressions
+    Console.WriteLine($"Formula: {formula}");
+    Console.WriteLine($"S-expression: {formula.SExpr()}");
+    
+    // Print solver state
+    Solver solver = ctx.MkSolver();
+    solver.Assert(formula);
+    Console.WriteLine($"Solver: {solver}");
+    
+    // Print model
+    if (solver.Check() == Status.SATISFIABLE)
+    {
+        Model model = solver.Model;
+        Console.WriteLine($"Model: {model}");
+        
+        // Print all constants in the model
+        foreach (FuncDecl decl in model.ConstDecls)
+        {
+            Console.WriteLine($"{decl.Name} = {model.ConstInterp(decl)}");
+        }
+    }
+}
+```
+
+## Using LINQ with Z3
+
+You can use LINQ for cleaner code:
+
+```csharp
+using System.Linq;
+using Microsoft.Z3;
+
+using (Context ctx = new Context())
+{
+    // Create multiple variables using LINQ
+    var vars = Enumerable.Range(0, 5)
+        .Select(i => ctx.MkIntConst($"x{i}"))
+        .ToArray();
+    
+    // Create constraint: all different
+    var distinct = ctx.MkDistinct(vars);
+    
+    // Create constraint: all in range [0, 4]
+    var constraints = vars.Select(v => 
+        ctx.MkAnd(
+            ctx.MkGe(v, ctx.MkInt(0)),
+            ctx.MkLe(v, ctx.MkInt(4))
+        )
+    ).ToArray();
+    
+    Solver solver = ctx.MkSolver();
+    solver.Assert(distinct);
+    solver.Assert(constraints);
+    
+    if (solver.Check() == Status.SATISFIABLE)
+    {
+        var model = solver.Model;
+        foreach (var v in vars)
+        {
+            Console.WriteLine($"{v} = {model.Evaluate(v)}");
+        }
+    }
+}
+```
+
+## Best Practices
+
+1. **Always use `using` statements** for `Context` to ensure proper disposal
+2. **Enable model generation** if you need solutions: `cfg["model"] = "true"`
+3. **Use typed expressions** (`IntExpr`, `BoolExpr`, etc.) for type safety
+4. **Check solver status** before accessing `Model` property
+5. **Use Push/Pop** for incremental solving to avoid recreating contexts
+6. **Handle Z3Exception** in production code
+7. **Set timeouts** for potentially long-running queries
+
+<Warning>
+  Always check the solver status before accessing the `Model` property. Accessing it when the result is not `SATISFIABLE` will throw an exception.
+</Warning>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="API Reference" icon="book" href="/bindings/dotnet/api-reference">
+    Explore the complete .NET API
+  </Card>
+  <Card title=".NET Examples" icon="code" href="https://github.com/Z3Prover/z3/tree/master/examples/dotnet">
+    View more examples on GitHub
+  </Card>
+  <Card title="Z3 Guide" icon="book-open" href="https://microsoft.github.io/z3guide/">
+    Interactive Z3 tutorial
+  </Card>
+  <Card title="NuGet Package" icon="box" href="https://www.nuget.org/packages/Microsoft.Z3/">
+    Official NuGet package
+  </Card>
+</CardGroup>

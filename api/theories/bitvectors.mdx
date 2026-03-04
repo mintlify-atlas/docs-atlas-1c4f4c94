@@ -1,0 +1,489 @@
+---
+title: Bit-Vector Theory
+description: Fixed-size bit-vector operations in Z3
+---
+
+The bit-vector theory provides reasoning about fixed-width integers with operations like those found in hardware and low-level programming. Bit-vectors support both unsigned and signed interpretations.
+
+## Bit-Vector Sort
+
+Create a bit-vector sort of a specific size:
+
+```python
+from z3 import *
+
+# 8-bit bit-vector
+x = BitVec('x', 8)
+y = BitVec('y', 8)
+
+# 32-bit bit-vector
+addr = BitVec('addr', 32)
+```
+
+**C API**: `Z3_mk_bv_sort(c, sz)` creates a bit-vector sort of size `sz` (api_bv.cpp:26)
+
+## Bit-Vector Literals
+
+```python
+# Decimal notation
+x = BitVecVal(42, 8)
+
+# Binary notation
+y = BitVecVal(0b1010, 4)
+
+# Hexadecimal notation
+z = BitVecVal(0xFF, 8)
+
+# From integer with size
+w = BitVecVal(255, 8)
+```
+
+## Bitwise Operations
+
+### Bitwise AND
+
+```python
+x, y = BitVecs('x y', 8)
+solve(x & y == 0x0F, x == 0xFF)
+# [x = 255, y = 15]
+```
+
+**C API**: `Z3_mk_bvand` (api_bv.cpp:42)
+
+### Bitwise OR
+
+```python
+x, y = BitVecs('x y', 8)
+solve(x | y == 0xFF, x == 0xF0, y == 0x0F)
+# [x = 240, y = 15]
+```
+
+**C API**: `Z3_mk_bvor` (api_bv.cpp:43)
+
+### Bitwise XOR
+
+```python
+x, y = BitVecs('x y', 8)
+solve(x ^ y == 0xFF, x == 0xAA)
+# [x = 170, y = 85]
+```
+
+**C API**: `Z3_mk_bvxor` (api_bv.cpp:44)
+
+### Bitwise NOT
+
+```python
+x = BitVec('x', 8)
+solve(~x == 0xF0)
+# [x = 15]
+```
+
+**C API**: `Z3_mk_bvnot` (api_bv.cpp:39)
+
+### NAND, NOR, XNOR
+
+Additional bitwise operations:
+
+```python
+x, y = BitVecs('x y', 8)
+
+# NAND: ~(x & y)
+solve(x & y == 0x00)  # Equivalent to NAND == 0xFF
+
+# NOR: ~(x | y)
+# XNOR: ~(x ^ y)
+```
+
+**C API**: `Z3_mk_bvnand`, `Z3_mk_bvnor`, `Z3_mk_bvxnor` (api_bv.cpp:45-47)
+
+## Arithmetic Operations
+
+### Addition
+
+```python
+x, y = BitVecs('x y', 8)
+solve(x + y == 10, x > 5)
+# Note: Addition wraps on overflow
+```
+
+**C API**: `Z3_mk_bvadd` (api_bv.cpp:48)
+
+### Subtraction
+
+```python
+x, y = BitVecs('x y', 8)
+solve(x - y == 5, x == 10)
+# [x = 10, y = 5]
+```
+
+**C API**: `Z3_mk_bvsub` (api_bv.cpp:373)
+
+### Multiplication
+
+```python
+x, y = BitVecs('x y', 8)
+solve(x * y == 24, x > 1, y > 1, x < y)
+# [x = 3, y = 8]
+```
+
+**C API**: `Z3_mk_bvmul` (api_bv.cpp:49)
+
+### Negation
+
+```python
+x = BitVec('x', 8)
+solve(-x == 5)  # Two's complement
+# [x = 251] (since -5 in 8-bit two's complement is 251)
+```
+
+**C API**: `Z3_mk_bvneg` (api_bv.cpp:381)
+
+## Division and Modulo
+
+### Unsigned Division
+
+```python
+x, y = BitVecs('x y', 8)
+solve(UDiv(x, y) == 3, y == 5)
+# [x = 15, y = 5]
+```
+
+**C API**: `Z3_mk_bvudiv` (api_bv.cpp:50)
+
+### Signed Division
+
+```python
+x, y = BitVecs('x y', 8)
+solve(x / y == -2, y == 3)  # Signed division
+# Handles sign properly
+```
+
+**C API**: `Z3_mk_bvsdiv` (api_bv.cpp:51)
+
+### Unsigned Remainder
+
+```python
+x, y = BitVecs('x y', 8)
+solve(URem(x, y) == 2, y == 5, x < 20)
+# [x = 7, y = 5] or [x = 12, y = 5] or [x = 17, y = 5]
+```
+
+**C API**: `Z3_mk_bvurem` (api_bv.cpp:52)
+
+### Signed Remainder and Modulo
+
+```python
+x, y = BitVecs('x y', 8)
+# Signed remainder
+solve(SRem(x, y) == 1, y == 3)
+
+# Signed modulo (different from remainder for negative numbers)
+solve(SMod(x, y) == 1, y == 3)
+```
+
+**C API**: `Z3_mk_bvsrem`, `Z3_mk_bvsmod` (api_bv.cpp:53-54)
+
+## Comparison Operations
+
+### Unsigned Comparisons
+
+```python
+x, y = BitVecs('x y', 8)
+
+# Unsigned less than
+solve(ULT(x, y), x == 250, y == 5)  # False, 250 > 5 unsigned
+
+# Unsigned less than or equal
+solve(ULE(x, y), x + y == 10)
+
+# Unsigned greater than
+solve(UGT(x, y), x == 5, y == 250)  # False
+
+# Unsigned greater than or equal
+solve(UGE(x, y))
+```
+
+**C API**: `Z3_mk_bvult`, `Z3_mk_bvule`, `Z3_mk_bvugt`, `Z3_mk_bvuge` (api_bv.cpp:55, 57, 59, 61)
+
+### Signed Comparisons
+
+```python
+x, y = BitVecs('x y', 8)
+
+# Signed less than
+solve(x < y, x == BitVecVal(250, 8))  # 250 is -6 in signed 8-bit
+# [x = 250, y = ...] where y > -6
+
+# Other signed comparisons
+solve(x <= y)
+solve(x > y)
+solve(x >= y)
+```
+
+**C API**: `Z3_mk_bvslt`, `Z3_mk_bvsle`, `Z3_mk_bvsgt`, `Z3_mk_bvsge` (api_bv.cpp:56, 58, 60, 62)
+
+## Bit Manipulation
+
+### Concatenation
+
+Combine two bit-vectors:
+
+```python
+x = BitVec('x', 4)
+y = BitVec('y', 4)
+z = Concat(x, y)  # Creates 8-bit vector
+solve(z == 0xAB, x == 0xA)
+# [x = 10, y = 11]
+```
+
+**C API**: `Z3_mk_concat` (api_bv.cpp:63)
+
+### Extract
+
+Extract a sub-range of bits:
+
+```python
+x = BitVec('x', 8)
+# Extract bits [7:4] (high 4 bits)
+high = Extract(7, 4, x)
+# Extract bits [3:0] (low 4 bits)
+low = Extract(3, 0, x)
+
+solve(high == 0xF, low == 0x0, x == 0xF0)
+# [x = 240]
+```
+
+**C API**: `Z3_mk_extract(c, high, low, n)` (api_bv.cpp:79)
+
+### Shift Operations
+
+```python
+x, y = BitVecs('x y', 8)
+
+# Left shift
+solve(x << 2 == 12, x == 3)
+# [x = 3]
+
+# Logical right shift (zero-fill)
+solve(LShR(x, 2) == 3, x == 12)
+# [x = 12]
+
+# Arithmetic right shift (sign-extend)
+solve(x >> 2 == 0xFE)  # For signed interpretation
+```
+
+**C API**: `Z3_mk_bvshl`, `Z3_mk_bvlshr`, `Z3_mk_bvashr` (api_bv.cpp:64-66)
+
+### Rotate
+
+```python
+x = BitVec('x', 8)
+
+# Rotate left by constant
+solve(RotateLeft(x, 2) == 0b11000000, x == 0b00110000)
+
+# Rotate right by constant
+solve(RotateRight(x, 2) == 0b00001100, x == 0b00110000)
+```
+
+**C API**: `Z3_mk_rotate_left`, `Z3_mk_rotate_right` (api_bv.cpp:106-107)
+
+**Variable rotation**: `Z3_mk_ext_rotate_left`, `Z3_mk_ext_rotate_right` (api_bv.cpp:67-68)
+
+### Sign/Zero Extension
+
+Extend bit-vectors to larger sizes:
+
+```python
+x = BitVec('x', 8)
+
+# Zero extension: pad with zeros
+y = ZeroExt(8, x)  # Extends to 16 bits
+solve(y == 0x00FF, x == 0xFF)
+
+# Sign extension: pad with sign bit
+z = SignExt(8, x)  # Extends to 16 bits
+solve(z == 0xFFFF, x == 0xFF)  # 0xFF is -1 in signed
+# [x = 255]
+```
+
+**C API**: `Z3_mk_zero_ext`, `Z3_mk_sign_ext` (api_bv.cpp:102-103)
+
+### Repeat
+
+Repeat a bit-vector pattern:
+
+```python
+x = BitVec('x', 4)
+y = RepeatBitVec(3, x)  # Creates 12-bit vector
+solve(y == 0xAAA, x == 0xA)
+# [x = 10]
+```
+
+**C API**: `Z3_mk_repeat` (api_bv.cpp:104)
+
+## Conversion Operations
+
+### Bit-Vector to Integer
+
+```python
+x = BitVec('x', 8)
+y = Int('y')
+
+# Unsigned conversion
+solve(BV2Int(x) == y, x == 255)
+# [x = 255, y = 255]
+
+# Signed conversion (not directly in Python API, use C API)
+```
+
+**C API**: `Z3_mk_bv2int(c, n, is_signed)` (api_bv.cpp:110)
+
+### Integer to Bit-Vector
+
+```python
+x = Int('x')
+y = BitVec('y', 8)
+
+solve(Int2BV(x, 8) == y, x == 42)
+# [x = 42, y = 42]
+```
+
+**C API**: `Z3_mk_int2bv` (api_bv.cpp:108)
+
+## Overflow Detection
+
+Z3 provides predicates to detect arithmetic overflow:
+
+### Addition Overflow
+
+```python
+x, y = BitVecs('x y', 8)
+
+# Check for unsigned overflow
+solve(x + y > 255, x == 200, y == 100)
+# Using overflow check (C API)
+```
+
+**C API**: `Z3_mk_bvadd_no_overflow(c, t1, t2, is_signed)` (api_bv.cpp:183)
+
+### Addition Underflow
+
+```python
+# For signed addition
+x, y = BitVecs('x y', 8)
+# Check if adding two negative numbers underflows
+```
+
+**C API**: `Z3_mk_bvadd_no_underflow` (api_bv.cpp:227)
+
+### Multiplication Overflow
+
+**C API**: `Z3_mk_bvmul_no_overflow(c, n1, n2, is_signed)` (api_bv.cpp:318)
+
+### Multiplication Underflow
+
+**C API**: `Z3_mk_bvmul_no_underflow` (api_bv.cpp:330)
+
+### Negation Overflow
+
+Check if negation causes overflow (e.g., -128 in 8-bit signed):
+
+**C API**: `Z3_mk_bvneg_no_overflow` (api_bv.cpp:336)
+
+### Division Overflow
+
+Check for signed division overflow:
+
+**C API**: `Z3_mk_bvsdiv_no_overflow` (api_bv.cpp:348)
+
+## Reduction Operations
+
+### Reduce AND
+
+AND all bits together:
+
+```python
+x = BitVec('x', 8)
+# True if all bits are 1
+solve(BVRedAnd(x) == 1, x == 0xFF)
+```
+
+**C API**: `Z3_mk_bvredand` (api_bv.cpp:40)
+
+### Reduce OR
+
+OR all bits together:
+
+```python
+x = BitVec('x', 8)
+# True if any bit is 1
+solve(BVRedOr(x) == 1, x != 0)
+```
+
+**C API**: `Z3_mk_bvredor` (api_bv.cpp:41)
+
+## Complete Example
+
+```python
+from z3 import *
+
+# Check for buffer overflow vulnerability
+buf_size = BitVec('buf_size', 32)
+user_input = BitVec('user_input', 32)
+offset = BitVec('offset', 32)
+
+s = Solver()
+
+# Buffer constraints
+s.add(buf_size == 1024)
+s.add(user_input < 100)  # Expected input size
+s.add(offset == 950)
+
+# Check if access is within bounds
+access_pos = offset + user_input
+s.add(UGE(access_pos, buf_size))  # Overflow condition
+
+if s.check() == sat:
+    m = s.model()
+    print(f"Overflow possible with input: {m[user_input]}")
+    # user_input >= 74 causes overflow
+
+# Bit manipulation example
+x = BitVec('x', 16)
+high_byte = Extract(15, 8, x)
+low_byte = Extract(7, 0, x)
+
+solve(
+    high_byte == 0xAB,
+    low_byte == 0xCD,
+    x == 0xABCD
+)
+# [x = 43981]
+
+# Cryptographic operation example
+key = BitVec('key', 32)
+plaintext = BitVec('plaintext', 32)
+ciphertext = BitVec('ciphertext', 32)
+
+# Simple XOR cipher
+solve(
+    ciphertext == plaintext ^ key,
+    plaintext == 0x12345678,
+    ciphertext == 0xABCDEF00
+)
+# Can solve for key
+```
+
+## Implementation Notes
+
+- Bit-vectors use bit-blasting to convert to propositional logic
+- Efficient for fixed-width reasoning
+- All operations wrap on overflow (except when using overflow predicates)
+- Supports both unsigned and signed interpretations
+
+## References
+
+- Implementation: `src/api/api_bv.cpp`
+- Theory plugin: `src/ast/bv_decl_plugin.h`
+- Solver: `src/smt/theory_bv.h`

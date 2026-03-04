@@ -1,0 +1,356 @@
+---
+title: Model Checking
+description: Verifying temporal properties and system invariants with Z3
+---
+
+Model checking uses Z3 to verify that a system satisfies specified properties across all possible states and executions. This is essential for verifying hardware designs, protocols, and software systems.
+
+## When to Use Model Checking
+
+Use Z3 for model checking when you need to:
+
+- **Verify invariants**: Prove properties hold in all reachable states
+- **Check temporal properties**: Verify safety and liveness properties
+- **Validate protocols**: Ensure communication protocols are correct
+- **Verify hardware**: Check circuit designs and RTL implementations
+- **Prove program properties**: Verify loop invariants and procedure contracts
+
+## Core Concepts
+
+### Transition Systems
+
+A transition system consists of:
+
+1. **State variables**: Represent system state at a point in time
+2. **Initial conditions**: Constraints on starting states
+3. **Transition relation**: How states evolve
+4. **Properties**: Safety/liveness conditions to verify
+
+### Verification Approaches
+
+- **Bounded Model Checking (BMC)**: Check properties up to depth k
+- **Inductive reasoning**: Prove properties by induction
+- **IC3/PDR**: Incremental construction of inductive invariants
+- **Fixed-point computation**: Using Datalog-style Horn clauses
+
+## Example: Traffic Light Controller
+
+Verify a simple traffic light system using fixed-point computation:
+
+```python
+from z3 import *
+
+# Define states: Red, Yellow, Green
+Red, Yellow, Green = Ints('Red Yellow Green')
+
+# State variable
+state = Function('state', IntSort(), BoolSort())
+
+fp = Fixedpoint()
+fp.set(engine='datalog')
+
+# Declare state variable
+fp.register_relation(state)
+
+# Initial state: traffic light is Red
+fp.rule(state(Red), [])
+
+# Transition rules
+fp.rule(state(Green), [state(Red)])      # Red -> Green
+fp.rule(state(Yellow), [state(Green)])   # Green -> Yellow  
+fp.rule(state(Red), [state(Yellow)])     # Yellow -> Red
+
+# Safety property: never go directly from Red to Yellow
+# (Check if state(Yellow) is reachable after state(Red))
+unreachable = state(Yellow)
+
+# This should be unsat (Yellow is reachable)
+result = fp.query(unreachable)
+print(f"Can reach Yellow from Red? {result}")
+```
+
+## Example: Rush Hour Puzzle Solver
+
+Model the Rush Hour game as a transition system and find a solution path:
+
+```python
+from z3 import *
+
+class Car:
+    def __init__(self, is_vertical, base_pos, length, start, color):
+        self.is_vertical = is_vertical
+        self.base = base_pos
+        self.length = length
+        self.start = start
+        self.color = color
+
+dimension = 6
+red_car = Car(False, 2, 2, 3, "red")
+
+cars = [
+    Car(True, 0, 3, 0, 'yellow'),
+    Car(False, 3, 3, 0, 'blue'),
+    red_car,
+    # ... more cars
+]
+
+bv3 = BitVecSort(3)
+state = Function('state', [bv3 for _ in cars] + [BoolSort()])
+
+fp = Fixedpoint()
+fp.set("fp.engine", "datalog")
+fp.register_relation(state)
+
+def num(i):
+    return BitVecVal(i, bv3)
+
+def bound(i):
+    return Const(cars[i].color, bv3)
+
+fp.declare_var([bound(i) for i in range(len(cars))])
+
+# Initial state
+fp.fact(state([num(cars[i].start) for i in range(len(cars))]))
+
+# Define transitions for each car movement
+def mk_transition(row, col, i0, j, car0, car_idx):
+    body = [state([num(i0) if i == car_idx else bound(i) 
+                   for i in range(len(cars))])]
+    
+    # Check no other car blocks this position
+    for idx, car in enumerate(cars):
+        if car != car0:
+            if car.is_vertical and car.base == col:
+                for i in range(dimension):
+                    if i <= row < i + car.length:
+                        body.append(bound(idx) != num(i))
+    
+    # Add transition rule
+    label = f"{car0.color} {i0}->{j}"
+    fp.rule(state([num(j) if i == car_idx else bound(i) 
+                   for i in range(len(cars))]), body, label)
+
+# Add all possible moves for each car
+for idx, car in enumerate(cars):
+    for i in range(dimension):
+        if car.is_vertical:
+            if i + car.length < dimension:  # Move down
+                mk_transition(i + car.length, car.base, i, i+1, car, idx)
+            if i > 0:  # Move up
+                mk_transition(i - 1, car.base, i, i-1, car, idx)
+        else:
+            if i + car.length < dimension:  # Move right
+                mk_transition(car.base, i + car.length, i, i+1, car, idx)
+            if i > 0:  # Move left
+                mk_transition(car.base, i - 1, i, i-1, car, idx)
+
+# Goal: red car reaches exit position (column 4)
+goal = state([num(4) if cars[i] == red_car else bound(i) 
+              for i in range(len(cars))])
+
+if fp.query(goal) == sat:
+    print("Solution found!")
+    # Extract solution trace from answer
+    answer = fp.get_answer()
+    print(answer)
+```
+
+## Example: IC3 Model Checker
+
+Implement a simplified IC3/PDR algorithm for invariant checking:
+
+```python
+from z3 import *
+import heapq
+
+class MiniIC3:
+    def __init__(self, init, trans, goal, x0, xn):
+        self.x0 = x0      # Current state variables
+        self.xn = xn      # Next state variables
+        self.init = init  # Initial condition
+        self.trans = trans  # Transition relation
+        self.bad = goal   # Bad states to avoid
+        
+        # Solver for each frame
+        self.states = [self.new_frame()]
+        self.states[0].add(init)
+        
+    def new_frame(self):
+        s = Solver()
+        s.add(self.trans)
+        return s
+    
+    def next(self, f):
+        """Substitute current state vars with next state vars"""
+        return substitute(f, [(x, xn) for x, xn in zip(self.x0, self.xn)])
+    
+    def prev(self, f):
+        """Substitute next state vars with current state vars"""
+        return substitute(f, [(xn, x) for x, xn in zip(self.x0, self.xn)])
+    
+    def check_property(self):
+        """Main IC3 loop"""
+        # Check if initial states satisfy property
+        s = Solver()
+        s.add(self.init)
+        s.add(self.bad)
+        if s.check() == sat:
+            return "Property violated in initial state"
+        
+        level = 0
+        while True:
+            # Check if bad states reachable at current level
+            s = Solver()
+            s.add(self.states[-1].assertions())
+            s.add(self.bad)
+            
+            if s.check() == unsat:
+                # No bad states reachable, add new frame
+                level += 1
+                self.states.append(self.new_frame())
+            else:
+                # Found potential path to bad state
+                # Try to block it
+                m = s.model()
+                cube = self.extract_cube(m)
+                
+                if not self.block_cube(cube, level):
+                    return "Property violated"
+            
+            # Check for convergence
+            if self.check_convergence():
+                return "Property proved"
+    
+    def extract_cube(self, model):
+        """Extract cube from model"""
+        return [x if is_true(model.eval(x)) else Not(x) for x in self.x0]
+    
+    def block_cube(self, cube, level):
+        """Try to block cube at given level"""
+        # Simplified - real IC3 has more complex blocking
+        clause = Or([Not(c) for c in cube])
+        for i in range(level + 1):
+            self.states[i].add(clause)
+        return True
+    
+    def check_convergence(self):
+        """Check if two consecutive frames are equivalent"""
+        if len(self.states) < 2:
+            return False
+        # Simplified check
+        return False
+
+# Example usage
+x = Int('x')
+xn = Int('xn')
+
+init = (x == 0)
+trans = (xn == x + 1)
+bad = (x < 0)  # Invariant: x >= 0
+
+ic3 = MiniIC3(init, trans, bad, [x], [xn])
+result = ic3.check_property()
+print(result)
+```
+
+## Bounded Model Checking
+
+Check properties up to a specific depth:
+
+```python
+from z3 import *
+
+def bounded_model_check(init, trans, prop, k):
+    """Check if property holds for k steps"""
+    
+    # State variables for each time step
+    states = [[Int(f"x_{i}_{t}") for i in range(n_vars)] 
+              for t in range(k + 1)]
+    
+    s = Solver()
+    
+    # Initial state
+    s.add(init(states[0]))
+    
+    # Transitions
+    for t in range(k):
+        s.add(trans(states[t], states[t+1]))
+    
+    # Check if property violated at any step
+    s.add(Or([Not(prop(states[t])) for t in range(k + 1)]))
+    
+    if s.check() == sat:
+        m = s.model()
+        print(f"Property violated at some step <= {k}")
+        return False
+    else:
+        print(f"Property holds for {k} steps")
+        return True
+```
+
+## Verifying Algorithms
+
+Verify sorting algorithm correctness:
+
+```python
+from z3 import *
+
+def verify_bubble_sort(dim):
+    """Verify bubble sort produces sorted output"""
+    
+    # Array at each step
+    A = [Array(f"A_{i}", IntSort(), IntSort()) for i in range(dim + 1)]
+    i = [Int(f"i_{x}") for x in range(dim + 1)]
+    j = [Int(f"j_{x}") for x in range(dim + 1)]
+    
+    s = Solver()
+    
+    # Initial indices
+    s.add(i[0] == 0, j[0] == 0)
+    
+    # Transition relation (one swap step)
+    for step in range(dim):
+        s.add(Implies(
+            Select(A[step], i[step]) > Select(A[step], i[step] + 1),
+            A[step + 1] == Store(Store(A[step], 
+                                      i[step], 
+                                      Select(A[step], i[step] + 1)),
+                               i[step] + 1,
+                               Select(A[step], i[step]))
+        ))
+    
+    # Post-condition: array is sorted
+    values = [Int(f"n_{x}") for x in range(dim)]
+    for e in range(dim):
+        s.add(values[e] == Select(A[-1], e))
+    
+    # Check if NOT sorted is unsatisfiable
+    s.push()
+    s.add(Or([values[i] > values[i+1] for i in range(dim-1)]))
+    
+    if s.check() == unsat:
+        print("Algorithm verified: always produces sorted output")
+        return True
+    else:
+        print("Counterexample found")
+        return False
+```
+
+## Theory Solvers for Model Checking
+
+- [Fixedpoint](/api/fixedpoint): Horn clause solving for reachability
+- [Bit-vectors](/api/theories/bitvectors): Hardware verification
+- [Arrays](/api/theories/arrays): Memory models
+- [Arithmetic](/api/theories/arithmetic): Numeric properties
+
+## Related Concepts
+
+- [Quantifiers](/concepts/quantifiers): Universal properties
+- [Tactics](/concepts/tactics): Verification strategies
+- [Proofs](/api/advanced/proofs): Certificate generation
+
+## Further Reading
+
+- `examples/python/mini_ic3.py`: Complete IC3 implementation
+- `examples/python/trafficjam.py`: Datalog-based model checking
+- `examples/python/bounded model checking/`: BMC examples

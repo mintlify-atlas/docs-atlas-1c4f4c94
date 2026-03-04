@@ -1,0 +1,514 @@
+---
+title: Symbolic Execution
+description: Path exploration and bug finding using symbolic execution with Z3
+---
+
+Symbolic execution uses Z3 to analyze programs by tracking symbolic values instead of concrete values. This powerful technique enables comprehensive path exploration, automatic bug detection, and vulnerability discovery.
+
+## When to Use Symbolic Execution
+
+Use symbolic execution with Z3 when you need to:
+
+- **Explore execution paths**: Systematically analyze all possible program paths
+- **Find bugs**: Automatically discover crashes, assertion violations, and logic errors
+- **Detect vulnerabilities**: Identify security issues like buffer overflows and injection flaws
+- **Generate exploits**: Create inputs that trigger specific program behaviors
+- **Verify assertions**: Prove or disprove program assertions
+- **Analyze binary code**: Understand behavior of compiled programs
+
+## Core Concepts
+
+### Symbolic Execution Workflow
+
+1. **Initialize symbolic variables**: Replace inputs with symbolic values
+2. **Execute symbolically**: Track constraints along execution paths
+3. **Fork at branches**: Create separate paths for each branch condition
+4. **Check path feasibility**: Use Z3 to determine if paths are reachable
+5. **Generate concrete inputs**: Solve constraints to produce test cases
+
+### Path Exploration Strategies
+
+- **Depth-first search (DFS)**: Explore one path completely before backtracking
+- **Breadth-first search (BFS)**: Explore all paths at depth k before depth k+1
+- **Heuristic-guided**: Prioritize paths likely to reach specific locations
+- **Concolic execution**: Mix symbolic and concrete execution
+
+## Example: Simple Symbolic Execution
+
+Symbolically execute a simple function:
+
+```python
+from z3 import *
+
+def symbolic_execute_simple():
+    """
+    Symbolically execute:
+    
+    def foo(x, y):
+        z = x + y
+        if z > 10:
+            if x > 5:
+                return "Path A"  # Bug: division by zero
+            else:
+                return "Path B"
+        else:
+            return "Path C"
+    """
+    
+    x = Int('x')
+    y = Int('y')
+    z = Int('z')
+    
+    paths = []
+    
+    # Symbolic execution
+    s = Solver()
+    s.add(z == x + y)  # z = x + y
+    
+    # Path 1: z > 10 and x > 5
+    s.push()
+    s.add(z > 10)
+    s.add(x > 5)
+    if s.check() == sat:
+        m = s.model()
+        paths.append({
+            'name': 'Path A',
+            'x': m[x].as_long(),
+            'y': m[y].as_long(),
+            'z': m[z].as_long()
+        })
+    s.pop()
+    
+    # Path 2: z > 10 and x <= 5
+    s.push()
+    s.add(z > 10)
+    s.add(x <= 5)
+    if s.check() == sat:
+        m = s.model()
+        paths.append({
+            'name': 'Path B',
+            'x': m[x].as_long(),
+            'y': m[y].as_long(),
+            'z': m[z].as_long()
+        })
+    s.pop()
+    
+    # Path 3: z <= 10
+    s.push()
+    s.add(z <= 10)
+    if s.check() == sat:
+        m = s.model()
+        paths.append({
+            'name': 'Path C',
+            'x': m[x].as_long(),
+            'y': m[y].as_long(),
+            'z': m[z].as_long()
+        })
+    s.pop()
+    
+    return paths
+
+for path in symbolic_execute_simple():
+    print(f"{path['name']}: x={path['x']}, y={path['y']}, z={path['z']}")
+```
+
+## Example: Buffer Overflow Detection
+
+Detect buffer overflow vulnerabilities:
+
+```python
+from z3 import *
+
+def detect_buffer_overflow():
+    """
+    Detect buffer overflow in:
+    
+    void copy_data(int index, int value) {
+        int buffer[10];
+        buffer[index] = value;  // Potential overflow
+    }
+    """
+    
+    index = BitVec('index', 32)
+    value = BitVec('value', 32)
+    
+    buffer_size = 10
+    
+    s = Solver()
+    
+    # Check for overflow: index out of bounds
+    print("Checking for buffer overflow...")
+    
+    # Case 1: Negative index
+    s.push()
+    s.add(index < 0)
+    if s.check() == sat:
+        m = s.model()
+        print(f"  Overflow found: negative index = {m[index].as_signed_long()}")
+    s.pop()
+    
+    # Case 2: Index too large
+    s.push()
+    s.add(index >= buffer_size)
+    if s.check() == sat:
+        m = s.model()
+        print(f"  Overflow found: index = {m[index].as_long()} >= {buffer_size}")
+    s.pop()
+    
+    # Case 3: Valid access
+    s.push()
+    s.add(index >= 0)
+    s.add(index < buffer_size)
+    if s.check() == sat:
+        m = s.model()
+        print(f"  Valid access: index = {m[index].as_long()}")
+    s.pop()
+
+detect_buffer_overflow()
+```
+
+## Example: Path Exploration with Arrays
+
+Symbolically execute code with array operations:
+
+```python
+from z3 import *
+
+def symbolic_array_search():
+    """
+    Symbolically execute binary search:
+    
+    def binary_search(arr, target):
+        low, high = 0, len(arr) - 1
+        while low <= high:
+            mid = (low + high) // 2
+            if arr[mid] == target:
+                return mid
+            elif arr[mid] < target:
+                low = mid + 1
+            else:
+                high = mid - 1
+        return -1
+    """
+    
+    # Symbolic array and target
+    arr = Array('arr', IntSort(), IntSort())
+    target = Int('target')
+    
+    # Assume sorted array of size 5
+    n = 5
+    
+    s = Solver()
+    
+    # Array is sorted
+    for i in range(n - 1):
+        s.add(Select(arr, i) <= Select(arr, i + 1))
+    
+    # Explore path where target is found at position 2
+    print("Path: Target found at index 2")
+    s.push()
+    s.add(Select(arr, 2) == target)
+    s.add(Select(arr, 1) < target)  # Went right from mid=1
+    if s.check() == sat:
+        m = s.model()
+        print(f"  target = {m[target]}")
+        print(f"  arr[0..4] = ", end="")
+        print([m.evaluate(Select(arr, i)) for i in range(n)])
+    s.pop()
+    
+    # Explore path where target is not found
+    print("\nPath: Target not found")
+    s.push()
+    for i in range(n):
+        s.add(Select(arr, i) != target)
+    if s.check() == sat:
+        m = s.model()
+        print(f"  target = {m[target]}")
+        print(f"  arr[0..4] = ", end="")
+        print([m.evaluate(Select(arr, i)) for i in range(n)])
+    s.pop()
+
+symbolic_array_search()
+```
+
+## Example: Integer Overflow Detection
+
+Find integer overflow bugs:
+
+```python
+from z3 import *
+
+def detect_integer_overflow():
+    """
+    Detect overflow in:
+    
+    int calculate_total(int price, int quantity) {
+        int total = price * quantity;
+        if (total < price) {
+            // Overflow occurred
+            return -1;
+        }
+        return total;
+    }
+    """
+    
+    # 32-bit integers
+    price = BitVec('price', 32)
+    quantity = BitVec('quantity', 32)
+    total = BitVec('total', 32)
+    
+    s = Solver()
+    
+    # Model the computation
+    s.add(total == price * quantity)
+    
+    # Realistic constraints
+    s.add(price > 0)
+    s.add(quantity > 0)
+    
+    # Find overflow: result is less than inputs
+    print("Searching for multiplication overflow...")
+    s.add(total < price)
+    
+    if s.check() == sat:
+        m = s.model()
+        p = m[price].as_signed_long()
+        q = m[quantity].as_signed_long()
+        t = m[total].as_signed_long()
+        
+        print(f"  Overflow found!")
+        print(f"  price = {p}")
+        print(f"  quantity = {q}")
+        print(f"  total = {t} (expected: {p * q})")
+        print(f"  Overflow: {p} * {q} overflows to {t}")
+    else:
+        print("  No overflow found with given constraints")
+
+detect_integer_overflow()
+```
+
+## Example: Assertion Violation
+
+Find inputs that violate assertions:
+
+```python
+from z3 import *
+
+def find_assertion_violation():
+    """
+    Find inputs violating assertion:
+    
+    def process(x, y, z):
+        result = x + 2*y - z
+        assert result >= 0  # Assertion to check
+        return result
+    """
+    
+    x = Int('x')
+    y = Int('y')
+    z = Int('z')
+    result = Int('result')
+    
+    s = Solver()
+    
+    # Model the computation
+    s.add(result == x + 2*y - z)
+    
+    # Input constraints
+    s.add(x >= 0, x <= 100)
+    s.add(y >= 0, y <= 100)
+    s.add(z >= 0, z <= 100)
+    
+    # Violate assertion: result < 0
+    s.add(result < 0)
+    
+    if s.check() == sat:
+        m = s.model()
+        print("Assertion violation found!")
+        print(f"  x = {m[x]}")
+        print(f"  y = {m[y]}")
+        print(f"  z = {m[z]}")
+        print(f"  result = {m[result]} (violates result >= 0)")
+    else:
+        print("No assertion violation found")
+
+find_assertion_violation()
+```
+
+## Example: Concolic Execution
+
+Mix concrete and symbolic execution:
+
+```python
+from z3 import *
+
+class ConcolicExecutor:
+    def __init__(self):
+        self.solver = Solver()
+        self.symbolic_vars = {}
+        self.path_constraints = []
+    
+    def make_symbolic(self, name, concrete_value):
+        """Create symbolic variable with concrete value"""
+        sym_var = Int(name)
+        self.symbolic_vars[name] = sym_var
+        return sym_var
+    
+    def add_constraint(self, constraint):
+        """Add constraint to current path"""
+        self.path_constraints.append(constraint)
+        self.solver.add(constraint)
+    
+    def explore_alternate_path(self):
+        """Generate input for unexplored path"""
+        # Try negating last constraint
+        if not self.path_constraints:
+            return None
+        
+        s = Solver()
+        # Add all constraints except last
+        for c in self.path_constraints[:-1]:
+            s.add(c)
+        # Negate last constraint
+        s.add(Not(self.path_constraints[-1]))
+        
+        if s.check() == sat:
+            return s.model()
+        return None
+
+# Example usage
+def concolic_demo():
+    executor = ConcolicExecutor()
+    
+    # Concrete execution with symbolic tracking
+    x = executor.make_symbolic('x', 5)
+    y = executor.make_symbolic('y', 3)
+    
+    # Path: x > y
+    executor.add_constraint(x > y)
+    z = x + y
+    executor.add_constraint(z > 10)
+    
+    print("Current path constraints:", executor.path_constraints)
+    
+    # Explore alternate path
+    alt_model = executor.explore_alternate_path()
+    if alt_model:
+        print("Alternate path input:")
+        for var in executor.symbolic_vars.values():
+            print(f"  {var} = {alt_model[var]}")
+
+concolic_demo()
+```
+
+## Path Pruning Strategies
+
+Optimize exploration by pruning infeasible paths:
+
+```python
+from z3 import *
+
+def prune_infeasible_paths():
+    """Prune paths that are infeasible"""
+    
+    x = Int('x')
+    y = Int('y')
+    
+    # Path constraints accumulated during execution
+    path_constraints = [
+        x > 0,
+        y > 0,
+        x + y < 5,
+    ]
+    
+    s = Solver()
+    for c in path_constraints:
+        s.add(c)
+    
+    # Before exploring further, check feasibility
+    if s.check() == unsat:
+        print("Path is infeasible - pruning")
+        return False
+    
+    print("Path is feasible - continuing exploration")
+    
+    # Try adding new constraint
+    s.push()
+    s.add(x > 10)  # This makes path infeasible
+    
+    if s.check() == unsat:
+        print("New branch is infeasible - pruning")
+        s.pop()
+        return False
+    
+    s.pop()
+    return True
+
+prune_infeasible_paths()
+```
+
+## Best Practices
+
+1. **Use incremental solving**: Leverage push/pop for efficient backtracking
+2. **Bound exploration depth**: Limit path depth to prevent infinite loops
+3. **Cache solver queries**: Reuse previous results when possible
+4. **Prioritize interesting paths**: Use heuristics to guide exploration
+5. **Handle symbolic loops**: Use loop summarization or bounded unrolling
+6. **Simplify path conditions**: Use tactics to simplify constraints
+7. **Mix concrete and symbolic**: Use concolic execution for efficiency
+
+## Handling Complex Features
+
+### Symbolic Memory
+
+Model memory symbolically using arrays:
+
+```python
+memory = Array('mem', BitVecSort(32), BitVecSort(8))
+address = BitVec('addr', 32)
+value = Select(memory, address)
+memory = Store(memory, address, value)
+```
+
+### Function Calls
+
+Model function calls with summaries:
+
+```python
+# Instead of symbolically executing strlen:
+string_length = Int('strlen_result')
+s.add(string_length >= 0)
+s.add(string_length < 1000)  # Reasonable bound
+```
+
+### Loops
+
+Unroll loops to fixed depth:
+
+```python
+# Symbolically execute: for i in range(n)
+max_iterations = 5
+for i in range(max_iterations):
+    # Symbolic iteration body
+    pass
+```
+
+## Theory Solvers for Symbolic Execution
+
+- [Bit-vectors](/api/theories/bitvectors): Low-level code and binary analysis
+- [Arrays](/api/theories/arrays): Memory modeling
+- [Arithmetic](/api/theories/arithmetic): Numeric computations
+- [Strings](/api/theories/sequences): String manipulation analysis
+
+## Related Concepts
+
+- [Automated Testing](/examples/automated-testing): Test case generation
+- [Model Checking](/examples/model-checking): Verification techniques
+- [Tactics](/concepts/tactics): Simplification strategies
+- [Models](/concepts/models): Extracting concrete values
+
+## Further Reading
+
+- `examples/python/bounded model checking/bubble_sort.py`: Array verification
+- `examples/java/JavaExample.java`: Bit-vector examples for overflow detection
+- Academic papers on symbolic execution engines like KLEE, Angr, and S2E

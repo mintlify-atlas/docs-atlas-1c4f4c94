@@ -1,0 +1,649 @@
+---
+title: Expression API
+description: Creating and manipulating Z3 expressions (ASTs)
+---
+
+## Overview
+
+The Expression API provides functions for creating and manipulating Z3 abstract syntax trees (ASTs), which represent terms, formulas, and types.
+
+## Types
+
+### Z3_ast
+
+Abstract syntax tree node - the fundamental data structure in Z3 for representing terms, formulas, and types.
+
+### Z3_app
+
+A kind of AST used to represent function applications. Subtype of Z3_ast.
+
+### Z3_ast_kind
+
+The different kinds of Z3 AST nodes:
+
+<ParamField name="Z3_NUMERAL_AST" type="enum">
+  Numeral constants
+</ParamField>
+
+<ParamField name="Z3_APP_AST" type="enum">
+  Constants and applications
+</ParamField>
+
+<ParamField name="Z3_VAR_AST" type="enum">
+  Bound variables
+</ParamField>
+
+<ParamField name="Z3_QUANTIFIER_AST" type="enum">
+  Quantifiers (forall, exists)
+</ParamField>
+
+<ParamField name="Z3_SORT_AST" type="enum">
+  Sort/type
+</ParamField>
+
+<ParamField name="Z3_FUNC_DECL_AST" type="enum">
+  Function declaration
+</ParamField>
+
+### Z3_symbol
+
+Lisp-like symbol used to name types, constants, and functions. Can be created using strings or integers.
+
+## Symbol Creation
+
+### Z3_mk_int_symbol
+
+```c
+Z3_symbol Z3_API Z3_mk_int_symbol(Z3_context c, int i);
+```
+
+Create a Z3 symbol using an integer.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="i" type="int">
+  Integer value (must be in range 0 to 2^30-1)
+</ParamField>
+
+<ResponseField name="return" type="Z3_symbol">
+  New symbol
+</ResponseField>
+
+### Z3_mk_string_symbol
+
+```c
+Z3_symbol Z3_API Z3_mk_string_symbol(Z3_context c, Z3_string s);
+```
+
+Create a Z3 symbol using a C string.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="s" type="Z3_string">
+  String name
+</ParamField>
+
+<ResponseField name="return" type="Z3_symbol">
+  New symbol
+</ResponseField>
+
+**Example:**
+
+```c
+Z3_symbol x_sym = Z3_mk_string_symbol(ctx, "x");
+Z3_symbol y_sym = Z3_mk_string_symbol(ctx, "y");
+```
+
+## Boolean Expressions
+
+### Z3_mk_true
+
+```c
+Z3_ast Z3_API Z3_mk_true(Z3_context c);
+```
+
+Create the true Boolean constant.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ResponseField name="return" type="Z3_ast">
+  The true constant
+</ResponseField>
+
+### Z3_mk_false
+
+```c
+Z3_ast Z3_API Z3_mk_false(Z3_context c);
+```
+
+Create the false Boolean constant.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ResponseField name="return" type="Z3_ast">
+  The false constant
+</ResponseField>
+
+### Z3_mk_eq
+
+```c
+Z3_ast Z3_API Z3_mk_eq(Z3_context c, Z3_ast l, Z3_ast r);
+```
+
+Create an equality expression (l = r).
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="l" type="Z3_ast">
+  Left-hand side
+</ParamField>
+
+<ParamField name="r" type="Z3_ast">
+  Right-hand side
+</ParamField>
+
+<ResponseField name="return" type="Z3_ast">
+  Equality expression
+</ResponseField>
+
+**Example:**
+
+```c
+Z3_ast x = Z3_mk_const(ctx, Z3_mk_string_symbol(ctx, "x"), Z3_mk_int_sort(ctx));
+Z3_ast y = Z3_mk_const(ctx, Z3_mk_string_symbol(ctx, "y"), Z3_mk_int_sort(ctx));
+Z3_ast eq = Z3_mk_eq(ctx, x, y); // x = y
+```
+
+### Z3_mk_distinct
+
+```c
+Z3_ast Z3_API Z3_mk_distinct(Z3_context c, unsigned num_args, Z3_ast const args[]);
+```
+
+Create an n-ary distinct predicate (all arguments are pairwise distinct).
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="num_args" type="unsigned">
+  Number of arguments
+</ParamField>
+
+<ParamField name="args" type="Z3_ast const[]">
+  Array of expressions
+</ParamField>
+
+<ResponseField name="return" type="Z3_ast">
+  Distinct predicate
+</ResponseField>
+
+### Z3_mk_not
+
+```c
+Z3_ast Z3_API Z3_mk_not(Z3_context c, Z3_ast a);
+```
+
+Create a negation (not a).
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="a" type="Z3_ast">
+  Expression to negate
+</ParamField>
+
+<ResponseField name="return" type="Z3_ast">
+  Negated expression
+</ResponseField>
+
+### Z3_mk_and
+
+```c
+Z3_ast Z3_API Z3_mk_and(Z3_context c, unsigned num_args, Z3_ast const args[]);
+```
+
+Create an n-ary conjunction (and).
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="num_args" type="unsigned">
+  Number of arguments (>= 2)
+</ParamField>
+
+<ParamField name="args" type="Z3_ast const[]">
+  Array of Boolean expressions
+</ParamField>
+
+<ResponseField name="return" type="Z3_ast">
+  Conjunction
+</ResponseField>
+
+**Example:**
+
+```c
+Z3_ast args[3] = {p, q, r};
+Z3_ast conjunction = Z3_mk_and(ctx, 3, args); // p ∧ q ∧ r
+```
+
+### Z3_mk_or
+
+```c
+Z3_ast Z3_API Z3_mk_or(Z3_context c, unsigned num_args, Z3_ast const args[]);
+```
+
+Create an n-ary disjunction (or).
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="num_args" type="unsigned">
+  Number of arguments (>= 2)
+</ParamField>
+
+<ParamField name="args" type="Z3_ast const[]">
+  Array of Boolean expressions
+</ParamField>
+
+<ResponseField name="return" type="Z3_ast">
+  Disjunction
+</ResponseField>
+
+### Z3_mk_implies
+
+```c
+Z3_ast Z3_API Z3_mk_implies(Z3_context c, Z3_ast t1, Z3_ast t2);
+```
+
+Create an implication (t1 implies t2).
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="t1" type="Z3_ast">
+  Antecedent
+</ParamField>
+
+<ParamField name="t2" type="Z3_ast">
+  Consequent
+</ParamField>
+
+<ResponseField name="return" type="Z3_ast">
+  Implication
+</ResponseField>
+
+### Z3_mk_ite
+
+```c
+Z3_ast Z3_API Z3_mk_ite(Z3_context c, Z3_ast t1, Z3_ast t2, Z3_ast t3);
+```
+
+Create an if-then-else expression.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="t1" type="Z3_ast">
+  Condition (Boolean)
+</ParamField>
+
+<ParamField name="t2" type="Z3_ast">
+  Then branch
+</ParamField>
+
+<ParamField name="t3" type="Z3_ast">
+  Else branch
+</ParamField>
+
+<ResponseField name="return" type="Z3_ast">
+  If-then-else expression
+</ResponseField>
+
+**Example:**
+
+```c
+Z3_ast result = Z3_mk_ite(ctx, condition, then_val, else_val);
+// if condition then then_val else else_val
+```
+
+## Constants and Applications
+
+### Z3_mk_const
+
+```c
+Z3_ast Z3_API Z3_mk_const(Z3_context c, Z3_symbol s, Z3_sort ty);
+```
+
+Create a constant (0-arity function application).
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="s" type="Z3_symbol">
+  Name of the constant
+</ParamField>
+
+<ParamField name="ty" type="Z3_sort">
+  Sort (type) of the constant
+</ParamField>
+
+<ResponseField name="return" type="Z3_ast">
+  Constant expression
+</ResponseField>
+
+**Example:**
+
+```c
+Z3_sort int_sort = Z3_mk_int_sort(ctx);
+Z3_ast x = Z3_mk_const(ctx, Z3_mk_string_symbol(ctx, "x"), int_sort);
+```
+
+### Z3_mk_app
+
+```c
+Z3_ast Z3_API Z3_mk_app(Z3_context c, Z3_func_decl d, unsigned num_args, Z3_ast const args[]);
+```
+
+Create a function application.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="d" type="Z3_func_decl">
+  Function declaration
+</ParamField>
+
+<ParamField name="num_args" type="unsigned">
+  Number of arguments
+</ParamField>
+
+<ParamField name="args" type="Z3_ast const[]">
+  Array of arguments
+</ParamField>
+
+<ResponseField name="return" type="Z3_ast">
+  Function application
+</ResponseField>
+
+## Numeral Creation
+
+### Z3_mk_int
+
+```c
+Z3_ast Z3_API Z3_mk_int(Z3_context c, int v, Z3_sort ty);
+```
+
+Create a numeral of a given sort from an integer.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="v" type="int">
+  Integer value
+</ParamField>
+
+<ParamField name="ty" type="Z3_sort">
+  Sort (must be Int, Real, or bit-vector)
+</ParamField>
+
+<ResponseField name="return" type="Z3_ast">
+  Numeral expression
+</ResponseField>
+
+**Example:**
+
+```c
+Z3_ast five = Z3_mk_int(ctx, 5, Z3_mk_int_sort(ctx));
+```
+
+### Z3_mk_unsigned_int
+
+```c
+Z3_ast Z3_API Z3_mk_unsigned_int(Z3_context c, unsigned v, Z3_sort ty);
+```
+
+Create a numeral from an unsigned integer.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="v" type="unsigned">
+  Unsigned integer value
+</ParamField>
+
+<ParamField name="ty" type="Z3_sort">
+  Sort
+</ParamField>
+
+<ResponseField name="return" type="Z3_ast">
+  Numeral expression
+</ResponseField>
+
+### Z3_mk_int64
+
+```c
+Z3_ast Z3_API Z3_mk_int64(Z3_context c, int64_t v, Z3_sort ty);
+```
+
+Create a numeral from a 64-bit integer.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="v" type="int64_t">
+  64-bit integer value
+</ParamField>
+
+<ParamField name="ty" type="Z3_sort">
+  Sort
+</ParamField>
+
+<ResponseField name="return" type="Z3_ast">
+  Numeral expression
+</ResponseField>
+
+### Z3_mk_numeral
+
+```c
+Z3_ast Z3_API Z3_mk_numeral(Z3_context c, Z3_string numeral, Z3_sort ty);
+```
+
+Create a numeral from a string representation.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="numeral" type="Z3_string">
+  String representation (e.g., "123", "-42", "1.5")
+</ParamField>
+
+<ParamField name="ty" type="Z3_sort">
+  Sort
+</ParamField>
+
+<ResponseField name="return" type="Z3_ast">
+  Numeral expression
+</ResponseField>
+
+**Example:**
+
+```c
+Z3_ast large_num = Z3_mk_numeral(ctx, "123456789012345", Z3_mk_int_sort(ctx));
+Z3_ast pi_approx = Z3_mk_numeral(ctx, "3.14159", Z3_mk_real_sort(ctx));
+```
+
+## AST Inspection
+
+### Z3_get_ast_kind
+
+```c
+Z3_ast_kind Z3_API Z3_get_ast_kind(Z3_context c, Z3_ast a);
+```
+
+Return the kind of the given AST.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="a" type="Z3_ast">
+  AST node
+</ParamField>
+
+<ResponseField name="return" type="Z3_ast_kind">
+  Kind of AST node
+</ResponseField>
+
+### Z3_is_app
+
+```c
+bool Z3_API Z3_is_app(Z3_context c, Z3_ast a);
+```
+
+Return true if the given AST is an application.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="a" type="Z3_ast">
+  AST node
+</ParamField>
+
+<ResponseField name="return" type="bool">
+  True if application, false otherwise
+</ResponseField>
+
+### Z3_to_app
+
+```c
+Z3_app Z3_API Z3_to_app(Z3_context c, Z3_ast a);
+```
+
+Convert an AST to an application.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="a" type="Z3_ast">
+  AST node (must be an application)
+</ParamField>
+
+<ResponseField name="return" type="Z3_app">
+  Application
+</ResponseField>
+
+### Z3_get_app_decl
+
+```c
+Z3_func_decl Z3_API Z3_get_app_decl(Z3_context c, Z3_app a);
+```
+
+Return the declaration of a function application.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="a" type="Z3_app">
+  Application
+</ParamField>
+
+<ResponseField name="return" type="Z3_func_decl">
+  Function declaration
+</ResponseField>
+
+### Z3_get_app_num_args
+
+```c
+unsigned Z3_API Z3_get_app_num_args(Z3_context c, Z3_app a);
+```
+
+Return the number of arguments of a function application.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="a" type="Z3_app">
+  Application
+</ParamField>
+
+<ResponseField name="return" type="unsigned">
+  Number of arguments
+</ResponseField>
+
+### Z3_get_app_arg
+
+```c
+Z3_ast Z3_API Z3_get_app_arg(Z3_context c, Z3_app a, unsigned i);
+```
+
+Return the i-th argument of a function application.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="a" type="Z3_app">
+  Application
+</ParamField>
+
+<ParamField name="i" type="unsigned">
+  Argument index (0-based)
+</ParamField>
+
+<ResponseField name="return" type="Z3_ast">
+  i-th argument
+</ResponseField>
+
+## Complete Example
+
+```c
+#include <z3.h>
+
+int main() {
+    Z3_config cfg = Z3_mk_config();
+    Z3_context ctx = Z3_mk_context(cfg);
+    Z3_del_config(cfg);
+    
+    // Create integer sort
+    Z3_sort int_sort = Z3_mk_int_sort(ctx);
+    
+    // Create variables x and y
+    Z3_ast x = Z3_mk_const(ctx, Z3_mk_string_symbol(ctx, "x"), int_sort);
+    Z3_ast y = Z3_mk_const(ctx, Z3_mk_string_symbol(ctx, "y"), int_sort);
+    
+    // Create expression: x + y = 10
+    Z3_ast args[2] = {x, y};
+    Z3_ast sum = Z3_mk_add(ctx, 2, args);
+    Z3_ast ten = Z3_mk_int(ctx, 10, int_sort);
+    Z3_ast constraint = Z3_mk_eq(ctx, sum, ten);
+    
+    Z3_del_context(ctx);
+    return 0;
+}
+```

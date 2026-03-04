@@ -1,0 +1,223 @@
+---
+title: Python Installation
+description: Install and configure Z3 Python bindings
+---
+
+# Installing Z3 Python Bindings
+
+The Z3 Python bindings provide a high-level interface to the Z3 theorem prover. This guide covers multiple installation methods.
+
+## Installation via pip
+
+The easiest way to install Z3 is using pip:
+
+```bash
+pip install z3-solver
+```
+
+This installs the `z3-solver` package, which includes:
+- Pre-built Z3 native libraries
+- Python bindings
+- Z3 executable
+- C/C++ header files
+
+### Virtual Environment (Recommended)
+
+It's recommended to use a virtual environment:
+
+```bash
+# Create virtual environment
+python -m venv z3-env
+
+# Activate on Linux/macOS
+source z3-env/bin/activate
+
+# Activate on Windows
+z3-env\Scripts\activate
+
+# Install Z3
+pip install z3-solver
+```
+
+### Verifying Installation
+
+Test your installation:
+
+```python
+from z3 import *
+
+print(get_version_string())
+print(get_full_version())
+
+# Quick test
+x = Int('x')
+s = Solver()
+s.add(x > 0, x < 2)
+print(s.check())  # Should print 'sat'
+```
+
+## Building from Source
+
+For the latest development version or custom builds, compile from source.
+
+### Prerequisites
+
+- Python 3.7 or later
+- CMake 3.4 or later
+- C++ compiler with C++20 support:
+  - GCC/Clang on Linux/macOS
+  - Visual Studio 2019+ on Windows
+
+### Linux/macOS Build
+
+```bash
+# Clone the repository
+git clone https://github.com/Z3Prover/z3.git
+cd z3
+
+# Using Python build script
+python scripts/mk_make.py
+cd build
+make
+sudo make install
+
+# Or using CMake directly
+mkdir build && cd build
+cmake -DZ3_BUILD_PYTHON_BINDINGS=ON ..
+make -j$(nproc)
+sudo make install
+```
+
+### Windows Build
+
+Using Visual Studio Command Prompt:
+
+```bash
+# For 64-bit build
+python scripts/mk_make.py -x
+cd build
+nmake
+```
+
+Or using CMake:
+
+```bash
+mkdir build
+cd build
+cmake -DZ3_BUILD_PYTHON_BINDINGS=ON ..
+cmake --build . --config Release
+```
+
+### Installing Python Package from Source
+
+From the `src/api/python` directory:
+
+```bash
+cd src/api/python
+pip install .
+```
+
+For development mode (editable install):
+
+```bash
+pip install -e .
+```
+
+## Platform-Specific Notes
+
+### Linux
+
+After building, you may need to update library paths:
+
+```bash
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib
+```
+
+Add to `~/.bashrc` for persistence.
+
+### macOS
+
+Set the dynamic library path:
+
+```bash
+export DYLD_LIBRARY_PATH=$DYLD_LIBRARY_PATH:/usr/local/lib
+```
+
+### Windows
+
+Ensure the Z3 `bin` directory is in your PATH:
+
+```powershell
+setx PATH "%PATH%;C:\path\to\z3\bin"
+```
+
+## Package Requirements
+
+The Z3 Python package has minimal dependencies:
+
+- **Python**: 3.7+
+- **importlib-resources**: For Python < 3.9 (installed automatically)
+- **setuptools**: For building from source (≥70)
+
+## Troubleshooting
+
+### Import Error: DLL/SO Not Found
+
+If you get library loading errors:
+
+**Linux:**
+```bash
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/path/to/z3/lib
+```
+
+**macOS:**
+```bash
+export DYLD_LIBRARY_PATH=$DYLD_LIBRARY_PATH:/path/to/z3/lib
+```
+
+**Windows:**
+Add Z3's `bin` directory to your system PATH.
+
+### Build Failures
+
+Ensure you have:
+- CMake installed (`pip install cmake` if needed)
+- C++20 compatible compiler
+- Sufficient disk space (build artifacts are ~500MB)
+
+### Version Conflicts
+
+If you have multiple Z3 installations:
+
+```python
+import z3
+print(z3.__file__)  # Check which installation is being used
+```
+
+## Upgrading
+
+To upgrade to the latest version:
+
+```bash
+pip install --upgrade z3-solver
+```
+
+## Uninstalling
+
+Remove Z3 from your Python environment:
+
+```bash
+pip uninstall z3-solver
+```
+
+If you built from source using make:
+
+```bash
+cd build
+sudo make uninstall
+```
+
+## Next Steps
+
+- [Getting Started](/bindings/python/getting-started) - Write your first Z3 programs
+- [API Reference](/bindings/python/api-reference) - Explore the full API

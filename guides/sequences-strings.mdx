@@ -1,0 +1,579 @@
+---
+title: Sequences and Strings
+description: Work with strings and sequences in Z3, including concatenation, length, substrings, regular expressions, and string constraints
+---
+
+Z3 provides comprehensive support for reasoning about strings and sequences through the string/sequence theory. This enables solving constraints involving string operations, pattern matching with regular expressions, and sequence manipulation.
+
+## Overview
+
+Z3's sequence and string support includes:
+- **String operations**: Concatenation, length, substring, indexing, replacement
+- **Regular expressions**: Pattern matching, intersection, union, complement
+- **Sequence operations**: Generic sequences over any sort
+- **String constraints**: Membership, prefix/suffix, contains
+- **Conversions**: String to/from integers
+
+## String Basics
+
+### Creating Strings
+
+```python
+from z3 import *
+
+# String variables
+s = String('s')
+t = String('t')
+
+# String literals
+hello = StringVal("hello")
+world = StringVal("world")
+
+# Empty string
+empty = StringVal("")
+
+# Unicode strings
+unicode_str = StringVal("Hello 世界 🌍")
+
+# String from list of character codes
+codes = [72, 101, 108, 108, 111]  # "Hello"
+from_codes = Unit(Char(codes[0]))
+for c in codes[1:]:
+    from_codes = Concat(from_codes, Unit(Char(c)))
+```
+
+### Basic String Operations
+
+```python
+from z3 import *
+
+s = String('s')
+t = String('t')
+
+# Concatenation
+concat = Concat(s, t)
+concat2 = s + t  # Alternative syntax
+
+# Length
+length = Length(s)
+
+# Character at position (0-indexed)
+char_at = CharAt(s, 0)  # First character
+
+# Substring: SubString(string, start, length)
+substr = SubString(s, 0, 3)  # First 3 characters
+
+# Example: constraint solving
+solver = Solver()
+solver.add(s == StringVal("hello"))
+solver.add(Length(s) == 5)
+solver.add(CharAt(s, 0) == StringVal("h"))
+
+if solver.check() == sat:
+    m = solver.model()
+    print(f"s = {m[s]}")
+```
+
+## String Constraints
+
+### Contains, Prefix, and Suffix
+
+```python
+from z3 import *
+
+s = String('s')
+t = String('t')
+
+# Contains
+contains = Contains(s, t)  # s contains t as substring
+
+# Prefix
+prefix = PrefixOf(t, s)  # t is prefix of s
+
+# Suffix  
+suffix = SuffixOf(t, s)  # t is suffix of s
+
+# Example: email validation pattern
+email = String('email')
+solver = Solver()
+
+# Must contain '@'
+solver.add(Contains(email, StringVal("@")))
+
+# Must end with domain
+solver.add(SuffixOf(StringVal(".com"), email))
+
+# At least 5 characters
+solver.add(Length(email) >= 5)
+
+if solver.check() == sat:
+    m = solver.model()
+    print(f"Valid email: {m[email]}")
+```
+
+### Index and Replacement
+
+```python
+from z3 import *
+
+s = String('s')
+t = String('t')
+
+# IndexOf(haystack, needle, offset)
+# Returns first position of needle in haystack starting from offset
+# Returns -1 if not found
+index = IndexOf(s, t, 0)
+
+# Replace(string, pattern, replacement)
+# Replaces first occurrence
+replaced = Replace(s, StringVal("old"), StringVal("new"))
+
+# Example: find and replace
+solver = Solver()
+text = String('text')
+
+solver.add(text == StringVal("hello world"))
+result = Replace(text, StringVal("world"), StringVal("Z3"))
+
+if solver.check() == sat:
+    m = solver.model()
+    print(f"Result: {m.eval(result)}")  # "hello Z3"
+```
+
+### String Conversion
+
+```python
+from z3 import *
+
+# String to integer
+s = String('s')
+n = Int('n')
+
+# StrToInt: converts string to integer, -1 if invalid
+str_to_int = StrToInt(s)
+
+# IntToStr: converts non-negative integer to string
+int_to_str = IntToStr(n)
+
+# Example: parse number from string
+solver = Solver()
+solver.add(s == StringVal("42"))
+solver.add(n == StrToInt(s))
+
+if solver.check() == sat:
+    m = solver.model()
+    print(f"String: {m[s]}, Integer: {m[n]}")
+
+# Invalid conversion
+solver2 = Solver()
+solver2.add(StrToInt(StringVal("abc")) == -1)
+print(solver2.check())  # sat (invalid strings -> -1)
+```
+
+## Regular Expressions
+
+Z3 supports rich regular expression constraints:
+
+### Basic Regular Expressions
+
+```python
+from z3 import *
+
+s = String('s')
+
+# Literal string regex
+re_hello = Re(StringVal("hello"))
+
+# Character ranges
+re_digit = Range(StringVal("0"), StringVal("9"))  # [0-9]
+re_letter = Range(StringVal("a"), StringVal("z"))  # [a-z]
+
+# Union (alternation)
+re_or = Union(Re(StringVal("cat")), Re(StringVal("dog")))  # cat|dog
+
+# Concatenation
+re_concat = Concat(Re(StringVal("hello")), Re(StringVal(" ")), 
+                   Re(StringVal("world")))  # "hello world"
+
+# Kleene star (zero or more)
+re_star = Star(re_digit)  # \d*
+
+# Plus (one or more)
+re_plus = Plus(re_letter)  # [a-z]+
+
+# Optional
+re_opt = Option(Re(StringVal("s")))  # s?
+
+# Membership constraint
+solver = Solver()
+solver.add(InRe(s, re_or))
+
+if solver.check() == sat:
+    m = solver.model()
+    print(f"s = {m[s]}")  # Either "cat" or "dog"
+```
+
+### Complex Regular Expression Patterns
+
+```python
+from z3 import *
+
+# Email pattern: [a-z]+@[a-z]+\.[a-z]+
+email = String('email')
+
+letters = Range(StringVal("a"), StringVal("z"))
+at_sign = Re(StringVal("@"))
+dot = Re(StringVal("."))
+
+email_pattern = Concat(
+    Plus(letters),           # username
+    at_sign,                 # @
+    Plus(letters),           # domain name
+    dot,                     # .
+    Plus(letters)            # TLD
+)
+
+solver = Solver()
+solver.add(InRe(email, email_pattern))
+solver.add(Length(email) >= 7)
+
+if solver.check() == sat:
+    m = solver.model()
+    print(f"Email: {m[email]}")
+```
+
+### Regular Expression Operations
+
+```python
+from z3 import *
+
+# Intersection
+re1 = Star(Range(StringVal("a"), StringVal("z")))  # any lowercase
+re2 = Concat(Re(StringVal("test")), Star(AllChar()))  # starts with "test"
+re_intersect = Intersect(re1, re2)  # starts with "test", all lowercase
+
+# Complement (negation)
+re_not_digit = Complement(Range(StringVal("0"), StringVal("9")))
+
+# Bounded repetition: Loop(re, min, max)
+re_3_digits = Loop(Range(StringVal("0"), StringVal("9")), 3, 3)  # \d{3}
+re_2to4_letters = Loop(Range(StringVal("a"), StringVal("z")), 2, 4)  # [a-z]{2,4}
+
+# Example: phone number (XXX-XXX-XXXX)
+phone = String('phone')
+digit = Range(StringVal("0"), StringVal("9"))
+dash = Re(StringVal("-"))
+
+phone_pattern = Concat(
+    Loop(digit, 3, 3),
+    dash,
+    Loop(digit, 3, 3),
+    dash,
+    Loop(digit, 4, 4)
+)
+
+solver = Solver()
+solver.add(InRe(phone, phone_pattern))
+
+if solver.check() == sat:
+    print(solver.model()[phone])
+```
+
+## Sequences
+
+Sequences generalize strings to work over any element sort:
+
+### Sequence Operations
+
+```python
+from z3 import *
+
+# Sequence of integers
+IntSeq = SeqSort(IntSort())
+s = Const('s', IntSeq)
+t = Const('t', IntSeq)
+
+# Empty sequence
+empty = Empty(IntSeq)
+
+# Unit sequence (single element)
+unit = Unit(IntVal(5))
+
+# Concatenation
+concat = Concat(s, t)
+
+# Length
+length = Length(s)
+
+# Element at position
+at_pos = SeqAt(s, 0)
+
+# Extract subsequence
+subseq = Extract(s, 1, 3)  # Elements at positions 1, 2, 3
+
+# Example
+solver = Solver()
+
+# Create sequence [1, 2, 3]
+seq123 = Concat(Unit(IntVal(1)), 
+                Concat(Unit(IntVal(2)), Unit(IntVal(3))))
+
+solver.add(s == seq123)
+solver.add(Length(s) == 3)
+solver.add(SeqAt(s, 1) == IntVal(2))
+
+if solver.check() == sat:
+    m = solver.model()
+    print(f"s = {m[s]}")
+```
+
+### Sequence Constraints
+
+```python
+from z3 import *
+
+IntSeq = SeqSort(IntSort())
+s = Const('s', IntSeq)
+t = Const('t', IntSeq)
+
+# Contains
+contains = Contains(s, t)
+
+# Prefix
+prefix = PrefixOf(t, s)
+
+# Suffix
+suffix = SuffixOf(t, s)
+
+# Index
+index = IndexOf(s, t, 0)
+
+# Example: sorted sequence
+solver = Solver()
+a, b, c = Ints('a b c')
+
+seq = Concat(Unit(a), Concat(Unit(b), Unit(c)))
+
+# Sequence is sorted
+solver.add(a <= b)
+solver.add(b <= c)
+
+# Specific constraints
+solver.add(Length(seq) == 3)
+solver.add(a > 0)
+
+if solver.check() == sat:
+    m = solver.model()
+    print(f"Sorted sequence: [{m[a]}, {m[b]}, {m[c]}]")
+```
+
+## Advanced String Features
+
+### Higher-Order Sequence Functions
+
+Z3 4.15.5+ includes sequence map and fold operations:
+
+```python
+from z3 import *
+
+# Map function over sequence
+IntSeq = SeqSort(IntSort())
+s = Const('s', IntSeq)
+
+# Define function: x -> x * 2
+x = Int('x')
+double = Lambda([x], x * 2)
+
+# Map over sequence (if available in your Z3 version)
+# mapped = SeqMap(double, s)
+
+# Fold left/right (if available)
+# result = SeqFoldl(func, init, s)
+```
+
+### Character Operations
+
+```python
+from z3 import *
+
+# Character sort
+char_c = Char('c')
+
+# Character from code point
+char_65 = Char(65)  # 'A'
+
+# Unit string from character
+str_from_char = Unit(char_c)
+
+# Character comparison
+solver = Solver()
+solver.add(char_c == Char(72))  # 'H'
+if solver.check() == sat:
+    print(solver.model()[char_c])
+```
+
+## Practical Examples
+
+### Password Validation
+
+```python
+from z3 import *
+
+def validate_password(password):
+    solver = Solver()
+    
+    # Length: 8-20 characters
+    solver.add(Length(password) >= 8)
+    solver.add(Length(password) <= 20)
+    
+    # Must contain at least one digit
+    digit = Range(StringVal("0"), StringVal("9"))
+    has_digit = Contains(password, Re(digit))
+    solver.add(InRe(password, Concat(Star(AllChar()), digit, Star(AllChar()))))
+    
+    # Must contain lowercase letter
+    lower = Range(StringVal("a"), StringVal("z"))
+    solver.add(InRe(password, Concat(Star(AllChar()), lower, Star(AllChar()))))
+    
+    # Must contain uppercase letter
+    upper = Range(StringVal("A"), StringVal("Z"))
+    solver.add(InRe(password, Concat(Star(AllChar()), upper, Star(AllChar()))))
+    
+    return solver
+
+pwd = String('password')
+solver = validate_password(pwd)
+
+if solver.check() == sat:
+    print(f"Valid password: {solver.model()[pwd]}")
+else:
+    print("No valid password found")
+```
+
+### URL Parsing
+
+```python
+from z3 import *
+
+# Parse URL: protocol://domain.tld/path
+url = String('url')
+protocol = String('protocol')
+domain = String('domain')
+tld = String('tld')
+path = String('path')
+
+solver = Solver()
+
+# URL structure
+solver.add(url == Concat(protocol, 
+                         StringVal("://"),
+                         domain,
+                         StringVal("."),
+                         tld,
+                         StringVal("/"),
+                         path))
+
+# Constraints
+solver.add(Or(protocol == StringVal("http"), 
+              protocol == StringVal("https")))
+solver.add(Length(domain) > 0)
+solver.add(Length(tld) >= 2)
+solver.add(Length(tld) <= 6)
+
+# Example URL
+solver.add(url == StringVal("https://www.example.com/index.html"))
+
+if solver.check() == sat:
+    m = solver.model()
+    print(f"Protocol: {m[protocol]}")
+    print(f"Domain: {m[domain]}")
+    print(f"TLD: {m[tld]}")
+    print(f"Path: {m[path]}")
+```
+
+### String Puzzle Solving
+
+```python
+from z3 import *
+
+# Find string where reverse concatenated equals original
+s = String('s')
+t = String('t')
+
+solver = Solver()
+
+# s + t = t + s (only if s = t or one is empty)
+solver.add(Concat(s, t) == Concat(t, s))
+solver.add(Length(s) > 0)
+solver.add(Length(t) > 0)
+solver.add(Length(s) + Length(t) <= 10)
+
+if solver.check() == sat:
+    m = solver.model()
+    print(f"s = {m[s]}, t = {m[t]}")
+    print(f"s + t = {m.eval(Concat(s, t))}")
+```
+
+## C API Reference
+
+String and sequence operations in C:
+
+```c
+#include <z3.h>
+
+// String sort
+Z3_sort string_sort = Z3_mk_string_sort(ctx);
+
+// Sequence sort
+Z3_sort elem_sort = Z3_mk_int_sort(ctx);
+Z3_sort seq_sort = Z3_mk_seq_sort(ctx, elem_sort);
+
+// String value
+Z3_ast str = Z3_mk_string(ctx, "hello");
+Z3_ast lstr = Z3_mk_lstring(ctx, 5, "hello");  // with length
+
+// Operations
+Z3_ast concat = Z3_mk_seq_concat(ctx, 2, (Z3_ast[]){s1, s2});
+Z3_ast length = Z3_mk_seq_length(ctx, s);
+Z3_ast at = Z3_mk_seq_at(ctx, s, Z3_mk_int(ctx, 0, Z3_mk_int_sort(ctx)));
+Z3_ast substr = Z3_mk_seq_extract(ctx, s, offset, length);
+
+// String predicates
+Z3_ast contains = Z3_mk_seq_contains(ctx, s, t);
+Z3_ast prefix = Z3_mk_seq_prefix(ctx, t, s);
+Z3_ast suffix = Z3_mk_seq_suffix(ctx, t, s);
+
+// Regular expressions
+Z3_sort re_sort = Z3_mk_re_sort(ctx, string_sort);
+Z3_ast re = Z3_mk_re_literal(ctx, str);
+Z3_ast re_range = Z3_mk_re_range(ctx, a, b);
+Z3_ast re_star = Z3_mk_re_star(ctx, re);
+Z3_ast re_plus = Z3_mk_re_plus(ctx, re);
+Z3_ast in_re = Z3_mk_seq_in_re(ctx, s, re);
+
+// Conversions
+Z3_ast str_to_int = Z3_mk_str_to_int(ctx, s);
+Z3_ast int_to_str = Z3_mk_int_to_str(ctx, n);
+```
+
+## Key Functions
+
+| Function | Description |
+|----------|-------------|
+| `Concat` | Concatenate strings/sequences |
+| `Length` | Get length |
+| `SubString`/`Extract` | Extract substring/subsequence |
+| `CharAt`/`SeqAt` | Character/element at position |
+| `Contains` | Substring containment |
+| `PrefixOf`/`SuffixOf` | Prefix/suffix test |
+| `IndexOf` | Find substring position |
+| `Replace` | Replace first occurrence |
+| `StrToInt`/`IntToStr` | String/integer conversion |
+| `InRe` | Regular expression membership |
+| `Re`/`Range`/`Star`/`Plus` | Regular expression constructors |
+
+## See Also
+
+- [API Reference](/api-reference/sequences) - Complete sequence API
+- [Regular Expressions](https://microsoft.github.io/z3guide/docs/theories/Strings/) - String theory guide  
+- [Sequences](https://microsoft.github.io/z3guide/docs/theories/Sequences/) - Sequence theory details

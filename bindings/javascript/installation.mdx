@@ -1,0 +1,246 @@
+---
+title: Installation
+description: Install Z3 JavaScript/TypeScript bindings via npm
+icon: download
+---
+
+The Z3 JavaScript/TypeScript bindings are distributed as the [z3-solver](https://www.npmjs.com/package/z3-solver) package on npm. Z3 is compiled to WebAssembly and included as part of the package, so no separate Z3 installation is required.
+
+## Requirements
+
+<AccordionGroup>
+  <Accordion title="Node.js">
+    - Node.js 16 or later
+    - npm or yarn package manager
+  </Accordion>
+
+  <Accordion title="Browser">
+    - Modern browser with `SharedArrayBuffer` support
+    - Special COOP/COEP headers required (see below)
+    - Chrome 92+, Firefox 89+, Safari 15.2+, or Edge 92+
+  </Accordion>
+</AccordionGroup>
+
+## Installation
+
+<CodeGroup>
+```bash npm
+npm install z3-solver
+```
+
+```bash yarn
+yarn add z3-solver
+```
+
+```bash pnpm
+pnpm add z3-solver
+```
+</CodeGroup>
+
+## Package Information
+
+The `z3-solver` package includes:
+
+- **WebAssembly artifact**: Pre-compiled Z3 as a WASM module
+- **TypeScript bindings**: High-level and low-level APIs
+- **Type definitions**: Full TypeScript types for IDE support
+- **Browser and Node.js support**: Automatic platform detection
+
+### Package Details
+
+<ParamField path="version" type="string">
+  Current version: 0.1.0
+</ParamField>
+
+<ParamField path="keywords" type="array">
+  Z3, theorem, prover, solver, satisfiability, smt
+</ParamField>
+
+<ParamField path="engines" type="object">
+  Node.js >= 16 required
+</ParamField>
+
+## Browser Setup
+
+<Warning>
+  Browser usage requires `SharedArrayBuffer`, which needs special HTTP headers for security.
+</Warning>
+
+### Required Headers
+
+Your web server must send these headers:
+
+```http
+Cross-Origin-Opener-Policy: same-origin
+Cross-Origin-Embedder-Policy: require-corp
+```
+
+### Development Setup
+
+For local development or static hosting (e.g., GitHub Pages), you can use the [coi-serviceworker](https://github.com/gzuidhof/coi-serviceworker) trick:
+
+```html index.html
+<!DOCTYPE html>
+<html>
+<head>
+  <!-- Load COI service worker for local development -->
+  <script src="https://unpkg.com/coi-serviceworker@0.1.7/coi-serviceworker.min.js"></script>
+</head>
+<body>
+  <script type="module" src="./main.js"></script>
+</body>
+</html>
+```
+
+<Warning>
+  The COI service worker trick is great for development and demos, but **not recommended** for production applications with complex service worker requirements.
+</Warning>
+
+### Production Setup
+
+For production, configure your web server properly:
+
+<CodeGroup>
+```nginx Nginx
+add_header Cross-Origin-Opener-Policy same-origin;
+add_header Cross-Origin-Embedder-Policy require-corp;
+```
+
+```apache Apache
+Header set Cross-Origin-Opener-Policy "same-origin"
+Header set Cross-Origin-Embedder-Policy "require-corp"
+```
+
+```javascript Express.js
+app.use((req, res, next) => {
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+  res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
+  next();
+});
+```
+</CodeGroup>
+
+## Manual Import
+
+The package auto-detects your environment, but you can import explicitly:
+
+<CodeGroup>
+```javascript Node.js
+const { init } = require('z3-solver/node');
+```
+
+```javascript Browser
+import { init } from 'z3-solver/browser';
+```
+
+```typescript TypeScript (ESM)
+import { init } from 'z3-solver';
+```
+</CodeGroup>
+
+## Bundler Configuration
+
+### Webpack
+
+When using webpack, ensure `z3-built.js` is included as a separate script:
+
+```javascript webpack.config.js
+module.exports = {
+  // ... other config
+  output: {
+    filename: '[name].bundle.js',
+    path: path.resolve(__dirname, 'dist'),
+  },
+  plugins: [
+    new CopyWebpackPlugin({
+      patterns: [
+        {
+          from: 'node_modules/z3-solver/build/z3-built.js',
+          to: 'z3-built.js'
+        }
+      ]
+    })
+  ]
+};
+```
+
+### Vite
+
+Vite should work out of the box with proper headers configured.
+
+## Verification
+
+Verify your installation:
+
+```javascript test.js
+const { init } = require('z3-solver');
+
+(async () => {
+  const { Context } = await init();
+  const { Int, Solver } = new Context('main');
+  
+  const x = Int.const('x');
+  const solver = new Solver();
+  solver.add(x.gt(0));
+  
+  const result = await solver.check();
+  console.log('Installation successful! Result:', result);
+})();
+```
+
+Run it:
+
+```bash
+node test.js
+```
+
+Expected output:
+```
+Installation successful! Result: sat
+```
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="SharedArrayBuffer is not defined">
+    **Browser**: Ensure COOP/COEP headers are set correctly. Check browser console for specific error messages.
+    
+    **Node.js**: Update to Node.js 16 or later.
+  </Accordion>
+
+  <Accordion title="z3-built.js fails to load">
+    When using bundlers like webpack, ensure `z3-built.js` is included as a separate script file, not bundled into your main application bundle.
+  </Accordion>
+
+  <Accordion title="Module not found errors">
+    Clear your node_modules and reinstall:
+    ```bash
+    rm -rf node_modules package-lock.json
+    npm install
+    ```
+  </Accordion>
+
+  <Accordion title="TypeScript errors">
+    Ensure your `tsconfig.json` includes:
+    ```json
+    {
+      "compilerOptions": {
+        "moduleResolution": "node",
+        "esModuleInterop": true,
+        "lib": ["ES2020", "DOM"]
+      }
+    }
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Getting Started" icon="rocket" href="/bindings/javascript/getting-started">
+    Learn the basics with quick examples
+  </Card>
+  <Card title="API Reference" icon="book" href="/bindings/javascript/api-reference">
+    Explore the complete API
+  </Card>
+</CardGroup>

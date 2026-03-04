@@ -1,122 +1,203 @@
 {
   "$schema": "https://mintlify.com/docs.json",
-  "theme": "mint",
-  "name": "Mint Starter Kit",
+  "name": "Z3 Theorem Prover",
+  "theme": "aspen",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#646464",
+    "light": "#d39a13",
+    "dark": "#f9f9f4"
   },
-  "favicon": "/favicon.svg",
+  "favicon": "https://media.brand.dev/8c9d4127-f22f-4fd3-9a96-421c72c937e9.png",
+  "logo": {
+    "light": "https://media.brand.dev/c094bf67-3a01-4f4d-b18d-a09b69f78ac0.png",
+    "dark": "https://media.brand.dev/c094bf67-3a01-4f4d-b18d-a09b69f78ac0.png"
+  },
+  "navbar": {
+    "primary": {
+      "type": "github",
+      "href": "https://github.com/Z3Prover/z3"
+    }
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/Z3Prover/z3"
+    }
+  },
   "navigation": {
     "tabs": [
       {
-        "tab": "Guides",
+        "tab": "Documentation",
         "groups": [
           {
-            "group": "Getting started",
+            "group": "Getting Started",
             "pages": [
-              "index",
+              "introduction",
               "quickstart",
-              "development"
+              "installation"
             ]
           },
           {
-            "group": "Customization",
+            "group": "Core Concepts",
             "pages": [
-              "essentials/settings",
-              "essentials/navigation"
+              "concepts/smt-solving",
+              "concepts/expressions",
+              "concepts/solvers",
+              "concepts/tactics",
+              "concepts/models",
+              "concepts/quantifiers"
             ]
           },
           {
-            "group": "Writing content",
+            "group": "Building Z3",
             "pages": [
-              "essentials/markdown",
-              "essentials/code",
-              "essentials/images",
-              "essentials/reusable-snippets"
+              "building/cmake",
+              "building/make",
+              "building/visual-studio",
+              "building/bazel"
             ]
           },
           {
-            "group": "AI tools",
+            "group": "Guides",
             "pages": [
-              "ai-tools/cursor",
-              "ai-tools/claude-code",
-              "ai-tools/windsurf"
+              "guides/optimization",
+              "guides/fixedpoint",
+              "guides/floating-point",
+              "guides/finite-sets",
+              "guides/sequences-strings"
             ]
           }
         ]
       },
       {
-        "tab": "API reference",
+        "tab": "Language Bindings",
         "groups": [
           {
-            "group": "API documentation",
+            "group": "Python",
             "pages": [
-              "api-reference/introduction"
+              "bindings/python/installation",
+              "bindings/python/getting-started",
+              "bindings/python/api-reference"
             ]
           },
           {
-            "group": "Endpoint examples",
+            "group": "C++",
             "pages": [
-              "api-reference/endpoint/get",
-              "api-reference/endpoint/create",
-              "api-reference/endpoint/delete",
-              "api-reference/endpoint/webhook"
+              "bindings/cpp/installation",
+              "bindings/cpp/getting-started",
+              "bindings/cpp/api-reference"
+            ]
+          },
+          {
+            "group": "C",
+            "pages": [
+              "bindings/c/installation",
+              "bindings/c/getting-started",
+              "bindings/c/api-reference"
+            ]
+          },
+          {
+            "group": "Java",
+            "pages": [
+              "bindings/java/installation",
+              "bindings/java/getting-started",
+              "bindings/java/api-reference"
+            ]
+          },
+          {
+            "group": ".NET",
+            "pages": [
+              "bindings/dotnet/installation",
+              "bindings/dotnet/getting-started",
+              "bindings/dotnet/api-reference"
+            ]
+          },
+          {
+            "group": "JavaScript/TypeScript",
+            "pages": [
+              "bindings/javascript/installation",
+              "bindings/javascript/getting-started",
+              "bindings/javascript/api-reference"
+            ]
+          },
+          {
+            "group": "Go",
+            "pages": [
+              "bindings/go/installation",
+              "bindings/go/getting-started",
+              "bindings/go/api-reference"
+            ]
+          },
+          {
+            "group": "OCaml",
+            "pages": [
+              "bindings/ocaml/installation",
+              "bindings/ocaml/getting-started"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Core API",
+            "pages": [
+              "api/context",
+              "api/expressions",
+              "api/sorts",
+              "api/solver",
+              "api/model",
+              "api/tactics",
+              "api/optimize",
+              "api/fixedpoint"
+            ]
+          },
+          {
+            "group": "Theory Solvers",
+            "pages": [
+              "api/theories/arithmetic",
+              "api/theories/bitvectors",
+              "api/theories/arrays",
+              "api/theories/datatypes",
+              "api/theories/floating-point",
+              "api/theories/sequences",
+              "api/theories/finite-sets"
+            ]
+          },
+          {
+            "group": "Advanced",
+            "pages": [
+              "api/advanced/parameters",
+              "api/advanced/statistics",
+              "api/advanced/proofs",
+              "api/advanced/simplifiers"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Examples",
+        "groups": [
+          {
+            "group": "Tutorials",
+            "pages": [
+              "examples/basic-solving",
+              "examples/sudoku-solver",
+              "examples/optimization-problems",
+              "examples/program-verification"
+            ]
+          },
+          {
+            "group": "Use Cases",
+            "pages": [
+              "examples/constraint-solving",
+              "examples/model-checking",
+              "examples/automated-testing",
+              "examples/symbolic-execution"
             ]
           }
         ]
       }
-    ],
-    "global": {
-      "anchors": [
-        {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
-        },
-        {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
-        }
-      ]
-    }
-  },
-  "logo": {
-    "light": "/logo/light.svg",
-    "dark": "/logo/dark.svg"
-  },
-  "navbar": {
-    "links": [
-      {
-        "label": "Support",
-        "href": "mailto:hi@mintlify.com"
-      }
-    ],
-    "primary": {
-      "type": "button",
-      "label": "Dashboard",
-      "href": "https://dashboard.mintlify.com"
-    }
-  },
-  "contextual": {
-    "options": [
-     "copy",
-     "view",
-     "chatgpt",
-     "claude",
-     "perplexity",
-     "mcp",
-     "cursor",
-     "vscode"
-   ]
-  },
-  "footer": {
-    "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
-    }
+    ]
   }
 }

@@ -1,0 +1,455 @@
+---
+title: Building with Bazel
+description: Build Z3 using Bazel for scalable, reproducible builds
+---
+
+[Bazel](https://bazel.build/) is a fast, scalable build system that works well for large projects and provides excellent support for reproducible builds and remote caching.
+
+<Info>
+Bazel support in Z3 is primarily tested on Ubuntu with Clang but may work on other platforms and compilers.
+</Info>
+
+## Prerequisites
+
+- **Bazel** - Install from [bazel.build](https://bazel.build/install)
+- **C++20 compiler** - Clang recommended, GCC also supported
+- **Python** - For some build steps
+
+## Quick Start
+
+Build all Z3 targets:
+
+```bash
+bazel build //...
+```
+
+That's it! Bazel handles dependency resolution, configuration, and compilation automatically.
+
+## Installation
+
+### Linux (Ubuntu/Debian)
+
+```bash
+# Using Bazelisk (recommended)
+npm install -g @bazel/bazelisk
+
+# Or using apt (may be outdated)
+sudo apt install bazel
+
+# Or download from releases
+wget https://github.com/bazelbuild/bazel/releases/download/6.0.0/bazel-6.0.0-linux-x86_64
+chmod +x bazel-6.0.0-linux-x86_64
+sudo mv bazel-6.0.0-linux-x86_64 /usr/local/bin/bazel
+```
+
+### macOS
+
+```bash
+# Using Homebrew
+brew install bazel
+
+# Or using Bazelisk
+brew install bazelisk
+```
+
+### Windows
+
+```bash
+# Using Chocolatey
+choco install bazel
+
+# Or download from https://bazel.build/install/windows
+```
+
+## Basic Usage
+
+### Build All Targets
+
+Build everything in the repository:
+
+```bash
+bazel build //...
+```
+
+### Build Specific Targets
+
+Build only the Z3 library:
+
+```bash
+bazel build //src:libz3
+```
+
+### Run Tests
+
+Run all tests:
+
+```bash
+bazel test //...
+```
+
+### Clean Build
+
+Remove build artifacts:
+
+```bash
+bazel clean
+```
+
+Deep clean (removes all cached data):
+
+```bash
+bazel clean --expunge
+```
+
+## Build Configuration
+
+### Optimization Levels
+
+Bazel supports different compilation modes:
+
+```bash
+# Fast build (default, some optimizations)
+bazel build //...
+
+# Optimized build (-c opt)
+bazel build -c opt //...
+
+# Debug build (-c dbg)
+bazel build -c dbg //...
+```
+
+### Compiler Selection
+
+Use a specific compiler:
+
+```bash
+# Use Clang
+bazel build --repo_env=CC=clang --repo_env=CXX=clang++ //...
+
+# Use GCC
+bazel build --repo_env=CC=gcc --repo_env=CXX=g++ //...
+```
+
+<Info>
+Z3's Bazel build is primarily tested with Clang on Ubuntu. Other configurations may require adjustments.
+</Info>
+
+### Platform-Specific Options
+
+For cross-compilation or specific platforms:
+
+```bash
+# 32-bit build on 64-bit system
+bazel build --cpu=k8 //...
+
+# Specify platform
+bazel build --platforms=@platforms//os:linux //...
+```
+
+## Advanced Features
+
+### Parallel Builds
+
+Bazel automatically parallelizes builds. Control job count:
+
+```bash
+# Use 8 parallel jobs
+bazel build --jobs=8 //...
+
+# Use all available cores (default)
+bazel build //...
+```
+
+### Remote Caching
+
+Enable remote caching for faster builds across machines:
+
+```bash
+# Use HTTP cache
+bazel build --remote_cache=http://cache.example.com //...
+
+# Use gRPC cache
+bazel build --remote_cache=grpc://cache.example.com:9090 //...
+```
+
+### Build Event Protocol
+
+Generate build event logs:
+
+```bash
+bazel build --build_event_json_file=build_events.json //...
+```
+
+### Verbose Output
+
+Show detailed build information:
+
+```bash
+# Show all commands
+bazel build --subcommands //...
+
+# Verbose output
+bazel build --verbose_failures //...
+```
+
+## Bazel Configuration File
+
+Create a `.bazelrc` file in the repository root for persistent settings:
+
+```bash
+# .bazelrc
+
+# Use Clang by default
+build --repo_env=CC=clang
+build --repo_env=CXX=clang++
+
+# Optimize builds by default
+build -c opt
+
+# Use 8 parallel jobs
+build --jobs=8
+
+# Show command lines on failure
+build --verbose_failures
+
+# Color output
+common --color=yes
+```
+
+Then simply run:
+
+```bash
+bazel build //...
+```
+
+## Workspace Structure
+
+Bazel uses `BUILD` files to define targets. Z3's structure includes:
+
+```
+z3/
+├── WORKSPACE          # Bazel workspace definition
+├── BUILD              # Root build file
+├── src/
+│   ├── BUILD         # Source build definitions
+│   └── ...
+└── examples/
+    └── BUILD         # Example build definitions
+```
+
+## Common Targets
+
+### Library Targets
+
+```bash
+# Build the main Z3 library
+bazel build //src:libz3
+
+# Build static library
+bazel build //src:libz3_static
+```
+
+### Executable Targets
+
+```bash
+# Build Z3 executable
+bazel build //src:z3
+
+# Run Z3 directly
+bazel run //src:z3 -- --help
+```
+
+### Test Targets
+
+```bash
+# Run all tests
+bazel test //...
+
+# Run specific test suite
+bazel test //tests:unit_tests
+```
+
+## Querying Build Graph
+
+Bazel provides powerful query capabilities:
+
+```bash
+# List all targets
+bazel query //...
+
+# Show dependencies of a target
+bazel query 'deps(//src:libz3)'
+
+# Show reverse dependencies
+bazel query 'rdeps(//..., //src:libz3)'
+
+# Find all C++ libraries
+bazel query 'kind(cc_library, //...)'
+```
+
+## Integration with IDEs
+
+### VS Code
+
+Install the Bazel extension:
+
+```json
+// .vscode/settings.json
+{
+  "bazel.executable": "/usr/local/bin/bazel",
+  "bazel.buildifierExecutable": "/usr/local/bin/buildifier"
+}
+```
+
+### CLion
+
+CLion has built-in Bazel support:
+
+1. Open the Z3 repository
+2. Select **File → Project Structure**
+3. Choose **Bazel** as the project type
+
+### Compilation Database
+
+Generate `compile_commands.json` for other IDEs:
+
+```bash
+# Install bazel-compilation-database
+pip install bazel-compilation-database
+
+# Generate compilation database
+bazel-compdb //...
+```
+
+## Troubleshooting
+
+### Build Failures
+
+Clean and rebuild:
+
+```bash
+bazel clean
+bazel build //...
+```
+
+For persistent issues:
+
+```bash
+bazel clean --expunge
+bazel build //...
+```
+
+### Compiler Not Found
+
+Specify compiler explicitly:
+
+```bash
+bazel build --repo_env=CC=/usr/bin/clang --repo_env=CXX=/usr/bin/clang++ //...
+```
+
+### Slow Builds
+
+Enable remote caching or increase parallelism:
+
+```bash
+bazel build --jobs=auto //...
+```
+
+### Dependency Issues
+
+Show the dependency graph:
+
+```bash
+bazel query 'deps(//src:libz3)' --output graph
+```
+
+### Cache Problems
+
+Clear the Bazel cache:
+
+```bash
+bazel clean --expunge
+```
+
+## Comparison with Other Build Systems
+
+| Feature | Bazel | CMake | Make |
+|---------|-------|-------|------|
+| **Speed** | Fast (parallel, cached) | Moderate | Slow (recursive) |
+| **Scalability** | Excellent | Good | Limited |
+| **Reproducibility** | Excellent | Good | Poor |
+| **Cross-platform** | Good | Excellent | Platform-specific |
+| **IDE Integration** | Growing | Excellent | Limited |
+| **Learning Curve** | Steep | Moderate | Easy |
+| **Remote Caching** | Native | Via addons | Not available |
+| **OCaml Support** | Limited | Limited | Yes |
+
+## Best Practices
+
+### Use Bazelisk
+
+[Bazelisk](https://github.com/bazelbuild/bazelisk) automatically downloads the correct Bazel version:
+
+```bash
+npm install -g @bazel/bazelisk
+# Now 'bazel' command uses bazelisk
+```
+
+### Configure .bazelrc
+
+Store common options in `.bazelrc` instead of typing them:
+
+```bash
+# .bazelrc
+build -c opt
+test --test_output=errors
+```
+
+### Use Query for Understanding
+
+Before modifying build files, understand dependencies:
+
+```bash
+bazel query 'deps(//src:libz3)' --output graph | dot -Tpng > deps.png
+```
+
+### Remote Caching for CI
+
+Set up remote caching for continuous integration to speed up builds:
+
+```bash
+# In CI configuration
+bazel build --remote_cache=https://your-cache.example.com //...
+```
+
+## Performance Tips
+
+1. **Use `--jobs=auto`** - Let Bazel optimize parallelism
+2. **Enable remote caching** - Share build artifacts across machines
+3. **Use `bazel-compilation-database`** - For better IDE integration
+4. **Avoid `bazel clean`** - Let Bazel manage incremental builds
+5. **Use `.bazelrc`** - Configure once, build everywhere
+
+## When to Use Bazel
+
+Bazel is ideal when:
+
+- Building large codebases with many dependencies
+- You need reproducible builds
+- Working in a team with shared build cache
+- Cross-compilation is required
+- Integration with other Bazel projects
+
+Consider [CMake](/building/cmake) instead if:
+
+- You need extensive IDE support
+- Building small to medium projects
+- You need OCaml bindings (use [Make](/building/make))
+- Team is more familiar with CMake
+
+## Next Steps
+
+- Learn about [CMake builds](/building/cmake) for cross-platform flexibility
+- See [Make builds](/building/make) for simple Unix builds
+- Explore [Visual Studio builds](/building/visual-studio) for Windows development
+- Visit [bazel.build](https://bazel.build/docs) for comprehensive Bazel documentation

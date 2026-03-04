@@ -1,0 +1,390 @@
+---
+title: Automated Testing
+description: Generating test inputs and finding edge cases with Z3
+---
+
+Z3 can automatically generate test inputs that satisfy specific constraints, find edge cases, and create comprehensive test suites. This approach, often called constraint-based testing or symbolic testing, helps uncover bugs that traditional testing might miss.
+
+## When to Use Automated Testing
+
+Use Z3 for test generation when you need to:
+
+- **Generate test inputs**: Create inputs satisfying complex preconditions
+- **Find edge cases**: Discover boundary conditions and corner cases
+- **Achieve coverage**: Generate inputs covering different execution paths
+- **Fuzzing**: Create structured inputs for security testing
+- **Property-based testing**: Verify properties hold for all valid inputs
+- **Regression testing**: Generate minimal reproducing examples
+
+## Core Concepts
+
+### Constraint-Based Test Generation
+
+1. **Encode preconditions**: Express input requirements as constraints
+2. **Encode path conditions**: Capture execution path constraints
+3. **Solve for inputs**: Find concrete values satisfying constraints
+4. **Execute and verify**: Run test with generated inputs
+
+### Coverage Strategies
+
+- **Branch coverage**: Generate inputs for each branch
+- **Path coverage**: Cover distinct execution paths
+- **Dataflow coverage**: Exercise def-use pairs
+- **Boundary coverage**: Test boundary conditions
+
+## Example: Input Generation
+
+Generate test inputs for a function with complex preconditions:
+
+```python
+from z3 import *
+
+def generate_test_inputs():
+    """Generate inputs for: process_transaction(amount, balance, fee)"""
+    
+    amount = Real('amount')
+    balance = Real('balance')
+    fee = Real('fee')
+    
+    s = Solver()
+    
+    # Preconditions
+    s.add(amount > 0)              # Positive amount
+    s.add(balance >= 0)            # Non-negative balance
+    s.add(fee >= 0)                # Non-negative fee
+    s.add(fee < amount)            # Fee less than amount
+    s.add(amount + fee <= balance) # Sufficient funds
+    
+    test_cases = []
+    
+    # Generate multiple test cases
+    for i in range(5):
+        if s.check() == sat:
+            m = s.model()
+            test_case = {
+                'amount': float(m[amount].as_decimal(6)),
+                'balance': float(m[balance].as_decimal(6)),
+                'fee': float(m[fee].as_decimal(6))
+            }
+            test_cases.append(test_case)
+            
+            # Block this solution to get different inputs
+            s.add(Or(
+                amount != m[amount],
+                balance != m[balance],
+                fee != m[fee]
+            ))
+        else:
+            break
+    
+    return test_cases
+
+for i, tc in enumerate(generate_test_inputs()):
+    print(f"Test {i+1}: {tc}")
+```
+
+## Example: Finding Edge Cases
+
+Discover boundary conditions and corner cases:
+
+```python
+from z3 import *
+
+def find_edge_cases():
+    """Find edge cases for integer overflow detection"""
+    
+    # 32-bit signed integers
+    x = BitVec('x', 32)
+    y = BitVec('y', 32)
+    result = BitVec('result', 32)
+    
+    s = Solver()
+    
+    # Model: result = x + y
+    s.add(result == x + y)
+    
+    print("Edge Case 1: Maximum positive overflow")
+    s.push()
+    s.add(x > 0)
+    s.add(y > 0)
+    s.add(result < 0)  # Overflow detected
+    if s.check() == sat:
+        m = s.model()
+        print(f"  x = {m[x].as_signed_long()}")
+        print(f"  y = {m[y].as_signed_long()}")
+        print(f"  result = {m[result].as_signed_long()}")
+    s.pop()
+    
+    print("\nEdge Case 2: Maximum negative overflow")
+    s.push()
+    s.add(x < 0)
+    s.add(y < 0)
+    s.add(result > 0)  # Overflow detected
+    if s.check() == sat:
+        m = s.model()
+        print(f"  x = {m[x].as_signed_long()}")
+        print(f"  y = {m[y].as_signed_long()}")
+        print(f"  result = {m[result].as_signed_long()}")
+    s.pop()
+    
+    print("\nEdge Case 3: Boundary values")
+    # Find minimum positive x where x + 1 overflows
+    s.push()
+    s.add(x > 0)
+    s.add(x + 1 < 0)
+    if s.check() == sat:
+        m = s.model()
+        print(f"  x = {m[x].as_signed_long()} (INT_MAX = 2147483647)")
+    s.pop()
+
+find_edge_cases()
+```
+
+## Example: Property-Based Testing
+
+Generate inputs to test properties:
+
+```python
+from z3 import *
+
+def test_property(property_name, property_check):
+    """Test if a property holds"""
+    
+    x = Int('x')
+    y = Int('y')
+    
+    s = Solver()
+    
+    # Add domain constraints
+    s.add(x >= 0, x <= 100)
+    s.add(y >= 0, y <= 100)
+    
+    # Try to find counterexample
+    s.add(Not(property_check(x, y)))
+    
+    if s.check() == sat:
+        m = s.model()
+        print(f"{property_name} FAILED")
+        print(f"  Counterexample: x={m[x]}, y={m[y]}")
+        return False
+    else:
+        print(f"{property_name} PASSED")
+        return True
+
+# Test commutativity of addition
+test_property(
+    "Addition is commutative",
+    lambda x, y: x + y == y + x
+)
+
+# Test that subtraction is NOT commutative
+test_property(
+    "Subtraction is commutative",  # This should fail
+    lambda x, y: x - y == y - x
+)
+
+# Test division properties
+test_property(
+    "Division by self equals 1",
+    lambda x, y: Implies(x != 0, x / x == 1)
+)
+```
+
+## Example: Path Coverage
+
+Generate inputs covering different execution paths:
+
+```python
+from z3 import *
+
+def generate_path_coverage():
+    """Generate inputs for:
+    
+    def classify(x, y):
+        if x > 0:
+            if y > 0:
+                return "Q1"  # Path 1
+            else:
+                return "Q4"  # Path 2
+        else:
+            if y > 0:
+                return "Q2"  # Path 3
+            else:
+                return "Q3"  # Path 4
+    """
+    
+    x = Int('x')
+    y = Int('y')
+    
+    paths = [
+        ("Q1 (x>0, y>0)", And(x > 0, y > 0)),
+        ("Q4 (x>0, y<=0)", And(x > 0, y <= 0)),
+        ("Q2 (x<=0, y>0)", And(x <= 0, y > 0)),
+        ("Q3 (x<=0, y<=0)", And(x <= 0, y <= 0)),
+    ]
+    
+    test_suite = []
+    
+    for name, path_condition in paths:
+        s = Solver()
+        s.add(path_condition)
+        
+        if s.check() == sat:
+            m = s.model()
+            test_case = {
+                'name': name,
+                'x': m[x].as_long(),
+                'y': m[y].as_long()
+            }
+            test_suite.append(test_case)
+            print(f"Path {name}: x={test_case['x']}, y={test_case['y']}")
+    
+    return test_suite
+
+test_suite = generate_path_coverage()
+print(f"\nGenerated {len(test_suite)} tests for full path coverage")
+```
+
+## Example: Structured Fuzzing
+
+Generate complex structured inputs for fuzzing:
+
+```python
+from z3 import *
+import random
+
+def generate_json_like_structure():
+    """Generate structured data satisfying constraints"""
+    
+    # Model JSON object: {id: int, name: string, age: int, active: bool}
+    obj_id = Int('id')
+    age = Int('age')
+    active = Bool('active')
+    
+    s = Solver()
+    
+    # Constraints
+    s.add(obj_id > 0)           # Positive ID
+    s.add(obj_id < 10000)       # Reasonable range
+    s.add(age >= 0)             # Non-negative age
+    s.add(age <= 120)           # Realistic age
+    s.add(Implies(age < 18, active == False))  # Minors not active
+    
+    test_objects = []
+    
+    for _ in range(10):
+        if s.check() == sat:
+            m = s.model()
+            obj = {
+                'id': m[obj_id].as_long(),
+                'name': f"user_{random.randint(1000, 9999)}",
+                'age': m[age].as_long(),
+                'active': is_true(m[active])
+            }
+            test_objects.append(obj)
+            
+            # Generate diverse inputs
+            s.add(Or(
+                obj_id != m[obj_id],
+                age != m[age]
+            ))
+    
+    return test_objects
+
+for obj in generate_json_like_structure():
+    print(obj)
+```
+
+## Example: Minimal Reproducing Examples
+
+Find minimal inputs that trigger a bug:
+
+```python
+from z3 import *
+
+def find_minimal_counterexample():
+    """Find minimal array causing a bug"""
+    
+    # Array size
+    n = 5
+    arr = [Int(f"arr_{i}") for i in range(n)]
+    
+    # Bug: sum overflow on positive arrays
+    total = Sum(arr)
+    
+    opt = Optimize()
+    
+    # Bug condition: all positive but sum is negative (overflow)
+    for i in range(n):
+        opt.add(arr[i] > 0)
+    opt.add(total < 0)
+    
+    # Minimize sum of array elements (find smallest values)
+    opt.minimize(Sum(arr))
+    
+    if opt.check() == sat:
+        m = opt.model()
+        values = [m[arr[i]].as_long() for i in range(n)]
+        print(f"Minimal counterexample: {values}")
+        print(f"Sum: {sum(values)} (overflows to negative)")
+        return values
+    
+    return None
+
+find_minimal_counterexample()
+```
+
+## Integration with Test Frameworks
+
+### pytest Integration
+
+```python
+import pytest
+from z3 import *
+
+def generate_test_data(constraint):
+    """Generate test data from constraints"""
+    x = Int('x')
+    s = Solver()
+    s.add(constraint(x))
+    
+    if s.check() == sat:
+        return s.model()[x].as_long()
+    return None
+
+@pytest.mark.parametrize("value", [
+    generate_test_data(lambda x: And(x > 0, x < 10)),
+    generate_test_data(lambda x: And(x >= 10, x < 100)),
+    generate_test_data(lambda x: x >= 100)
+])
+def test_function(value):
+    assert value is not None
+    # Test your function with generated value
+```
+
+## Best Practices
+
+1. **Start with simple constraints**: Build up complexity gradually
+2. **Use appropriate theories**: Choose the right solver for your domain
+3. **Generate diverse inputs**: Block previous solutions to get variety
+4. **Minimize examples**: Use `Optimize()` to find minimal test cases
+5. **Combine with fuzzing**: Use Z3 to generate seed inputs for fuzzers
+6. **Cache solutions**: Store generated tests for regression testing
+
+## Theory Solvers for Testing
+
+- [Bit-vectors](/api/theories/bitvectors): Testing low-level code and overflow conditions
+- [Arrays](/api/theories/arrays): Testing data structures and memory operations
+- [Strings](/api/theories/sequences): Generating string inputs and testing parsers
+- [Arithmetic](/api/theories/arithmetic): Numeric test generation
+
+## Related Concepts
+
+- [Optimize](/api/optimize): Finding minimal/maximal test cases
+- [Models](/concepts/models): Extracting concrete values from solutions
+- [Tactics](/concepts/tactics): Solver strategies for test generation
+
+## Further Examples
+
+- `examples/python/example.py`: Basic constraint solving
+- `examples/java/JavaExample.java`: Array and bit-vector examples

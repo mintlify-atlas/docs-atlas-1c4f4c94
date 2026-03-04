@@ -1,0 +1,348 @@
+---
+title: 'Parameters'
+description: 'Configure Z3 solver behavior with parameters'
+icon: 'sliders'
+---
+
+## Overview
+
+Z3 parameters allow you to fine-tune solver behavior, control search strategies, and enable specific features. The parameter system provides a flexible way to configure solvers, tactics, and simplifiers without recompiling.
+
+## Core Parameter Types
+
+Z3 supports several parameter types:
+
+- **Boolean** - Enable/disable features (e.g., `proof`, `model`)
+- **Unsigned Integer** - Numeric limits and thresholds (e.g., `timeout`, `max_memory`)
+- **Double** - Floating-point values for heuristics
+- **Symbol** - Named options (e.g., `smt.logic`, `sat.phase`)
+
+## Creating and Managing Parameters
+
+### Basic Parameter Operations
+
+```c
+// Create a parameter set
+Z3_params params = Z3_mk_params(ctx);
+Z3_params_inc_ref(ctx, params);
+
+// Set different parameter types
+Z3_symbol timeout_sym = Z3_mk_string_symbol(ctx, "timeout");
+Z3_params_set_uint(ctx, params, timeout_sym, 5000);  // 5 second timeout
+
+Z3_symbol model_sym = Z3_mk_string_symbol(ctx, "model");
+Z3_params_set_bool(ctx, params, model_sym, true);
+
+Z3_symbol phase_sym = Z3_mk_string_symbol(ctx, "sat.phase");
+Z3_symbol phase_val = Z3_mk_string_symbol(ctx, "caching");
+Z3_params_set_symbol(ctx, params, phase_sym, phase_val);
+
+// Apply parameters to solver
+Z3_solver_set_params(ctx, solver, params);
+
+// Cleanup
+Z3_params_dec_ref(ctx, params);
+```
+
+## Common Parameter Categories
+
+### Timeout and Resource Limits
+
+Control solver execution time and resource consumption:
+
+```c
+Z3_params params = Z3_mk_params(ctx);
+Z3_params_inc_ref(ctx, params);
+
+// Time limit in milliseconds
+Z3_symbol timeout = Z3_mk_string_symbol(ctx, "timeout");
+Z3_params_set_uint(ctx, params, timeout, 10000);  // 10 seconds
+
+// Resource limit (instructions executed)
+Z3_symbol rlimit = Z3_mk_string_symbol(ctx, "rlimit");
+Z3_params_set_uint(ctx, params, rlimit, 1000000);
+
+// Memory limit in megabytes
+Z3_symbol max_memory = Z3_mk_string_symbol(ctx, "max_memory");
+Z3_params_set_uint(ctx, params, max_memory, 1024);
+
+Z3_solver_set_params(ctx, solver, params);
+Z3_params_dec_ref(ctx, params);
+```
+
+### Proof and Model Generation
+
+Enable proof generation and model production:
+
+```c
+Z3_params params = Z3_mk_params(ctx);
+Z3_params_inc_ref(ctx, params);
+
+// Enable proof generation (must be set on context creation too)
+Z3_symbol proof = Z3_mk_string_symbol(ctx, "proof");
+Z3_params_set_bool(ctx, params, proof, true);
+
+// Enable model generation
+Z3_symbol model = Z3_mk_string_symbol(ctx, "model");
+Z3_params_set_bool(ctx, params, model, true);
+
+// Enable unsat core tracking
+Z3_symbol unsat_core = Z3_mk_string_symbol(ctx, "unsat_core");
+Z3_params_set_bool(ctx, params, unsat_core, true);
+
+Z3_solver_set_params(ctx, solver, params);
+Z3_params_dec_ref(ctx, params);
+```
+
+### SAT Solver Parameters
+
+Configure the underlying SAT solver:
+
+```c
+Z3_params params = Z3_mk_params(ctx);
+Z3_params_inc_ref(ctx, params);
+
+// Restart strategy
+Z3_symbol restart = Z3_mk_string_symbol(ctx, "sat.restart");
+Z3_symbol geometric = Z3_mk_string_symbol(ctx, "geometric");
+Z3_params_set_symbol(ctx, params, restart, geometric);
+
+// Random seed for reproducibility
+Z3_symbol random_seed = Z3_mk_string_symbol(ctx, "sat.random_seed");
+Z3_params_set_uint(ctx, params, random_seed, 42);
+
+// Phase selection strategy
+Z3_symbol phase = Z3_mk_string_symbol(ctx, "sat.phase");
+Z3_symbol caching = Z3_mk_string_symbol(ctx, "caching");
+Z3_params_set_symbol(ctx, params, phase, caching);
+
+Z3_solver_set_params(ctx, solver, params);
+Z3_params_dec_ref(ctx, params);
+```
+
+## Parameter Discovery
+
+### Listing Available Parameters
+
+Query which parameters a solver accepts:
+
+```c
+// Get parameter descriptions for a solver
+Z3_param_descrs descrs = Z3_solver_get_param_descrs(ctx, solver);
+Z3_param_descrs_inc_ref(ctx, descrs);
+
+unsigned size = Z3_param_descrs_size(ctx, descrs);
+printf("Available parameters: %u\n", size);
+
+for (unsigned i = 0; i < size; i++) {
+    Z3_symbol name = Z3_param_descrs_get_name(ctx, descrs, i);
+    Z3_param_kind kind = Z3_param_descrs_get_kind(ctx, descrs, name);
+    Z3_string doc = Z3_param_descrs_get_documentation(ctx, descrs, name);
+    
+    const char* kind_str;
+    switch (kind) {
+        case Z3_PK_UINT:   kind_str = "unsigned"; break;
+        case Z3_PK_BOOL:   kind_str = "bool"; break;
+        case Z3_PK_DOUBLE: kind_str = "double"; break;
+        case Z3_PK_SYMBOL: kind_str = "symbol"; break;
+        default:           kind_str = "other"; break;
+    }
+    
+    printf("  %s (%s): %s\n", 
+           Z3_get_symbol_string(ctx, name),
+           kind_str,
+           doc);
+}
+
+Z3_param_descrs_dec_ref(ctx, descrs);
+```
+
+### Parameter Validation
+
+Validate parameters before applying them:
+
+```c
+Z3_params params = Z3_mk_params(ctx);
+Z3_params_inc_ref(ctx, params);
+
+// Set some parameters
+Z3_symbol timeout = Z3_mk_string_symbol(ctx, "timeout");
+Z3_params_set_uint(ctx, params, timeout, 5000);
+
+// Get parameter descriptions from solver
+Z3_param_descrs descrs = Z3_solver_get_param_descrs(ctx, solver);
+Z3_param_descrs_inc_ref(ctx, descrs);
+
+// Validate parameters against descriptions
+// This will invoke the error handler if parameters are invalid
+Z3_params_validate(ctx, params, descrs);
+
+Z3_param_descrs_dec_ref(ctx, descrs);
+Z3_params_dec_ref(ctx, params);
+```
+
+## Parameter Scopes
+
+Parameters can be set at different levels:
+
+### Global Parameters
+
+Set globally via configuration:
+
+```c
+Z3_config cfg = Z3_mk_config();
+Z3_set_param_value(cfg, "proof", "true");
+Z3_set_param_value(cfg, "model", "true");
+Z3_context ctx = Z3_mk_context(cfg);
+Z3_del_config(cfg);
+```
+
+### Solver Parameters
+
+Set per-solver instance:
+
+```c
+Z3_solver solver = Z3_mk_solver(ctx);
+Z3_params params = Z3_mk_params(ctx);
+Z3_params_inc_ref(ctx, params);
+
+Z3_symbol timeout = Z3_mk_string_symbol(ctx, "timeout");
+Z3_params_set_uint(ctx, params, timeout, 1000);
+
+Z3_solver_set_params(ctx, solver, params);
+Z3_params_dec_ref(ctx, params);
+```
+
+### Tactic and Simplifier Parameters
+
+Apply parameters to tactics and simplifiers:
+
+```c
+// Create a simplifier with parameters
+Z3_simplifier simp = Z3_mk_simplifier(ctx, "propagate-values");
+Z3_simplifier_inc_ref(ctx, simp);
+
+Z3_params params = Z3_mk_params(ctx);
+Z3_params_inc_ref(ctx, params);
+
+Z3_symbol max_rounds = Z3_mk_string_symbol(ctx, "max_rounds");
+Z3_params_set_uint(ctx, params, max_rounds, 10);
+
+Z3_simplifier simp_with_params = Z3_simplifier_using_params(ctx, simp, params);
+Z3_simplifier_inc_ref(ctx, simp_with_params);
+
+Z3_params_dec_ref(ctx, params);
+Z3_simplifier_dec_ref(ctx, simp);
+Z3_simplifier_dec_ref(ctx, simp_with_params);
+```
+
+## Performance Tuning Parameters
+
+### SMT Solver Options
+
+```c
+Z3_params params = Z3_mk_params(ctx);
+Z3_params_inc_ref(ctx, params);
+
+// Auto-configuration based on logic
+Z3_symbol auto_config = Z3_mk_string_symbol(ctx, "auto_config");
+Z3_params_set_bool(ctx, params, auto_config, true);
+
+// Logic selection
+Z3_symbol logic = Z3_mk_string_symbol(ctx, "smt.logic");
+Z3_symbol qflia = Z3_mk_string_symbol(ctx, "QF_LIA");
+Z3_params_set_symbol(ctx, params, logic, qflia);
+
+// Arithmetic solver selection
+Z3_symbol arith_solver = Z3_mk_string_symbol(ctx, "smt.arith.solver");
+Z3_symbol solver_type = Z3_mk_string_symbol(ctx, "2");  // 1=old, 2=new, 6=auto
+Z3_params_set_symbol(ctx, params, arith_solver, solver_type);
+
+Z3_solver_set_params(ctx, solver, params);
+Z3_params_dec_ref(ctx, params);
+```
+
+## Best Practices
+
+### When to Use Parameters
+
+**Use parameters when you need to:**
+- Set timeout limits for production systems
+- Optimize for specific problem domains
+- Enable debugging features (proofs, unsat cores)
+- Ensure reproducible results (set random seeds)
+- Tune performance for large problems
+
+### Parameter Naming Conventions
+
+Z3 uses a hierarchical naming scheme:
+- `timeout` - Global timeout
+- `sat.restart` - SAT solver restart strategy
+- `smt.arith.solver` - SMT arithmetic solver selection
+- `rewriter.flat` - Rewriter flattening option
+
+### Common Pitfalls
+
+1. **Setting proof parameters after context creation**: Proof generation must be enabled when creating the context
+2. **Invalid parameter names**: Use parameter discovery to find valid names
+3. **Type mismatches**: Ensure you use the correct setter for each parameter type
+4. **Forgetting reference counting**: Always pair `inc_ref` with `dec_ref`
+
+## Performance Considerations
+
+### Memory vs. Time Trade-offs
+
+```c
+// Aggressive memory limits may slow down solving
+Z3_symbol max_memory = Z3_mk_string_symbol(ctx, "max_memory");
+Z3_params_set_uint(ctx, params, max_memory, 512);  // 512 MB
+
+// Balanced approach: set both time and memory limits
+Z3_symbol timeout = Z3_mk_string_symbol(ctx, "timeout");
+Z3_params_set_uint(ctx, params, timeout, 30000);  // 30 seconds
+```
+
+### Reproducibility
+
+```c
+// For reproducible results across runs
+Z3_symbol random_seed = Z3_mk_string_symbol(ctx, "sat.random_seed");
+Z3_params_set_uint(ctx, params, random_seed, 0);
+
+Z3_symbol smt_random_seed = Z3_mk_string_symbol(ctx, "smt.random_seed");
+Z3_params_set_uint(ctx, params, smt_random_seed, 0);
+```
+
+## API Reference
+
+### Parameter Set Management
+
+- `Z3_mk_params` - Create a parameter set
+- `Z3_params_inc_ref` - Increment reference counter (api_params.cpp:42)
+- `Z3_params_dec_ref` - Decrement reference counter (api_params.cpp:53)
+- `Z3_params_to_string` - Convert parameters to string (api_params.cpp:113)
+
+### Setting Parameters
+
+- `Z3_params_set_bool` - Set boolean parameter (api_params.cpp:64)
+- `Z3_params_set_uint` - Set unsigned integer parameter (api_params.cpp:76)
+- `Z3_params_set_double` - Set double parameter (api_params.cpp:88)
+- `Z3_params_set_symbol` - Set symbol parameter (api_params.cpp:100)
+
+### Parameter Discovery
+
+- `Z3_solver_get_param_descrs` - Get available parameters (api_solver.cpp:413)
+- `Z3_param_descrs_size` - Number of parameters (api_params.cpp:164)
+- `Z3_param_descrs_get_name` - Get parameter name (api_params.cpp:172)
+- `Z3_param_descrs_get_kind` - Get parameter type (api_params.cpp:147)
+- `Z3_param_descrs_get_documentation` - Get parameter documentation (api_params.cpp:185)
+
+### Parameter Validation
+
+- `Z3_params_validate` - Validate parameters (api_params.cpp:123)
+
+## See Also
+
+- [Solver API](/api/solver) - Applying parameters to solvers
+- [Statistics](/api/advanced/statistics) - Monitoring solver performance
+- [Simplifiers](/api/advanced/simplifiers) - Configuring simplifiers with parameters

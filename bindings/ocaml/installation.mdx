@@ -1,0 +1,421 @@
+---
+title: Installation
+description: Install Z3 OCaml bindings
+icon: download
+---
+
+The Z3 OCaml bindings provide access to Z3's SMT solving capabilities from OCaml. The bindings support both static and dynamic linking and work with all OCaml linkers.
+
+## Requirements
+
+<CardGroup cols={2}>
+  <Card title="OCaml" icon="code">
+    - OCaml 4.09.0 or later
+    - ocamlfind (findlib)
+    - opam (recommended)
+  </Card>
+  <Card title="Build Tools" icon="hammer">
+    - C/C++ compiler
+    - Python 3.x or CMake
+    - Git
+  </Card>
+</CardGroup>
+
+## Installation Methods
+
+### Method 1: Build from Source (Recommended)
+
+Build Z3 with OCaml bindings from source.
+
+<Steps>
+  <Step title="Clone Z3 Repository">
+    ```bash
+    git clone https://github.com/Z3Prover/z3.git
+    cd z3
+    ```
+  </Step>
+
+  <Step title="Build with Python">
+    ```bash
+    python scripts/mk_make.py --ml --staticlib
+    cd build
+    make -j$(nproc)
+    ```
+    
+    <Note>
+      The `--staticlib` flag creates a static library, making binaries self-contained.
+    </Note>
+  </Step>
+
+  <Step title="Install with ocamlfind">
+    ```bash
+    ocamlfind install z3 build/api/ml/* build/libz3-static.a
+    ```
+    
+    This installs:
+    - OCaml modules: `z3.cmi`, `z3.cmo`, `z3.cmx`, etc.
+    - Static library: `libz3-static.a`
+    - Libraries: `z3ml.{a,cma,cmxa,cmxs}`
+  </Step>
+</Steps>
+
+### Method 2: OPAM (When Available)
+
+<Warning>
+  The Z3 OCaml package availability in OPAM may vary. Check the [opam repository](https://opam.ocaml.org/packages/z3/) for the latest version.
+</Warning>
+
+```bash
+opam install z3
+```
+
+If the package is not available or outdated, use Method 1.
+
+## Build Artifacts
+
+The build process creates several files:
+
+### OCaml Modules
+
+<ParamField path="z3.{cmi,cmo,cmx,o,mli}" type="files">
+  Core Z3 module with type definitions and main API
+</ParamField>
+
+<ParamField path="z3enums.{cmi,cmo,cmx,o,mli}" type="files">
+  Z3 enumeration types
+</ParamField>
+
+<ParamField path="z3native.{cmi,cmo,cmx,o,mli}" type="files">
+  Native bindings to Z3 C API
+</ParamField>
+
+### Libraries
+
+<ParamField path="z3ml.a, z3ml.cmxa" type="library">
+  Native code static library for `ocamlopt`
+</ParamField>
+
+<ParamField path="z3ml.cma" type="library">
+  Bytecode library for `ocamlc`
+</ParamField>
+
+<ParamField path="z3ml.cmxs" type="library">
+  Standalone shared library for dynamic loading with `Dynlink`
+</ParamField>
+
+<ParamField path="libz3ml.a" type="library">
+  C stubs archive
+</ParamField>
+
+<ParamField path="dllz3ml.so" type="library">
+  Shared object for OCaml runtime (bytecode)
+</ParamField>
+
+<ParamField path="libz3-static.a" type="library">
+  Z3 library itself (when using `--staticlib`)
+</ParamField>
+
+## Compiling OCaml Programs
+
+### Using ocamlfind (Recommended)
+
+The easiest way to compile programs using Z3:
+
+<CodeGroup>
+```bash Bytecode
+ocamlfind ocamlc -thread -package z3 -linkpkg program.ml -o program
+```
+
+```bash Native Code
+ocamlfind ocamlopt -thread -package z3 -linkpkg program.ml -o program
+```
+</CodeGroup>
+
+<Note>
+  The `-thread` flag is required for the Z3 bindings.
+</Note>
+
+### Static Linking
+
+With `--staticlib`, native binaries have no Z3 dependency:
+
+```bash
+ocamlfind ocamlopt -thread -package z3 -linkpkg program.ml -o program
+ldd ./program
+# Shows only system libraries, no libz3.so
+```
+
+### Custom Bytecode (Self-Contained)
+
+Create a portable bytecode executable:
+
+```bash
+ocamlfind ocamlc -custom -thread -package z3 -linkpkg program.ml -o program
+```
+
+The resulting binary is self-contained (no DLL dependencies).
+
+### Manual Compilation
+
+Without ocamlfind:
+
+<CodeGroup>
+```bash Bytecode
+ocamlc -thread -I +threads -I $(ocamlfind query z3) \
+  unix.cma threads.cma z3ml.cma program.ml -o program
+```
+
+```bash Native
+ocamlopt -thread -I +threads -I $(ocamlfind query z3) \
+  unix.cmxa threads.cmxa z3ml.cmxa program.ml -o program
+```
+</CodeGroup>
+
+## Using in OCaml Toplevel
+
+Load Z3 in the OCaml REPL:
+
+```ocaml
+$ ocaml
+        OCaml version 4.14.0
+
+# #use "topfind";;
+# #require "z3";;
+# open Z3;;
+# let ctx = Z3.mk_context [];;  
+val ctx : Z3.context = <abstr>
+```
+
+## OCaml Scripts
+
+Create executable OCaml scripts:
+
+```ocaml script.ml
+#!/usr/bin/env ocaml
+#use "topfind";;
+#require "z3";;
+
+open Z3
+
+let () =
+  let ctx = mk_context [] in
+  (* Your Z3 code here *)
+  Printf.printf "Z3 version: %s\n" Version.to_string
+```
+
+Make it executable:
+
+```bash
+chmod +x script.ml
+./script.ml
+```
+
+## Dynamic Loading with Dynlink
+
+The `z3ml.cmxs` file can be dynamically loaded:
+
+```ocaml
+Dynlink.loadfile "z3ml.cmxs";;
+open Z3;;
+```
+
+This is useful for plugins and dynamic code loading.
+
+## Verification
+
+Test your installation:
+
+```ocaml test.ml
+open Z3
+open Z3.Arithmetic
+open Z3.Boolean
+open Z3.Solver
+
+let () =
+  Printf.printf "Z3 OCaml Bindings Test\n";
+  Printf.printf "Z3 Version: %s\n\n" Version.to_string;
+  
+  let ctx = mk_context [] in
+  let x = Integer.mk_const_s ctx "x" in
+  let zero = Integer.mk_numeral_i ctx 0 in
+  let constraint_ = mk_gt ctx x zero in
+  
+  let solver = mk_solver ctx None in
+  Solver.add solver [constraint_];
+  
+  match check solver [] with
+  | SATISFIABLE ->
+      Printf.printf "Installation successful!\n";
+      (match get_model solver with
+       | Some model -> 
+           Printf.printf "Model: %s\n" (Model.to_string model)
+       | None -> ())
+  | _ -> Printf.printf "Unexpected result\n"
+```
+
+Compile and run:
+
+```bash
+ocamlfind ocamlopt -thread -package z3 -linkpkg test.ml -o test
+./test
+```
+
+Expected output:
+```
+Z3 OCaml Bindings Test
+Z3 Version: 4.x.x
+
+Installation successful!
+Model: x -> 1
+```
+
+## Platform-Specific Notes
+
+<Tabs>
+  <Tab title="Linux">
+    Most distributions work out of the box:
+    
+    ```bash
+    # Ubuntu/Debian
+    sudo apt-get install ocaml ocaml-findlib opam
+    
+    # Fedora
+    sudo dnf install ocaml ocaml-findlib opam
+    
+    # Arch
+    sudo pacman -S ocaml ocaml-findlib opam
+    ```
+    
+    If using dynamic linking, ensure library path is set:
+    ```bash
+    export LD_LIBRARY_PATH=/path/to/z3/build:$LD_LIBRARY_PATH
+    ```
+  </Tab>
+
+  <Tab title="macOS">
+    Install via Homebrew:
+    ```bash
+    brew install ocaml opam
+    opam init
+    eval $(opam env)
+    ```
+    
+    Use `DYLD_LIBRARY_PATH` for dynamic linking:
+    ```bash
+    export DYLD_LIBRARY_PATH=/path/to/z3/build:$DYLD_LIBRARY_PATH
+    ```
+  </Tab>
+
+  <Tab title="Windows">
+    Z3 OCaml bindings assume the **win32** or **win64** OCaml port (using MSVC), not Cygwin or MinGW.
+    
+    Install OCaml for Windows:
+    - Download from [OCaml for Windows](https://fdopen.github.io/opam-repository-mingw/)
+    - Or use [DkML](https://diskuv.com/dkmlbook/)
+    
+    The build uses `cl` (MSVC) as the C compiler.
+  </Tab>
+</Tabs>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Cannot find package z3">
+    **Problem**: ocamlfind can't locate Z3.
+    
+    **Solution**:
+    - Verify installation: `ocamlfind query z3`
+    - Reinstall: `ocamlfind remove z3` then reinstall
+    - Check OPAM switch: `opam switch`
+  </Accordion>
+
+  <Accordion title="Linking errors">
+    **Problem**: Undefined references to Z3 symbols.
+    
+    **Solution**:
+    - Ensure `-thread` flag is used
+    - With dynamic linking, set `LD_LIBRARY_PATH`
+    - Use `--staticlib` when building for self-contained binaries
+  </Accordion>
+
+  <Accordion title="DLL not found (bytecode)">
+    **Problem**: `dllz3ml.so` not found when running bytecode.
+    
+    **Solution**:
+    - Install properly with ocamlfind (it handles stublibs)
+    - Or use `-custom` flag for self-contained bytecode
+    - Check: `ocamlfind query -format '%d/stublibs' z3`
+  </Accordion>
+
+  <Accordion title="Version mismatch">
+    **Problem**: OCaml module compiled with different Z3 version.
+    
+    **Solution**:
+    - Rebuild Z3 from source
+    - Clean build directory: `make clean` before rebuilding
+    - Reinstall with ocamlfind
+  </Accordion>
+</AccordionGroup>
+
+## Advanced: Manual Installation Paths
+
+If not using ocamlfind:
+
+```bash
+# Install to custom location
+INSTALL_DIR="/opt/z3-ml"
+mkdir -p $INSTALL_DIR
+cp build/api/ml/*.{cmi,cmo,cmx,o,mli} $INSTALL_DIR/
+cp build/api/ml/*.{a,cma,cmxa,cmxs} $INSTALL_DIR/
+cp build/api/ml/*.so $INSTALL_DIR/
+cp build/libz3-static.a $INSTALL_DIR/
+
+# Compile with custom path
+ocamlopt -thread -I +threads -I $INSTALL_DIR \
+  unix.cmxa threads.cmxa z3ml.cmxa program.ml -o program
+```
+
+## Docker Setup
+
+Use Docker for isolated environment:
+
+```dockerfile Dockerfile
+FROM ocaml/opam:ubuntu-22.04-ocaml-4.14
+
+# Install system dependencies
+RUN sudo apt-get update && sudo apt-get install -y \
+    build-essential \
+    cmake \
+    git \
+    python3
+
+# Build Z3
+RUN git clone https://github.com/Z3Prover/z3.git /home/opam/z3 && \
+    cd /home/opam/z3 && \
+    python3 scripts/mk_make.py --ml --staticlib && \
+    cd build && \
+    make -j$(nproc)
+
+# Install OCaml bindings
+RUN cd /home/opam/z3 && \
+    ocamlfind install z3 build/api/ml/* build/libz3-static.a
+
+WORKDIR /home/opam/app
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Getting Started" icon="rocket" href="/bindings/ocaml/getting-started">
+    Learn the basics with examples
+  </Card>
+  <Card title="Examples" icon="code" href="https://github.com/Z3Prover/z3/tree/master/examples/ml">
+    Example programs on GitHub
+  </Card>
+  <Card title="API Documentation" icon="book" href="https://z3prover.github.io/api/html/ml/index.html">
+    OCaml API reference
+  </Card>
+  <Card title="Build Instructions" icon="hammer" href="/building/cmake">
+    Detailed build guide
+  </Card>
+</CardGroup>

@@ -1,0 +1,665 @@
+---
+title: Fixedpoint API
+description: Recursive predicate solving and Datalog queries
+---
+
+## Overview
+
+The Fixedpoint API provides a context for solving recursive predicate queries using Datalog-style rules. It supports Horn clauses, queries, and least fixedpoint computation.
+
+## Types
+
+### Z3_fixedpoint
+
+Context for the recursive predicate solver. Used for Datalog queries and Horn clause solving.
+
+## Fixedpoint Creation
+
+### Z3_mk_fixedpoint
+
+```c
+Z3_fixedpoint Z3_API Z3_mk_fixedpoint(Z3_context c);
+```
+
+Create a fixedpoint context.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ResponseField name="return" type="Z3_fixedpoint">
+  New fixedpoint instance
+</ResponseField>
+
+**Example:**
+
+```c
+Z3_fixedpoint fp = Z3_mk_fixedpoint(ctx);
+Z3_fixedpoint_inc_ref(ctx, fp);
+// Use fixedpoint...
+Z3_fixedpoint_dec_ref(ctx, fp);
+```
+
+### Z3_fixedpoint_inc_ref
+
+```c
+void Z3_API Z3_fixedpoint_inc_ref(Z3_context c, Z3_fixedpoint d);
+```
+
+Increment the reference counter.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="d" type="Z3_fixedpoint">
+  Fixedpoint object
+</ParamField>
+
+### Z3_fixedpoint_dec_ref
+
+```c
+void Z3_API Z3_fixedpoint_dec_ref(Z3_context c, Z3_fixedpoint d);
+```
+
+Decrement the reference counter.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="d" type="Z3_fixedpoint">
+  Fixedpoint object
+</ParamField>
+
+## Predicate Registration
+
+### Z3_fixedpoint_register_relation
+
+```c
+void Z3_API Z3_fixedpoint_register_relation(
+    Z3_context c,
+    Z3_fixedpoint d,
+    Z3_func_decl f
+);
+```
+
+Register a relation (predicate) for use in rules.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="d" type="Z3_fixedpoint">
+  Fixedpoint object
+</ParamField>
+
+<ParamField name="f" type="Z3_func_decl">
+  Predicate declaration (must return Boolean)
+</ParamField>
+
+**Example:**
+
+```c
+// Declare predicate: edge(int, int)
+Z3_sort int_sort = Z3_mk_int_sort(ctx);
+Z3_sort domain[2] = {int_sort, int_sort};
+Z3_func_decl edge = Z3_mk_func_decl(
+    ctx,
+    Z3_mk_string_symbol(ctx, "edge"),
+    2,
+    domain,
+    Z3_mk_bool_sort(ctx)
+);
+
+Z3_fixedpoint_register_relation(ctx, fp, edge);
+```
+
+## Adding Rules
+
+### Z3_fixedpoint_add_rule
+
+```c
+void Z3_API Z3_fixedpoint_add_rule(
+    Z3_context c,
+    Z3_fixedpoint d,
+    Z3_ast rule,
+    Z3_symbol name
+);
+```
+
+Add a Horn clause rule.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="d" type="Z3_fixedpoint">
+  Fixedpoint object
+</ParamField>
+
+<ParamField name="rule" type="Z3_ast">
+  Horn clause (implication or fact)
+</ParamField>
+
+<ParamField name="name" type="Z3_symbol">
+  Optional name for the rule
+</ParamField>
+
+**Description:**
+
+Rules are Horn clauses of the form:
+- Facts: `P(args)`
+- Rules: `(implies (and body...) head)`
+
+**Example:**
+
+```c
+// Fact: edge(1, 2)
+Z3_ast one = Z3_mk_int(ctx, 1, int_sort);
+Z3_ast two = Z3_mk_int(ctx, 2, int_sort);
+Z3_ast edge_args[2] = {one, two};
+Z3_ast fact = Z3_mk_app(ctx, edge, 2, edge_args);
+
+Z3_fixedpoint_add_rule(ctx, fp, fact, Z3_mk_string_symbol(ctx, "edge_1_2"));
+
+// Rule: path(x,y) :- edge(x,y)
+Z3_sort var_sorts[2] = {int_sort, int_sort};
+Z3_symbol var_names[2] = {
+    Z3_mk_string_symbol(ctx, "x"),
+    Z3_mk_string_symbol(ctx, "y")
+};
+
+Z3_ast x = Z3_mk_bound(ctx, 0, int_sort);
+Z3_ast y = Z3_mk_bound(ctx, 1, int_sort);
+Z3_ast edge_xy_args[2] = {x, y};
+Z3_ast edge_xy = Z3_mk_app(ctx, edge, 2, edge_xy_args);
+
+Z3_ast path_xy_args[2] = {x, y};
+Z3_ast path_xy = Z3_mk_app(ctx, path, 2, path_xy_args);
+
+Z3_ast rule = Z3_mk_implies(ctx, edge_xy, path_xy);
+Z3_ast quantified = Z3_mk_forall_const(
+    ctx, 0, 2, var_sorts, var_names, rule
+);
+
+Z3_fixedpoint_add_rule(ctx, fp, quantified, Z3_mk_string_symbol(ctx, "path_edge"));
+```
+
+### Z3_fixedpoint_add_fact
+
+```c
+void Z3_API Z3_fixedpoint_add_fact(
+    Z3_context c,
+    Z3_fixedpoint d,
+    Z3_func_decl r,
+    unsigned num_args,
+    unsigned args[]
+);
+```
+
+Add a fact using numeric constants.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="d" type="Z3_fixedpoint">
+  Fixedpoint object
+</ParamField>
+
+<ParamField name="r" type="Z3_func_decl">
+  Relation/predicate
+</ParamField>
+
+<ParamField name="num_args" type="unsigned">
+  Number of arguments
+</ParamField>
+
+<ParamField name="args" type="unsigned[]">
+  Array of numeric values
+</ParamField>
+
+**Description:**
+
+Convenience function for adding ground facts with finite domain values.
+
+**Example:**
+
+```c
+unsigned fact_args[2] = {1, 2};
+Z3_fixedpoint_add_fact(ctx, fp, edge, 2, fact_args);
+```
+
+## Queries
+
+### Z3_fixedpoint_query
+
+```c
+Z3_lbool Z3_API Z3_fixedpoint_query(
+    Z3_context c,
+    Z3_fixedpoint d,
+    Z3_ast query
+);
+```
+
+Pose a query.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="d" type="Z3_fixedpoint">
+  Fixedpoint object
+</ParamField>
+
+<ParamField name="query" type="Z3_ast">
+  Query expression (typically a predicate application)
+</ParamField>
+
+<ResponseField name="return" type="Z3_lbool">
+  Z3_L_TRUE if derivable, Z3_L_FALSE if not derivable, Z3_L_UNDEF if unknown
+</ResponseField>
+
+**Example:**
+
+```c
+// Query: path(1, 3)?
+Z3_ast one = Z3_mk_int(ctx, 1, int_sort);
+Z3_ast three = Z3_mk_int(ctx, 3, int_sort);
+Z3_ast query_args[2] = {one, three};
+Z3_ast query = Z3_mk_app(ctx, path, 2, query_args);
+
+Z3_lbool result = Z3_fixedpoint_query(ctx, fp, query);
+
+if (result == Z3_L_TRUE) {
+    printf("Query is derivable\n");
+} else if (result == Z3_L_FALSE) {
+    printf("Query is not derivable\n");
+} else {
+    printf("Unknown\n");
+}
+```
+
+### Z3_fixedpoint_query_relations
+
+```c
+Z3_lbool Z3_API Z3_fixedpoint_query_relations(
+    Z3_context c,
+    Z3_fixedpoint d,
+    unsigned num_relations,
+    Z3_func_decl const relations[]
+);
+```
+
+Pose multiple queries on relations.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="d" type="Z3_fixedpoint">
+  Fixedpoint object
+</ParamField>
+
+<ParamField name="num_relations" type="unsigned">
+  Number of relations
+</ParamField>
+
+<ParamField name="relations" type="Z3_func_decl const[]">
+  Array of relation declarations
+</ParamField>
+
+<ResponseField name="return" type="Z3_lbool">
+  Satisfiability result
+</ResponseField>
+
+## Results and Answers
+
+### Z3_fixedpoint_get_answer
+
+```c
+Z3_ast Z3_API Z3_fixedpoint_get_answer(Z3_context c, Z3_fixedpoint d);
+```
+
+Retrieve the answer for the last query.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="d" type="Z3_fixedpoint">
+  Fixedpoint object
+</ParamField>
+
+<ResponseField name="return" type="Z3_ast">
+  Answer expression (derivation or counterexample)
+</ResponseField>
+
+**Description:**
+
+If the query was satisfiable, returns a derivation. If unsatisfiable, may return a certificate.
+
+### Z3_fixedpoint_get_reason_unknown
+
+```c
+Z3_string Z3_API Z3_fixedpoint_get_reason_unknown(
+    Z3_context c,
+    Z3_fixedpoint d
+);
+```
+
+Return a string describing why the last query returned unknown.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="d" type="Z3_fixedpoint">
+  Fixedpoint object
+</ParamField>
+
+<ResponseField name="return" type="Z3_string">
+  Reason string
+</ResponseField>
+
+## Level and Cover Management
+
+### Z3_fixedpoint_get_num_levels
+
+```c
+unsigned Z3_API Z3_fixedpoint_get_num_levels(
+    Z3_context c,
+    Z3_fixedpoint d,
+    Z3_func_decl pred
+);
+```
+
+Return the number of levels in the PDR engine for a predicate.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="d" type="Z3_fixedpoint">
+  Fixedpoint object
+</ParamField>
+
+<ParamField name="pred" type="Z3_func_decl">
+  Predicate
+</ParamField>
+
+<ResponseField name="return" type="unsigned">
+  Number of levels
+</ResponseField>
+
+### Z3_fixedpoint_get_cover_delta
+
+```c
+Z3_ast Z3_API Z3_fixedpoint_get_cover_delta(
+    Z3_context c,
+    Z3_fixedpoint d,
+    int level,
+    Z3_func_decl pred
+);
+```
+
+Retrieve the cover at a given level.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="d" type="Z3_fixedpoint">
+  Fixedpoint object
+</ParamField>
+
+<ParamField name="level" type="int">
+  Level index (-1 for top level)
+</ParamField>
+
+<ParamField name="pred" type="Z3_func_decl">
+  Predicate
+</ParamField>
+
+<ResponseField name="return" type="Z3_ast">
+  Cover expression
+</ResponseField>
+
+### Z3_fixedpoint_add_cover
+
+```c
+void Z3_API Z3_fixedpoint_add_cover(
+    Z3_context c,
+    Z3_fixedpoint d,
+    int level,
+    Z3_func_decl pred,
+    Z3_ast property
+);
+```
+
+Add a property to the cover at a level.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="d" type="Z3_fixedpoint">
+  Fixedpoint object
+</ParamField>
+
+<ParamField name="level" type="int">
+  Level index
+</ParamField>
+
+<ParamField name="pred" type="Z3_func_decl">
+  Predicate
+</ParamField>
+
+<ParamField name="property" type="Z3_ast">
+  Property to add
+</ParamField>
+
+## Backtracking
+
+### Z3_fixedpoint_push
+
+```c
+void Z3_API Z3_fixedpoint_push(Z3_context c, Z3_fixedpoint d);
+```
+
+Create a backtracking point.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="d" type="Z3_fixedpoint">
+  Fixedpoint object
+</ParamField>
+
+### Z3_fixedpoint_pop
+
+```c
+void Z3_API Z3_fixedpoint_pop(Z3_context c, Z3_fixedpoint d);
+```
+
+Backtrack one level.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="d" type="Z3_fixedpoint">
+  Fixedpoint object
+</ParamField>
+
+## Information
+
+### Z3_fixedpoint_to_string
+
+```c
+Z3_string Z3_API Z3_fixedpoint_to_string(
+    Z3_context c,
+    Z3_fixedpoint d,
+    unsigned num_queries,
+    Z3_ast queries[]
+);
+```
+
+Convert fixedpoint state to a string.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="d" type="Z3_fixedpoint">
+  Fixedpoint object
+</ParamField>
+
+<ParamField name="num_queries" type="unsigned">
+  Number of queries
+</ParamField>
+
+<ParamField name="queries" type="Z3_ast[]">
+  Array of query expressions
+</ParamField>
+
+<ResponseField name="return" type="Z3_string">
+  String representation (Datalog format)
+</ResponseField>
+
+### Z3_fixedpoint_get_rules
+
+```c
+Z3_ast_vector Z3_API Z3_fixedpoint_get_rules(Z3_context c, Z3_fixedpoint d);
+```
+
+Return the set of rules.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="d" type="Z3_fixedpoint">
+  Fixedpoint object
+</ParamField>
+
+<ResponseField name="return" type="Z3_ast_vector">
+  Vector of rules
+</ResponseField>
+
+### Z3_fixedpoint_get_assertions
+
+```c
+Z3_ast_vector Z3_API Z3_fixedpoint_get_assertions(Z3_context c, Z3_fixedpoint d);
+```
+
+Return the set of background assertions.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="d" type="Z3_fixedpoint">
+  Fixedpoint object
+</ParamField>
+
+<ResponseField name="return" type="Z3_ast_vector">
+  Vector of assertions
+</ResponseField>
+
+## Complete Example
+
+```c
+#include <z3.h>
+#include <stdio.h>
+
+int main() {
+    Z3_config cfg = Z3_mk_config();
+    Z3_context ctx = Z3_mk_context(cfg);
+    Z3_del_config(cfg);
+    
+    Z3_fixedpoint fp = Z3_mk_fixedpoint(ctx);
+    Z3_fixedpoint_inc_ref(ctx, fp);
+    
+    // Declare predicates: edge(int, int), path(int, int)
+    Z3_sort int_sort = Z3_mk_int_sort(ctx);
+    Z3_sort domain[2] = {int_sort, int_sort};
+    
+    Z3_func_decl edge = Z3_mk_func_decl(
+        ctx,
+        Z3_mk_string_symbol(ctx, "edge"),
+        2, domain, Z3_mk_bool_sort(ctx)
+    );
+    
+    Z3_func_decl path = Z3_mk_func_decl(
+        ctx,
+        Z3_mk_string_symbol(ctx, "path"),
+        2, domain, Z3_mk_bool_sort(ctx)
+    );
+    
+    Z3_fixedpoint_register_relation(ctx, fp, edge);
+    Z3_fixedpoint_register_relation(ctx, fp, path);
+    
+    // Add facts: edge(1,2), edge(2,3)
+    unsigned fact1[2] = {1, 2};
+    unsigned fact2[2] = {2, 3};
+    Z3_fixedpoint_add_fact(ctx, fp, edge, 2, fact1);
+    Z3_fixedpoint_add_fact(ctx, fp, edge, 2, fact2);
+    
+    // Add rules:
+    // path(x,y) :- edge(x,y)
+    // path(x,z) :- path(x,y), edge(y,z)
+    
+    Z3_sort var_sorts[3] = {int_sort, int_sort, int_sort};
+    Z3_symbol var_names[3] = {
+        Z3_mk_string_symbol(ctx, "x"),
+        Z3_mk_string_symbol(ctx, "y"),
+        Z3_mk_string_symbol(ctx, "z")
+    };
+    
+    Z3_ast x = Z3_mk_bound(ctx, 0, int_sort);
+    Z3_ast y = Z3_mk_bound(ctx, 1, int_sort);
+    Z3_ast z = Z3_mk_bound(ctx, 2, int_sort);
+    
+    // Rule 1: path(x,y) :- edge(x,y)
+    Z3_ast edge_xy_args[2] = {x, y};
+    Z3_ast edge_xy = Z3_mk_app(ctx, edge, 2, edge_xy_args);
+    Z3_ast path_xy_args[2] = {x, y};
+    Z3_ast path_xy = Z3_mk_app(ctx, path, 2, path_xy_args);
+    Z3_ast rule1 = Z3_mk_implies(ctx, edge_xy, path_xy);
+    
+    // Rule 2: path(x,z) :- path(x,y) and edge(y,z)
+    Z3_ast edge_yz_args[2] = {y, z};
+    Z3_ast edge_yz = Z3_mk_app(ctx, edge, 2, edge_yz_args);
+    Z3_ast path_xz_args[2] = {x, z};
+    Z3_ast path_xz = Z3_mk_app(ctx, path, 2, path_xz_args);
+    Z3_ast body_args[2] = {path_xy, edge_yz};
+    Z3_ast body = Z3_mk_and(ctx, 2, body_args);
+    Z3_ast rule2 = Z3_mk_implies(ctx, body, path_xz);
+    
+    Z3_fixedpoint_add_rule(ctx, fp, rule1, 0);
+    Z3_fixedpoint_add_rule(ctx, fp, rule2, 0);
+    
+    // Query: path(1, 3)?
+    Z3_ast one = Z3_mk_int(ctx, 1, int_sort);
+    Z3_ast three = Z3_mk_int(ctx, 3, int_sort);
+    Z3_ast query_args[2] = {one, three};
+    Z3_ast query = Z3_mk_app(ctx, path, 2, query_args);
+    
+    Z3_lbool result = Z3_fixedpoint_query(ctx, fp, query);
+    
+    if (result == Z3_L_TRUE) {
+        printf("Path(1,3) is derivable\n");
+        Z3_ast answer = Z3_fixedpoint_get_answer(ctx, fp);
+        printf("Derivation: %s\n", Z3_ast_to_string(ctx, answer));
+    } else {
+        printf("Path(1,3) is not derivable\n");
+    }
+    
+    Z3_fixedpoint_dec_ref(ctx, fp);
+    Z3_del_context(ctx);
+    return 0;
+}
+```

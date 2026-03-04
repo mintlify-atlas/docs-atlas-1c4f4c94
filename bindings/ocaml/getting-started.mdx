@@ -1,0 +1,630 @@
+---
+title: Getting Started
+description: Quick start guide for Z3 OCaml bindings
+icon: rocket
+---
+
+The Z3 OCaml bindings provide a functional interface to Z3's SMT solving capabilities. This guide introduces the core concepts and usage patterns.
+
+## Quick Start
+
+Here's a simple Z3 program in OCaml:
+
+```ocaml example.ml
+open Z3
+open Z3.Arithmetic
+open Z3.Boolean
+open Z3.Solver
+
+let () =
+  (* Create context *)
+  let ctx = mk_context [] in
+  
+  (* Create integer variable *)
+  let x = Integer.mk_const_s ctx "x" in
+  let zero = Integer.mk_numeral_i ctx 0 in
+  
+  (* Create constraint: x > 0 *)
+  let constraint_ = mk_gt ctx x zero in
+  
+  (* Create solver and add constraint *)
+  let solver = mk_solver ctx None in
+  Solver.add solver [constraint_];
+  
+  (* Check satisfiability *)
+  match check solver [] with
+  | SATISFIABLE ->
+      Printf.printf "SAT\n";
+      (match get_model solver with
+       | Some model ->
+           Printf.printf "Model: %s\n" (Model.to_string model)
+       | None -> ())
+  | UNSATISFIABLE -> Printf.printf "UNSAT\n"
+  | UNKNOWN -> Printf.printf "UNKNOWN\n"
+```
+
+Compile and run:
+
+```bash
+ocamlfind ocamlopt -thread -package z3 -linkpkg example.ml -o example
+./example
+```
+
+## Core Concepts
+
+### Context
+
+All Z3 operations require a context:
+
+```ocaml
+let ctx = Z3.mk_context []
+```
+
+With custom configuration:
+
+```ocaml
+let ctx = Z3.mk_context [
+  ("model", "true");
+  ("proof", "false");
+  ("timeout", "5000")
+]
+```
+
+### Module Structure
+
+The Z3 OCaml API is organized into modules:
+
+<CardGroup cols={2}>
+  <Card title="Z3" icon="code">
+    Core module with context and basic operations
+  </Card>
+  <Card title="Z3.Symbol" icon="tag">
+    Symbol creation and manipulation
+  </Card>
+  <Card title="Z3.Sort" icon="shapes">
+    Type/sort operations
+  </Card>
+  <Card title="Z3.Expr" icon="function">
+    Expression construction
+  </Card>
+  <Card title="Z3.Boolean" icon="check">
+    Boolean logic operations
+  </Card>
+  <Card title="Z3.Arithmetic" icon="calculator">
+    Arithmetic operations
+  </Card>
+  <Card title="Z3.BitVector" icon="binary">
+    Bit-vector operations
+  </Card>
+  <Card title="Z3.Solver" icon="magnifying-glass">
+    Solver interface
+  </Card>
+</CardGroup>
+
+### Opening Modules
+
+Typical imports:
+
+```ocaml
+open Z3                    (* Core API *)
+open Z3.Symbol             (* Symbols *)
+open Z3.Sort               (* Sorts *)
+open Z3.Expr               (* Expressions *)
+open Z3.Boolean            (* Boolean logic *)
+open Z3.Arithmetic         (* Arithmetic *)
+open Z3.Arithmetic.Integer (* Integer arithmetic *)
+open Z3.Arithmetic.Real    (* Real arithmetic *)
+open Z3.Solver             (* Solver *)
+```
+
+## Creating Expressions
+
+### Integer Arithmetic
+
+```ocaml
+open Z3.Arithmetic.Integer
+
+let ctx = mk_context [] in
+
+(* Variables *)
+let x = mk_const_s ctx "x" in
+let y = mk_const_s ctx "y" in
+
+(* Constants *)
+let zero = mk_numeral_i ctx 0 in
+let ten = mk_numeral_i ctx 10 in
+let five = mk_numeral_s ctx "5" in
+
+(* Arithmetic operations *)
+let sum = mk_add ctx [x; y] in
+let diff = mk_sub ctx [x; y] in
+let prod = mk_mul ctx [x; y] in
+```
+
+### Real Arithmetic
+
+```ocaml
+open Z3.Arithmetic.Real
+
+let ctx = mk_context [] in
+
+(* Variables *)
+let a = mk_const_s ctx "a" in
+let b = mk_const_s ctx "b" in
+
+(* Constants *)
+let half = mk_numeral_nd ctx 1 2 in  (* 1/2 *)
+let pi_approx = mk_numeral_s ctx "3.14159" in
+
+(* Operations *)
+let sum = mk_add ctx [a; b] in
+```
+
+### Boolean Logic
+
+```ocaml
+open Z3.Boolean
+
+let ctx = mk_context [] in
+
+let p = mk_const_s ctx "p" in
+let q = mk_const_s ctx "q" in
+
+(* Logical operations *)
+let and_expr = mk_and ctx [p; q] in
+let or_expr = mk_or ctx [p; q] in
+let not_expr = mk_not ctx p in
+let implies = mk_implies ctx p q in
+let iff = mk_iff ctx p q in
+```
+
+### Comparisons
+
+```ocaml
+open Z3.Arithmetic.Integer
+open Z3.Boolean
+
+let x = mk_const_s ctx "x" in
+let y = mk_const_s ctx "y" in
+let zero = mk_numeral_i ctx 0 in
+
+(* Comparisons *)
+let eq = mk_eq ctx x y in
+let lt = mk_lt ctx x y in
+let le = mk_le ctx x y in
+let gt = mk_gt ctx x zero in
+let ge = mk_ge ctx x zero in
+```
+
+## Using the Solver
+
+### Basic Solving
+
+```ocaml
+open Z3
+open Z3.Arithmetic.Integer
+open Z3.Boolean
+open Z3.Solver
+
+let ctx = mk_context [] in
+let x = mk_const_s ctx "x" in
+let y = mk_const_s ctx "y" in
+let ten = mk_numeral_i ctx 10 in
+let two = mk_numeral_i ctx 2 in
+
+(* Create constraints *)
+let eq1 = mk_eq ctx (mk_add ctx [x; y]) ten in
+let eq2 = mk_eq ctx (mk_sub ctx [x; y]) two in
+
+(* Create solver *)
+let solver = mk_solver ctx None in
+
+(* Add constraints *)
+Solver.add solver [eq1; eq2];
+
+(* Check and get result *)
+match check solver [] with
+| SATISFIABLE ->
+    Printf.printf "Satisfiable!\n";
+    (match get_model solver with
+     | Some model ->
+         Printf.printf "x = %s\n" 
+           (Expr.to_string (Model.eval model x true |> Option.get));
+         Printf.printf "y = %s\n"
+           (Expr.to_string (Model.eval model y true |> Option.get))
+     | None -> ())
+| UNSATISFIABLE -> Printf.printf "Unsatisfiable\n"
+| UNKNOWN -> Printf.printf "Unknown\n"
+```
+
+### Solver with Backtracking
+
+```ocaml
+let solver = mk_solver ctx None in
+
+(* Add base constraints *)
+Solver.add solver [mk_gt ctx x (mk_numeral_i ctx 0)];
+
+(* Create checkpoint *)
+Solver.push solver;
+
+(* Add more constraints *)
+Solver.add solver [mk_lt ctx x (mk_numeral_i ctx 10)];
+let result1 = check solver [] in  (* x > 0 AND x < 10 *)
+
+(* Backtrack *)
+Solver.pop solver 1;
+
+let result2 = check solver [] in  (* Only x > 0 *)
+```
+
+## Examples from Source
+
+### Example 1: Basic Solver
+
+From [ml_example.ml](/home/daytona/workspace/source/examples/ml/ml_example.ml:73):
+
+```ocaml
+let basic_tests (ctx : context) =
+  Printf.printf "BasicTests\n";
+  
+  let fname = mk_string ctx "f" in
+  let x = mk_string ctx "x" in
+  let y = mk_string ctx "y" in
+  let bs = Boolean.mk_sort ctx in
+  let domain = [bs; bs] in
+  let f = FuncDecl.mk_func_decl ctx fname domain bs in
+  
+  let fapp = mk_app ctx f [
+    Expr.mk_const ctx x bs;
+    Expr.mk_const ctx y bs
+  ] in
+  
+  let trivial_eq = mk_eq ctx fapp fapp in
+  let goal = mk_goal ctx true false false in
+  Goal.add goal [trivial_eq];
+  
+  let solver = mk_solver ctx None in
+  List.iter (fun a -> Solver.add solver [a]) (Goal.get_formulas goal);
+  
+  if check solver [] != SATISFIABLE then
+    raise (TestFailedException "")
+  else
+    Printf.printf "Test passed.\n"
+```
+
+### Example 2: Tactics
+
+Using tactics for preprocessing:
+
+```ocaml
+open Z3
+open Z3.Tactic
+open Z3.Goal
+
+let ctx = mk_context [] in
+let x = Arithmetic.Integer.mk_const_s ctx "x" in
+let y = Arithmetic.Integer.mk_const_s ctx "y" in
+
+(* Create goal *)
+let goal = mk_goal ctx true false false in
+Goal.add goal [
+  Boolean.mk_gt ctx x (Arithmetic.Integer.mk_numeral_i ctx 10);
+  Boolean.mk_eq ctx y (Arithmetic.mk_add ctx [x; 
+    Arithmetic.Integer.mk_numeral_i ctx 1])
+];
+
+(* Apply simplification tactic *)
+let tactic = mk_tactic ctx "simplify" in
+let result = Tactic.apply tactic goal None in
+
+Printf.printf "Simplified goals: %d\n" 
+  (ApplyResult.get_num_subgoals result);
+
+for i = 0 to ApplyResult.get_num_subgoals result - 1 do
+  let subgoal = ApplyResult.get_subgoal result i in
+  Printf.printf "Subgoal %d: %s\n" i (Goal.to_string subgoal)
+done
+```
+
+### Example 3: Model Converter
+
+From [ml_example.ml](/home/daytona/workspace/source/examples/ml/ml_example.ml:27):
+
+```ocaml
+let model_converter_test (ctx : context) =
+  Printf.printf "ModelConverterTest\n";
+  
+  let xr = Expr.mk_const ctx (Symbol.mk_string ctx "x") 
+                              (Real.mk_sort ctx) in
+  let yr = Expr.mk_const ctx (Symbol.mk_string ctx "y") 
+                              (Real.mk_sort ctx) in
+  
+  let g4 = mk_goal ctx true false false in
+  Goal.add g4 [mk_gt ctx xr (Real.mk_numeral_nd ctx 10 1)];
+  Goal.add g4 [mk_eq ctx yr 
+    (Arithmetic.mk_add ctx [xr; Real.mk_numeral_nd ctx 1 1])];
+  Goal.add g4 [mk_gt ctx yr (Real.mk_numeral_nd ctx 1 1)];
+  
+  (* Apply tactics *)
+  let tactic = and_then ctx 
+    (mk_tactic ctx "simplify") 
+    (mk_tactic ctx "solve-eqs") 
+    [] in
+  let ar = Tactic.apply tactic g4 None in
+  
+  (* Solve with results *)
+  let solver = mk_solver ctx None in
+  List.iter (fun e -> Solver.add solver [e]) 
+    (Goal.get_formulas (ApplyResult.get_subgoal ar 0));
+  
+  let q = check solver [] in
+  if q = SATISFIABLE then
+    match get_model solver with
+    | Some m ->
+        Printf.printf "Model: \n%s\n" (Model.to_string m)
+    | None -> ()
+```
+
+## Working with Models
+
+### Evaluating Expressions
+
+```ocaml
+let solver = mk_solver ctx None in
+Solver.add solver [constraint_];
+
+match check solver [] with
+| SATISFIABLE ->
+    (match get_model solver with
+     | Some model ->
+         (* Evaluate with model completion *)
+         (match Model.eval model x true with
+          | Some value -> Printf.printf "x = %s\n" (Expr.to_string value)
+          | None -> Printf.printf "x is unassigned\n");
+         
+         (* Get all constant interpretations *)
+         for i = 0 to Model.get_num_consts model - 1 do
+           let decl = Model.get_const_decl model i in
+           let interp = Model.get_const_interp model decl in
+           match interp with
+           | Some v -> 
+               Printf.printf "%s = %s\n" 
+                 (FuncDecl.get_name decl |> Symbol.to_string)
+                 (Expr.to_string v)
+           | None -> ()
+         done
+     | None -> ())
+| _ -> ()
+```
+
+### Model as String
+
+```ocaml
+match get_model solver with
+| Some model ->
+    Printf.printf "Complete model:\n%s\n" (Model.to_string model)
+| None -> ()
+```
+
+## Bit-Vectors
+
+```ocaml
+open Z3.BitVector
+
+let ctx = mk_context [] in
+
+(* 8-bit variables *)
+let x = mk_const_s ctx "x" 8 in
+let y = mk_const_s ctx "y" 8 in
+
+(* Constants *)
+let ff = mk_numeral ctx "255" 8 in
+let zero = mk_numeral ctx "0" 8 in
+
+(* Operations *)
+let sum = mk_add ctx x y in
+let and_op = mk_and ctx x y in
+let shift = mk_shl ctx x y in
+
+(* Comparisons *)
+let ult = mk_ult ctx x y in  (* Unsigned less than *)
+let slt = mk_slt ctx x y in  (* Signed less than *)
+
+(* Constraints *)
+let solver = Solver.mk_solver ctx None in
+Solver.add solver [
+  Boolean.mk_eq ctx sum ff;
+  mk_ugt ctx x y  (* Unsigned greater than *)
+];
+```
+
+## Arrays
+
+```ocaml
+open Z3.Z3Array
+
+let ctx = mk_context [] in
+let int_sort = Arithmetic.Integer.mk_sort ctx in
+
+(* Create array sort: Int -> Int *)
+let array_sort = mk_sort ctx int_sort int_sort in
+
+(* Create array variable *)
+let arr = Expr.mk_const ctx (Symbol.mk_string ctx "arr") array_sort in
+
+(* Array operations *)
+let i = Arithmetic.Integer.mk_const_s ctx "i" in
+let v = Arithmetic.Integer.mk_numeral_i ctx 42 in
+
+(* Read: arr[i] *)
+let read = mk_select ctx arr i in
+
+(* Write: arr[i := 42] *)
+let arr2 = mk_store ctx arr i v in
+
+(* Constant array *)
+let const_arr = mk_const_array ctx int_sort v in
+```
+
+## Quantifiers
+
+```ocaml
+open Z3.Quantifier
+
+let ctx = mk_context [] in
+let int_sort = Arithmetic.Integer.mk_sort ctx in
+
+(* Create bound variable *)
+let x_symbol = Symbol.mk_string ctx "x" in
+let x = Expr.mk_bound ctx 0 int_sort in
+
+(* Forall x. x >= 0 => x + 1 > 0 *)
+let body = Boolean.mk_implies ctx
+  (Boolean.mk_ge ctx x (Arithmetic.Integer.mk_numeral_i ctx 0))
+  (Boolean.mk_gt ctx 
+    (Arithmetic.mk_add ctx [x; Arithmetic.Integer.mk_numeral_i ctx 1])
+    (Arithmetic.Integer.mk_numeral_i ctx 0)) in
+
+let forall = expr_of_quantifier (mk_forall_const ctx
+  [Expr.mk_const ctx x_symbol int_sort]
+  body
+  None [] [] None None) in
+```
+
+## Configuration and Parameters
+
+### Context Configuration
+
+```ocaml
+let ctx = mk_context [
+  ("model", "true");           (* Generate models *)
+  ("proof", "true");           (* Generate proofs *)
+  ("timeout", "10000");        (* 10 second timeout *)
+  ("well_sorted_check", "true") (* Type checking *)
+]
+```
+
+### Solver Parameters
+
+```ocaml
+let params = Params.mk_params ctx in
+Params.add_bool params (Symbol.mk_string ctx "mbqi") false;
+Params.add_int params (Symbol.mk_string ctx "timeout") 5000;
+
+let solver = mk_solver ctx None in
+Solver.set_parameters solver params;
+```
+
+## Error Handling
+
+```ocaml
+try
+  let ctx = mk_context [] in
+  (* Z3 operations *)
+  ()
+with
+| Z3.Error msg -> 
+    Printf.eprintf "Z3 error: %s\n" msg
+| e -> 
+    Printf.eprintf "Error: %s\n" (Printexc.to_string e)
+```
+
+## Statistics
+
+```ocaml
+let solver = mk_solver ctx None in
+Solver.add solver [constraint_];
+let _ = check solver [] in
+
+let stats = Solver.get_statistics solver in
+Printf.printf "Statistics:\n%s\n" (Statistics.to_string stats);
+
+(* Access specific statistics *)
+for i = 0 to Statistics.get_size stats - 1 do
+  let key = Statistics.get_key stats i in
+  if Statistics.is_uint stats i then
+    Printf.printf "%s: %d\n" key (Statistics.get_uint stats i)
+  else if Statistics.is_double stats i then
+    Printf.printf "%s: %f\n" key (Statistics.get_double stats i)
+done
+```
+
+## Version Information
+
+```ocaml
+open Z3.Version
+
+let () =
+  Printf.printf "Z3 version: %s\n" to_string;
+  Printf.printf "Major: %d, Minor: %d, Build: %d, Revision: %d\n"
+    major minor build_number revision
+```
+
+## Best Practices
+
+<CardGroup cols={2}>
+  <Card title="Pattern Matching" icon="code">
+    Use pattern matching for solver results:
+    ```ocaml
+    match check solver [] with
+    | SATISFIABLE -> (* handle sat *)
+    | UNSATISFIABLE -> (* handle unsat *)
+    | UNKNOWN -> (* handle unknown *)
+    ```
+  </Card>
+  
+  <Card title="Option Handling" icon="circle-question">
+    Many functions return `option` types:
+    ```ocaml
+    match Model.eval model expr true with
+    | Some value -> (* use value *)
+    | None -> (* handle unassigned *)
+    ```
+  </Card>
+  
+  <Card title="List Operations" icon="list">
+    Z3 often uses lists for multiple arguments:
+    ```ocaml
+    mk_and ctx [p; q; r]
+    mk_add ctx [x; y; z]
+    ```
+  </Card>
+  
+  <Card title="Module Organization" icon="folder-tree">
+    Import specific modules to avoid namespace pollution:
+    ```ocaml
+    open Z3.Arithmetic.Integer
+    (* Not: open Z3.Arithmetic *)
+    ```
+  </Card>
+</CardGroup>
+
+## Memory Management
+
+<Info>
+  The OCaml bindings handle memory management automatically through OCaml's garbage collector. You don't need to manually manage Z3 object lifetimes.
+</Info>
+
+## Thread Safety
+
+<Warning>
+  Z3 contexts are not thread-safe. Use separate contexts in different threads or implement proper synchronization.
+</Warning>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="API Documentation" icon="book" href="https://z3prover.github.io/api/html/ml/index.html">
+    Complete OCaml API reference
+  </Card>
+  <Card title="Examples" icon="code" href="https://github.com/Z3Prover/z3/tree/master/examples/ml">
+    More example programs
+  </Card>
+  <Card title="Z3 Guide" icon="graduation-cap" href="https://microsoft.github.io/z3guide/">
+    In-depth Z3 tutorial
+  </Card>
+  <Card title="Source Code" icon="github" href="https://github.com/Z3Prover/z3/tree/master/src/api/ml">
+    OCaml bindings source
+  </Card>
+</CardGroup>

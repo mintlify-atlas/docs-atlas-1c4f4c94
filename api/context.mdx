@@ -1,0 +1,333 @@
+---
+title: Context API
+description: Z3 context and configuration management functions
+---
+
+## Overview
+
+The Context API provides functions for creating and managing Z3 contexts, which are the central objects for all Z3 operations. A context manages memory, configuration, and all Z3 objects.
+
+## Types
+
+### Z3_config
+
+Configuration object used to initialize logical contexts. Created before context creation to set parameters.
+
+### Z3_context
+
+Manager of all other Z3 objects, global configuration options, etc. All interaction with Z3 happens through a context.
+
+### Z3_lbool
+
+Lifted Boolean type for three-valued logic:
+
+<ParamField name="Z3_L_FALSE" type="enum">
+  Value representing false (-1)
+</ParamField>
+
+<ParamField name="Z3_L_UNDEF" type="enum">
+  Value representing undefined (0)
+</ParamField>
+
+<ParamField name="Z3_L_TRUE" type="enum">
+  Value representing true (1)
+</ParamField>
+
+## Configuration Functions
+
+### Z3_mk_config
+
+```c
+Z3_config Z3_API Z3_mk_config(void);
+```
+
+Create a configuration object for the Z3 context.
+
+<ResponseField name="return" type="Z3_config">
+  New configuration object
+</ResponseField>
+
+**Description:**
+
+Configurations are created to assign parameters prior to creating contexts. Available parameters:
+
+- `proof` (Boolean) - Enable proof generation
+- `debug_ref_count` (Boolean) - Enable debug support for Z3_ast reference counting
+- `trace` (Boolean) - Tracing support
+- `timeout` (unsigned) - Default timeout in milliseconds for solvers
+- `well_sorted_check` (Boolean) - Type checker
+- `auto_config` (Boolean) - Use heuristics to automatically select solver
+- `model` (Boolean) - Model generation for solvers
+- `unsat_core` (Boolean) - Unsat-core generation for solvers
+
+**Example:**
+
+```c
+Z3_config cfg = Z3_mk_config();
+Z3_set_param_value(cfg, "proof", "true");
+Z3_set_param_value(cfg, "model", "true");
+```
+
+### Z3_del_config
+
+```c
+void Z3_API Z3_del_config(Z3_config c);
+```
+
+Delete the given configuration object.
+
+<ParamField name="c" type="Z3_config">
+  Configuration to delete
+</ParamField>
+
+### Z3_set_param_value
+
+```c
+void Z3_API Z3_set_param_value(Z3_config c, Z3_string param_id, Z3_string param_value);
+```
+
+Set a configuration parameter.
+
+<ParamField name="c" type="Z3_config">
+  Configuration object
+</ParamField>
+
+<ParamField name="param_id" type="Z3_string">
+  Parameter name
+</ParamField>
+
+<ParamField name="param_value" type="Z3_string">
+  Parameter value
+</ParamField>
+
+## Context Creation
+
+### Z3_mk_context
+
+```c
+Z3_context Z3_API Z3_mk_context(Z3_config c);
+```
+
+Create a context using the given configuration.
+
+<ParamField name="c" type="Z3_config">
+  Configuration object (can be NULL for default configuration)
+</ParamField>
+
+<ResponseField name="return" type="Z3_context">
+  New Z3 context
+</ResponseField>
+
+**Description:**
+
+After a context is created, the configuration cannot be changed. Z3_ast objects persist with the context lifetime (automatic memory management).
+
+**Thread Safety:**
+
+Objects created using a given context should not be accessed from different threads without synchronization. To use Z3 from different threads, create separate context objects.
+
+**Example:**
+
+```c
+Z3_config cfg = Z3_mk_config();
+Z3_set_param_value(cfg, "model", "true");
+Z3_context ctx = Z3_mk_context(cfg);
+Z3_del_config(cfg);
+
+// Use context...
+
+Z3_del_context(ctx);
+```
+
+### Z3_mk_context_rc
+
+```c
+Z3_context Z3_API Z3_mk_context_rc(Z3_config c);
+```
+
+Create a context with manual reference counting for Z3_ast objects.
+
+<ParamField name="c" type="Z3_config">
+  Configuration object
+</ParamField>
+
+<ResponseField name="return" type="Z3_context">
+  New Z3 context with manual reference counting
+</ResponseField>
+
+**Description:**
+
+In this context, the user must invoke `Z3_inc_ref` for any Z3_ast returned by Z3, and `Z3_dec_ref` when the Z3_ast is not needed anymore. This is more efficient but error-prone.
+
+**Example:**
+
+```c
+Z3_config cfg = Z3_mk_config();
+Z3_context ctx = Z3_mk_context_rc(cfg);
+Z3_del_config(cfg);
+
+Z3_sort int_sort = Z3_mk_int_sort(ctx);
+Z3_inc_ref(ctx, Z3_sort_to_ast(ctx, int_sort));
+
+// Use int_sort...
+
+Z3_dec_ref(ctx, Z3_sort_to_ast(ctx, int_sort));
+Z3_del_context(ctx);
+```
+
+### Z3_del_context
+
+```c
+void Z3_API Z3_del_context(Z3_context c);
+```
+
+Delete the given logical context.
+
+<ParamField name="c" type="Z3_context">
+  Context to delete
+</ParamField>
+
+## Reference Counting
+
+### Z3_inc_ref
+
+```c
+void Z3_API Z3_inc_ref(Z3_context c, Z3_ast a);
+```
+
+Increment the reference counter of the given AST.
+
+<ParamField name="c" type="Z3_context">
+  Context (must be created with Z3_mk_context_rc)
+</ParamField>
+
+<ParamField name="a" type="Z3_ast">
+  AST node to increment
+</ParamField>
+
+**Note:** This is a NOOP if context was created using `Z3_mk_context`.
+
+### Z3_dec_ref
+
+```c
+void Z3_API Z3_dec_ref(Z3_context c, Z3_ast a);
+```
+
+Decrement the reference counter of the given AST.
+
+<ParamField name="c" type="Z3_context">
+  Context (must be created with Z3_mk_context_rc)
+</ParamField>
+
+<ParamField name="a" type="Z3_ast">
+  AST node to decrement
+</ParamField>
+
+**Note:** This is a NOOP if context was created using `Z3_mk_context`.
+
+### Z3_enable_concurrent_dec_ref
+
+```c
+void Z3_API Z3_enable_concurrent_dec_ref(Z3_context c);
+```
+
+Enable concurrency control for reference counting decrements.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+**Description:**
+
+Allows reference counting decrements in separate threads from the context. Must be called before using dec_ref from multiple threads.
+
+## Parameter Management
+
+### Z3_update_param_value
+
+```c
+void Z3_API Z3_update_param_value(Z3_context c, Z3_string param_id, Z3_string param_value);
+```
+
+Set a value of a context parameter.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="param_id" type="Z3_string">
+  Parameter name
+</ParamField>
+
+<ParamField name="param_value" type="Z3_string">
+  Parameter value
+</ParamField>
+
+### Z3_interrupt
+
+```c
+void Z3_API Z3_interrupt(Z3_context c);
+```
+
+Interrupt the execution of a Z3 procedure.
+
+<ParamField name="c" type="Z3_context">
+  Context to interrupt
+</ParamField>
+
+**Description:**
+
+This procedure can be used to interrupt solvers, simplifiers, and tactics. Can be called from a different thread.
+
+## Global Parameters
+
+### Z3_global_param_set
+
+```c
+void Z3_API Z3_global_param_set(Z3_string param_id, Z3_string param_value);
+```
+
+Set a global (or module) parameter shared by all Z3 contexts.
+
+<ParamField name="param_id" type="Z3_string">
+  Parameter name (case-insensitive, can use module.parameter format)
+</ParamField>
+
+<ParamField name="param_value" type="Z3_string">
+  Parameter value
+</ParamField>
+
+**Example:**
+
+```c
+Z3_global_param_set("pp.decimal", "true");
+Z3_global_param_set("smt.mbqi", "false");
+```
+
+### Z3_global_param_reset_all
+
+```c
+void Z3_API Z3_global_param_reset_all(void);
+```
+
+Restore the value of all global parameters to defaults.
+
+### Z3_global_param_get
+
+```c
+bool Z3_API Z3_global_param_get(Z3_string param_id, Z3_string_ptr param_value);
+```
+
+Get a global parameter value.
+
+<ParamField name="param_id" type="Z3_string">
+  Parameter name
+</ParamField>
+
+<ParamField name="param_value" type="Z3_string_ptr">
+  Output parameter for value
+</ParamField>
+
+<ResponseField name="return" type="bool">
+  True if parameter exists, false otherwise
+</ResponseField>

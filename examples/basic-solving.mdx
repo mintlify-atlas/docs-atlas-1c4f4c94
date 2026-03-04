@@ -1,0 +1,219 @@
+---
+title: 'Basic Constraint Solving'
+description: 'Learn the fundamentals of Z3 with simple constraint solving examples'
+keywords: ['z3', 'constraint solving', 'basics', 'tutorial', 'getting started']
+---
+
+This tutorial introduces the basic concepts of Z3 through simple constraint solving examples. You'll learn how to create variables, add constraints, and check satisfiability.
+
+## Simple Arithmetic Constraints
+
+Let's start with a basic example that solves arithmetic constraints using real numbers.
+
+<Steps>
+  <Step title="Import Z3">
+    First, import the Z3 library to access all solver functions:
+    
+    ```python
+    from z3 import *
+    ```
+    
+    This imports all Z3 classes and functions, including `Real`, `Solver`, and constraint operators.
+  </Step>
+
+  <Step title="Create variables">
+    Create variables that represent unknown values you want to find:
+    
+    ```python
+    x = Real('x')
+    y = Real('y')
+    ```
+    
+    `Real('x')` creates a real-valued variable named 'x'. Z3 also supports `Int`, `Bool`, and other types.
+  </Step>
+
+  <Step title="Create a solver and add constraints">
+    Create a solver instance and add your constraints:
+    
+    ```python
+    s = Solver()
+    s.add(x + y > 5, x > 1, y > 1)
+    ```
+    
+    The `add()` method accepts multiple constraints. Here we're saying:
+    - The sum of x and y must be greater than 5
+    - x must be greater than 1
+    - y must be greater than 1
+  </Step>
+
+  <Step title="Check satisfiability and get a model">
+    Ask Z3 to find a solution:
+    
+    ```python
+    print(s.check())
+    print(s.model())
+    ```
+    
+    The `check()` method returns:
+    - `sat` - constraints are satisfiable (solution exists)
+    - `unsat` - no solution exists
+    - `unknown` - solver couldn't determine
+    
+    If satisfiable, `model()` returns concrete values that satisfy all constraints.
+  </Step>
+</Steps>
+
+### Complete Example
+
+```python
+from z3 import *
+
+x = Real('x')
+y = Real('y')
+s = Solver()
+s.add(x + y > 5, x > 1, y > 1)
+print(s.check())
+print(s.model())
+```
+
+**Expected output:**
+```
+sat
+[y = 2, x = 4]
+```
+
+<Note>
+The actual values may vary - Z3 finds *any* solution that satisfies the constraints, not necessarily a specific one.
+</Note>
+
+## Integer Constraints
+
+Z3 can also solve integer programming problems.
+
+<Steps>
+  <Step title="Create integer variables">
+    ```python
+    from z3 import *
+    
+    a = Int('a')
+    b = Int('b')
+    c = Int('c')
+    ```
+  </Step>
+
+  <Step title="Add constraints">
+    ```python
+    s = Solver()
+    s.add(a + b + c == 10)
+    s.add(a >= 0, b >= 0, c >= 0)
+    s.add(a > b)
+    ```
+    
+    This finds three non-negative integers that sum to 10, where `a` is greater than `b`.
+  </Step>
+
+  <Step title="Find a solution">
+    ```python
+    if s.check() == sat:
+        m = s.model()
+        print(f"a = {m[a]}, b = {m[b]}, c = {m[c]}")
+    else:
+        print("No solution found")
+    ```
+  </Step>
+</Steps>
+
+**Expected output:**
+```
+a = 5, b = 0, c = 5
+```
+
+## Boolean Satisfiability (SAT)
+
+Z3 can solve classic SAT problems using boolean variables.
+
+```python
+from z3 import *
+
+# Create boolean variables
+p = Bool('p')
+q = Bool('q')
+r = Bool('r')
+
+s = Solver()
+# Add a CNF formula: (p OR q) AND (NOT p OR r) AND (NOT q OR NOT r)
+s.add(Or(p, q))
+s.add(Or(Not(p), r))
+s.add(Or(Not(q), Not(r)))
+
+if s.check() == sat:
+    m = s.model()
+    print(f"p = {m[p]}, q = {m[q]}, r = {m[r]}")
+```
+
+**Expected output:**
+```
+p = True, q = False, r = True
+```
+
+## Checking Unsatisfiability
+
+Sometimes constraints have no solution:
+
+```python
+from z3 import *
+
+x = Int('x')
+s = Solver()
+
+# Contradictory constraints
+s.add(x > 10)
+s.add(x < 5)
+
+result = s.check()
+print(result)  # prints: unsat
+```
+
+**Expected output:**
+```
+unsat
+```
+
+<Warning>
+When `check()` returns `unsat`, calling `model()` will raise an exception since no solution exists.
+</Warning>
+
+## Key Concepts
+
+<AccordionGroup>
+  <Accordion title="Variable types">
+    - `Int('name')` - Integer variables
+    - `Real('name')` - Real number variables
+    - `Bool('name')` - Boolean variables
+    - `BitVec('name', size)` - Bit-vector variables
+  </Accordion>
+
+  <Accordion title="Constraint operators">
+    - Arithmetic: `+`, `-`, `*`, `/`, `%`
+    - Comparison: `==`, `!=`, `<`, `<=`, `>`, `>=`
+    - Boolean: `And()`, `Or()`, `Not()`, `Implies()`
+    - Special: `Distinct()` - ensures all arguments are different
+  </Accordion>
+
+  <Accordion title="Solver results">
+    - `sat` - Satisfiable (solution found)
+    - `unsat` - Unsatisfiable (no solution exists)
+    - `unknown` - Solver timed out or couldn't determine
+  </Accordion>
+</AccordionGroup>
+
+## Next Steps
+
+<Columns cols={2}>
+  <Card title="Sudoku Solver" icon="grid" href="/examples/sudoku-solver">
+    Apply these concepts to build a complete Sudoku solver
+  </Card>
+  <Card title="Optimization Problems" icon="chart-line" href="/examples/optimization-problems">
+    Learn to find optimal solutions using Z3's Optimize solver
+  </Card>
+</Columns>

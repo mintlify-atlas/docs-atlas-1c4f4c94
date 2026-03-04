@@ -1,0 +1,543 @@
+---
+title: Installation
+description: Install Z3 on your system using pre-built binaries or build from source
+---
+
+Z3 can be installed using package managers for various programming languages, or built from source for custom configurations. Choose the method that best fits your needs.
+
+## Pre-built packages
+
+The easiest way to install Z3 is through language-specific package managers. These include both the Z3 library and language bindings.
+
+### Python
+
+Install via pip (recommended):
+
+```bash
+pip install z3-solver
+```
+
+This installs the Z3 library with Python bindings for Python 3.x. The package includes pre-compiled binaries for Windows, Linux, and macOS.
+
+<Tip>
+  Use a virtual environment to isolate Z3 from other Python packages:
+  
+  ```bash
+  python -m venv z3env
+  source z3env/bin/activate  # On Windows: z3env\Scripts\activate
+  pip install z3-solver
+  ```
+</Tip>
+
+### JavaScript/TypeScript
+
+Install via npm:
+
+```bash
+npm install z3-solver
+```
+
+Or with Yarn:
+
+```bash
+yarn add z3-solver
+```
+
+The package provides TypeScript typings and a WebAssembly build of Z3.
+
+### .NET
+
+Install the NuGet package:
+
+```bash
+dotnet add package Microsoft.Z3
+```
+
+Or add it to your `.csproj` file:
+
+```xml
+<PackageReference Include="Microsoft.Z3" Version="*" />
+```
+
+### Java
+
+Add to your Maven `pom.xml`:
+
+```xml
+<dependency>
+  <groupId>tools.aqua</groupId>
+  <artifactId>z3-turnkey</artifactId>
+  <version>4.12.2.1</version>
+</dependency>
+```
+
+For Gradle:
+
+```groovy
+implementation 'tools.aqua:z3-turnkey:4.12.2.1'
+```
+
+<Note>
+  For IDE setup instructions (Eclipse, IntelliJ IDEA, Visual Studio Code), see the [Java IDE Setup Guide](https://github.com/Z3Prover/z3/blob/master/doc/JAVA_IDE_SETUP.md).
+</Note>
+
+## Pre-built binaries
+
+Download pre-built binaries for stable and nightly releases from the [GitHub Releases page](https://github.com/Z3Prover/z3/releases).
+
+These releases include:
+- The `z3` command-line executable
+- Static and shared libraries
+- Header files
+- Language bindings
+
+<Tabs>
+  <Tab title="Linux">
+    1. Download the appropriate release for your architecture (x64, ARM, etc.)
+    2. Extract the archive:
+       ```bash
+       tar -xzf z3-*.tar.gz
+       ```
+    3. Add to your PATH:
+       ```bash
+       export PATH=$PATH:/path/to/z3/bin
+       export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/path/to/z3/bin
+       ```
+  </Tab>
+  
+  <Tab title="macOS">
+    1. Download the macOS release
+    2. Extract the archive:
+       ```bash
+       tar -xzf z3-*.tar.gz
+       ```
+    3. Add to your PATH:
+       ```bash
+       export PATH=$PATH:/path/to/z3/bin
+       export DYLD_LIBRARY_PATH=$DYLD_LIBRARY_PATH:/path/to/z3/bin
+       ```
+  </Tab>
+  
+  <Tab title="Windows">
+    1. Download the Windows release (x64 or x86)
+    2. Extract the ZIP file
+    3. Add the `bin` directory to your PATH:
+       - Right-click "This PC" → Properties → Advanced system settings
+       - Click "Environment Variables"
+       - Edit the `Path` variable and add `C:\path\to\z3\bin`
+  </Tab>
+</Tabs>
+
+## Building from source
+
+Building from source gives you the latest features and allows customization. Z3 requires Python 3.x and C++20 support.
+
+### Using CMake (recommended)
+
+CMake is the recommended build system for most platforms.
+
+<Steps>
+  <Step title="Clone the repository">
+    ```bash
+    git clone https://github.com/Z3Prover/z3.git
+    cd z3
+    ```
+  </Step>
+  
+  <Step title="Create build directory">
+    ```bash
+    mkdir build
+    cd build
+    ```
+  </Step>
+  
+  <Step title="Configure with CMake">
+    <Tabs>
+      <Tab title="Linux/macOS">
+        ```bash
+        cmake -DCMAKE_BUILD_TYPE=Release ..
+        ```
+        
+        For a debug build:
+        ```bash
+        cmake -DCMAKE_BUILD_TYPE=Debug ..
+        ```
+      </Tab>
+      
+      <Tab title="Windows (Visual Studio)">
+        ```bash
+        cmake -G "Visual Studio 17 2022" ..
+        ```
+        
+        For 32-bit builds:
+        ```bash
+        cmake -G "Visual Studio 17 2022" -A Win32 ..
+        ```
+      </Tab>
+    </Tabs>
+  </Step>
+  
+  <Step title="Build">
+    ```bash
+    cmake --build . --config Release
+    ```
+    
+    Or use parallel builds for faster compilation:
+    ```bash
+    cmake --build . --config Release -j 8
+    ```
+  </Step>
+  
+  <Step title="Install (optional)">
+    ```bash
+    sudo cmake --install .
+    ```
+    
+    To install to a custom location:
+    ```bash
+    cmake --install . --prefix /usr/local
+    ```
+  </Step>
+</Steps>
+
+<Info>
+  For detailed CMake options and configuration, see [README-CMake.md](https://github.com/Z3Prover/z3/blob/master/README-CMake.md) in the Z3 repository.
+</Info>
+
+### Using Make
+
+For Linux and macOS systems, you can use the traditional Make-based build:
+
+```bash
+python scripts/mk_make.py
+cd build
+make
+sudo make install
+```
+
+<Accordion title="Build options">
+  **Specify compiler:**
+  ```bash
+  CXX=clang++ CC=clang python scripts/mk_make.py
+  ```
+  
+  **Custom install prefix:**
+  ```bash
+  python scripts/mk_make.py --prefix=/home/user/local
+  ```
+  
+  **64-bit build (Windows):**
+  ```bash
+  python scripts/mk_make.py -x
+  ```
+  
+  **Enable Python bindings:**
+  ```bash
+  python scripts/mk_make.py --python
+  ```
+</Accordion>
+
+### Using Visual Studio
+
+For Windows developers using Visual Studio:
+
+<Steps>
+  <Step title="Open Visual Studio Command Prompt">
+    Launch the "Developer Command Prompt" for your Visual Studio version.
+  </Step>
+  
+  <Step title="Generate build files">
+    For 32-bit:
+    ```bash
+    python scripts/mk_make.py
+    ```
+    
+    For 64-bit:
+    ```bash
+    python scripts/mk_make.py -x
+    ```
+  </Step>
+  
+  <Step title="Build">
+    ```bash
+    cd build
+    nmake
+    ```
+  </Step>
+</Steps>
+
+<Note>
+  Z3 uses C++20, so Visual Studio 2019 or later is recommended.
+</Note>
+
+**Security features**: By default, MSVC builds enable Control Flow Guard (`/guard:cf`) and Address Space Layout Randomization (`/DYNAMICBASE`). To disable:
+
+```bash
+python scripts/mk_make.py --no-guardcf
+```
+
+Or with CMake:
+
+```bash
+cmake -DZ3_ENABLE_CFG=OFF ..
+```
+
+### Using Bazel
+
+Z3 can be built with Bazel on Ubuntu and other platforms:
+
+```bash
+bazel build //...
+```
+
+### Using vcpkg
+
+vcpkg is a cross-platform package manager:
+
+```bash
+git clone https://github.com/microsoft/vcpkg.git
+cd vcpkg
+./bootstrap-vcpkg.sh  # On Windows: .\bootstrap-vcpkg.bat
+./vcpkg install z3
+```
+
+## Building language bindings
+
+When building from source, you can enable specific language bindings.
+
+### Python bindings
+
+<Tabs>
+  <Tab title="CMake">
+    ```bash
+    cmake -DZ3_BUILD_PYTHON_BINDINGS=ON \
+          -DZ3_BUILD_LIBZ3_SHARED=ON \
+          ..
+    make
+    make install
+    ```
+  </Tab>
+  
+  <Tab title="Make">
+    ```bash
+    python scripts/mk_make.py --python
+    cd build
+    make
+    make install
+    ```
+  </Tab>
+</Tabs>
+
+### Java bindings
+
+```bash
+cmake -DZ3_BUILD_JAVA_BINDINGS=ON ..
+make
+```
+
+Set `JAVA_HOME` if CMake can't find your Java installation:
+
+```bash
+JAVA_HOME=/usr/lib/jvm/default cmake -DZ3_BUILD_JAVA_BINDINGS=ON ..
+```
+
+### .NET bindings
+
+<CodeGroup>
+```bash CMake
+cmake -DZ3_BUILD_DOTNET_BINDINGS=ON ..
+make
+```
+
+```bash Make
+python scripts/mk_make.py --dotnet
+cd build
+make
+```
+</CodeGroup>
+
+### Go bindings
+
+Go bindings require Go 1.20+ and shared library:
+
+```bash
+cmake -DZ3_BUILD_GO_BINDINGS=ON \
+      -DZ3_BUILD_LIBZ3_SHARED=ON \
+      ..
+make
+```
+
+To use the Go bindings:
+
+```bash
+export CGO_CFLAGS="-I/path/to/z3/include"
+export CGO_LDFLAGS="-L/path/to/z3/lib -lz3"
+export LD_LIBRARY_PATH="/path/to/z3/lib:$LD_LIBRARY_PATH"
+```
+
+### OCaml bindings
+
+```bash
+python scripts/mk_make.py --ml
+cd build
+make
+```
+
+<Warning>
+  The CMake build system is not recommended for OCaml bindings. Use the Make-based build instead.
+</Warning>
+
+## Dependencies
+
+Z3 has minimal dependencies:
+
+- **Required**: C++ runtime libraries, pthreads (for multi-threading)
+- **Optional**: GMP (GNU Multiple Precision library) for faster arithmetic
+- **Build-time**: Python 3.x
+
+To use GMP:
+
+```bash
+cmake -DZ3_USE_LIB_GMP=ON ..
+```
+
+## Platform-specific notes
+
+<AccordionGroup>
+  <Accordion title="Linux" icon="linux">
+    Most Linux distributions can build Z3 with the default GCC or Clang compiler.
+    
+    Install build dependencies:
+    ```bash
+    # Debian/Ubuntu
+    sudo apt-get install build-essential cmake python3
+    
+    # Fedora/RHEL
+    sudo dnf install gcc-c++ cmake python3
+    ```
+  </Accordion>
+  
+  <Accordion title="macOS" icon="apple">
+    Install Xcode command-line tools:
+    ```bash
+    xcode-select --install
+    ```
+    
+    Or install via Homebrew:
+    ```bash
+    brew install z3
+    ```
+  </Accordion>
+  
+  <Accordion title="Windows" icon="windows">
+    - Use Visual Studio 2019 or later for C++20 support
+    - Alternatively, use Clang or MinGW with CMake
+    - For Cygwin builds, use Cygwin's Python and the Mingw-w64 cross-compiler
+  </Accordion>
+  
+  <Accordion title="AIX" icon="server">
+    See [AIX build settings](https://github.com/Z3Prover/z3/pull/8113) for platform-specific configuration.
+  </Accordion>
+</AccordionGroup>
+
+## Verifying installation
+
+After installation, verify Z3 is working:
+
+<Tabs>
+  <Tab title="Command line">
+    ```bash
+    z3 --version
+    ```
+    
+    Should output something like:
+    ```
+    Z3 version 4.12.2 - 64 bit
+    ```
+  </Tab>
+  
+  <Tab title="Python">
+    ```python
+    import z3
+    print(z3.get_version_string())
+    ```
+    
+    Should output:
+    ```
+    4.12.2
+    ```
+  </Tab>
+  
+  <Tab title="Java">
+    ```java
+    import com.microsoft.z3.*;
+    
+    public class Test {
+        public static void main(String[] args) {
+            System.out.println(Version.getFullVersion());
+        }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Python import error" icon="triangle-exclamation">
+    If you get `ImportError: No module named z3`:
+    
+    1. Ensure Z3 is installed: `pip list | grep z3`
+    2. Check you're using the right Python environment
+    3. Verify PYTHONPATH includes the Z3 installation directory
+  </Accordion>
+  
+  <Accordion title="Library not found (Linux/macOS)" icon="triangle-exclamation">
+    If you see `error while loading shared libraries: libz3.so`:
+    
+    ```bash
+    # Linux
+    export LD_LIBRARY_PATH=/path/to/z3/lib:$LD_LIBRARY_PATH
+    
+    # macOS
+    export DYLD_LIBRARY_PATH=/path/to/z3/lib:$DYLD_LIBRARY_PATH
+    ```
+    
+    Add these to your `.bashrc` or `.zshrc` for persistence.
+  </Accordion>
+  
+  <Accordion title="CMake can't find compiler" icon="triangle-exclamation">
+    Set the compiler explicitly:
+    
+    ```bash
+    CC=gcc CXX=g++ cmake ..
+    # or
+    CC=clang CXX=clang++ cmake ..
+    ```
+  </Accordion>
+  
+  <Accordion title="Build fails with C++ errors" icon="triangle-exclamation">
+    Z3 requires C++20. Ensure your compiler is recent enough:
+    
+    - GCC 10 or later
+    - Clang 10 or later  
+    - Visual Studio 2019 or later
+  </Accordion>
+</AccordionGroup>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Quickstart tutorial" icon="rocket" href="/quickstart">
+    Solve your first problem with Z3
+  </Card>
+  <Card title="Python bindings" icon="python" href="/bindings/python/getting-started">
+    Learn the Python API in depth
+  </Card>
+  <Card title="Building Z3" icon="hammer" href="/building/cmake">
+    Advanced build configuration and options
+  </Card>
+  <Card title="Examples" icon="code" href="/examples/basic-solving">
+    Explore code examples and tutorials
+  </Card>
+</CardGroup>

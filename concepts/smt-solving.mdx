@@ -1,0 +1,235 @@
+---
+title: SMT Solving
+description: Understanding Satisfiability Modulo Theories in Z3
+---
+
+## What is SMT?
+
+Satisfiability Modulo Theories (SMT) is a decision problem for logical formulas with respect to combinations of background theories. Z3 is a state-of-the-art SMT solver that can determine whether a formula is satisfiable, unsatisfiable, or unknown.
+
+## Core Concepts
+
+### Satisfiability
+
+A formula is **satisfiable** if there exists an assignment of values to variables that makes the formula true. Z3 returns one of three possible results:
+
+- `sat` - The formula is satisfiable (a model exists)
+- `unsat` - The formula is unsatisfiable (no solution exists)  
+- `unknown` - Z3 could not determine satisfiability (timeout, resource limits, etc.)
+
+### Theories
+
+Z3 supports multiple background theories that can be combined:
+
+<CardGroup cols={2}>
+  <Card title="Linear Arithmetic" icon="calculator">
+    Integer and real linear arithmetic (LIA, LRA)
+  </Card>
+  <Card title="Bit-Vectors" icon="binary">
+    Fixed-size bit-vector arithmetic
+  </Card>
+  <Card title="Arrays" icon="table">
+    Extensional array theory with select/store
+  </Card>
+  <Card title="Uninterpreted Functions" icon="function">
+    Functions with no specified interpretation
+  </Card>
+  <Card title="Datatypes" icon="sitemap">
+    Algebraic datatypes and records
+  </Card>
+  <Card title="Strings" icon="text">
+    String operations and regular expressions
+  </Card>
+</CardGroup>
+
+## Basic SMT Solving Example
+
+<CodeGroup>
+```python Python
+from z3 import *
+
+# Create variables
+x = Int('x')
+y = Int('y')
+
+# Create solver
+s = Solver()
+
+# Add constraints
+s.add(x > 10)
+s.add(y > x)
+s.add(y < 15)
+
+# Check satisfiability
+result = s.check()
+print(result)  # sat
+
+if result == sat:
+    m = s.model()
+    print(f"x = {m[x]}, y = {m[y]}")
+```
+
+```cpp C++
+#include <z3++.h>
+using namespace z3;
+
+int main() {
+    context c;
+    expr x = c.int_const("x");
+    expr y = c.int_const("y");
+    
+    solver s(c);
+    s.add(x > 10);
+    s.add(y > x);
+    s.add(y < 15);
+    
+    std::cout << s.check() << std::endl;  // sat
+    model m = s.get_model();
+    std::cout << "x = " << m.eval(x) << std::endl;
+    std::cout << "y = " << m.eval(y) << std::endl;
+    
+    return 0;
+}
+```
+
+```java Java
+import com.microsoft.z3.*;
+
+public class Example {
+    public static void main(String[] args) {
+        Context ctx = new Context();
+        IntExpr x = ctx.mkIntConst("x");
+        IntExpr y = ctx.mkIntConst("y");
+        
+        Solver s = ctx.mkSolver();
+        s.add(ctx.mkGt(x, ctx.mkInt(10)));
+        s.add(ctx.mkGt(y, x));
+        s.add(ctx.mkLt(y, ctx.mkInt(15)));
+        
+        if (s.check() == Status.SATISFIABLE) {
+            Model m = s.getModel();
+            System.out.println("x = " + m.eval(x, false));
+            System.out.println("y = " + m.eval(y, false));
+        }
+    }
+}
+```
+</CodeGroup>
+
+## Theory Combination
+
+Z3's power comes from combining multiple theories. Here's an example mixing arithmetic and arrays:
+
+```python
+from z3 import *
+
+# Array theory with integer indices and values
+A = Array('A', IntSort(), IntSort())
+i = Int('i')
+j = Int('j')
+
+s = Solver()
+# Array constraints
+s.add(Store(A, i, 10)[j] == 10)  # Store 10 at index i, then read at j
+s.add(i != j)                      # i and j are different
+
+print(s.check())  # unsat - contradiction!
+```
+
+## Proving Validity
+
+To prove a formula φ is **valid** (true under all interpretations), check if ¬φ is unsatisfiable:
+
+```python
+from z3 import *
+
+def prove(conjecture):
+    s = Solver()
+    s.add(Not(conjecture))
+    
+    if s.check() == unsat:
+        print("Proved!")
+    else:
+        print("Counterexample:")
+        print(s.model())
+
+# Example: x = y implies f(x) = f(y)
+x, y = Ints('x y')
+f = Function('f', IntSort(), IntSort())
+
+prove(Implies(x == y, f(x) == f(y)))  # Proved!
+```
+
+## Unsatisfiable Cores
+
+When a set of constraints is unsatisfiable, Z3 can identify a minimal subset responsible for the contradiction:
+
+```python
+from z3 import *
+
+x = Int('x')
+y = Int('y')
+
+s = Solver()
+s.set(unsat_core=True)
+
+# Add tracked assertions
+s.add(x > 10, "c1")
+s.add(y > x, "c2")
+s.add(y < 5, "c3")  # Contradicts c1 and c2
+s.add(y > 0, "c4")
+
+result = s.check()
+if result == unsat:
+    core = s.unsat_core()
+    print("Unsatisfiable core:", core)
+    # Output: [c1, c2, c3]
+```
+
+## SMT-LIB Format
+
+Z3 supports the standardized SMT-LIB format for portability:
+
+```smt2
+(declare-const x Int)
+(declare-const y Int)
+
+(assert (> x 10))
+(assert (> y x))
+(assert (< y 15))
+
+(check-sat)
+(get-model)
+```
+
+## Performance Tips
+
+<Warning>
+SMT solving is NP-complete in general. Some tips for better performance:
+
+- Use appropriate theories (avoid nonlinear arithmetic when linear suffices)
+- Simplify constraints before adding them
+- Use incremental solving with push/pop
+- Set timeouts to prevent indefinite solving
+- Consider using tactics for preprocessing
+</Warning>
+
+## Related Topics
+
+<CardGroup cols={3}>
+  <Card title="Solvers" href="/concepts/solvers">
+    Learn about Z3's solver interface
+  </Card>
+  <Card title="Expressions" href="/concepts/expressions">
+    Understand Z3's expression system
+  </Card>
+  <Card title="Models" href="/concepts/models">
+    Working with satisfying assignments
+  </Card>
+</CardGroup>
+
+## References
+
+- [SMT-LIB Standard](http://smtlib.cs.uiowa.edu/)
+- Z3 API: `src/api/api_solver.cpp`
+- Examples: `examples/python/example.py`, `examples/c++/example.cpp`

@@ -1,0 +1,637 @@
+---
+title: Model API
+description: Extracting and interpreting satisfying assignments
+---
+
+## Overview
+
+The Model API provides functions for extracting and interpreting models - satisfying assignments returned by the solver when a formula is satisfiable.
+
+## Types
+
+### Z3_model
+
+A model for the constraints asserted into the logical context. Contains interpretations for constants and functions.
+
+### Z3_func_interp
+
+Interpretation of a function in a model. Represents the graph of a function.
+
+### Z3_func_entry
+
+Representation of a function interpretation entry at a particular point.
+
+## Model Creation and Reference Counting
+
+### Z3_mk_model
+
+```c
+Z3_model Z3_API Z3_mk_model(Z3_context c);
+```
+
+Create an empty model.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ResponseField name="return" type="Z3_model">
+  New empty model
+</ResponseField>
+
+### Z3_model_inc_ref
+
+```c
+void Z3_API Z3_model_inc_ref(Z3_context c, Z3_model m);
+```
+
+Increment the reference counter of the model.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="m" type="Z3_model">
+  Model
+</ParamField>
+
+### Z3_model_dec_ref
+
+```c
+void Z3_API Z3_model_dec_ref(Z3_context c, Z3_model m);
+```
+
+Decrement the reference counter of the model.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="m" type="Z3_model">
+  Model
+</ParamField>
+
+**Example:**
+
+```c
+Z3_model model = Z3_solver_get_model(ctx, solver);
+Z3_model_inc_ref(ctx, model);
+// Use model...
+Z3_model_dec_ref(ctx, model);
+```
+
+## Evaluating Expressions
+
+### Z3_model_eval
+
+```c
+bool Z3_API Z3_model_eval(
+    Z3_context c, 
+    Z3_model m, 
+    Z3_ast t,
+    bool model_completion, 
+    Z3_ast* v
+);
+```
+
+Evaluate an expression in the model.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="m" type="Z3_model">
+  Model
+</ParamField>
+
+<ParamField name="t" type="Z3_ast">
+  Expression to evaluate
+</ParamField>
+
+<ParamField name="model_completion" type="bool">
+  If true, use model completion for undefined values
+</ParamField>
+
+<ParamField name="v" type="Z3_ast*">
+  Output parameter for result
+</ParamField>
+
+<ResponseField name="return" type="bool">
+  True if evaluation succeeded
+</ResponseField>
+
+**Description:**
+
+Model completion assigns default values to constants not assigned by the model.
+
+**Example:**
+
+```c
+Z3_model model = Z3_solver_get_model(ctx, solver);
+Z3_model_inc_ref(ctx, model);
+
+Z3_ast x = Z3_mk_const(ctx, Z3_mk_string_symbol(ctx, "x"), Z3_mk_int_sort(ctx));
+Z3_ast value;
+
+if (Z3_model_eval(ctx, model, x, true, &value)) {
+    printf("x = %s\n", Z3_ast_to_string(ctx, value));
+}
+
+Z3_model_dec_ref(ctx, model);
+```
+
+## Constant Interpretation
+
+### Z3_model_get_num_consts
+
+```c
+unsigned Z3_API Z3_model_get_num_consts(Z3_context c, Z3_model m);
+```
+
+Return the number of constants assigned by the model.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="m" type="Z3_model">
+  Model
+</ParamField>
+
+<ResponseField name="return" type="unsigned">
+  Number of constants
+</ResponseField>
+
+### Z3_model_get_const_decl
+
+```c
+Z3_func_decl Z3_API Z3_model_get_const_decl(Z3_context c, Z3_model m, unsigned i);
+```
+
+Return the i-th constant declaration.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="m" type="Z3_model">
+  Model
+</ParamField>
+
+<ParamField name="i" type="unsigned">
+  Index (0-based)
+</ParamField>
+
+<ResponseField name="return" type="Z3_func_decl">
+  Constant declaration
+</ResponseField>
+
+### Z3_model_get_const_interp
+
+```c
+Z3_ast Z3_API Z3_model_get_const_interp(
+    Z3_context c, 
+    Z3_model m, 
+    Z3_func_decl a
+);
+```
+
+Return the interpretation of a constant.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="m" type="Z3_model">
+  Model
+</ParamField>
+
+<ParamField name="a" type="Z3_func_decl">
+  Constant declaration
+</ParamField>
+
+<ResponseField name="return" type="Z3_ast">
+  Value of the constant (NULL if not assigned)
+</ResponseField>
+
+**Example:**
+
+```c
+Z3_model model = Z3_solver_get_model(ctx, solver);
+Z3_model_inc_ref(ctx, model);
+
+unsigned num_consts = Z3_model_get_num_consts(ctx, model);
+for (unsigned i = 0; i < num_consts; i++) {
+    Z3_func_decl cnst = Z3_model_get_const_decl(ctx, model, i);
+    Z3_symbol name = Z3_get_decl_name(ctx, cnst);
+    Z3_ast value = Z3_model_get_const_interp(ctx, model, cnst);
+    
+    printf("%s = %s\n", 
+           Z3_get_symbol_string(ctx, name),
+           Z3_ast_to_string(ctx, value));
+}
+
+Z3_model_dec_ref(ctx, model);
+```
+
+### Z3_model_has_interp
+
+```c
+bool Z3_API Z3_model_has_interp(Z3_context c, Z3_model m, Z3_func_decl a);
+```
+
+Check if model has an interpretation for a declaration.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="m" type="Z3_model">
+  Model
+</ParamField>
+
+<ParamField name="a" type="Z3_func_decl">
+  Function/constant declaration
+</ParamField>
+
+<ResponseField name="return" type="bool">
+  True if interpretation exists
+</ResponseField>
+
+## Function Interpretation
+
+### Z3_model_get_num_funcs
+
+```c
+unsigned Z3_API Z3_model_get_num_funcs(Z3_context c, Z3_model m);
+```
+
+Return the number of function interpretations.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="m" type="Z3_model">
+  Model
+</ParamField>
+
+<ResponseField name="return" type="unsigned">
+  Number of functions
+</ResponseField>
+
+### Z3_model_get_func_decl
+
+```c
+Z3_func_decl Z3_API Z3_model_get_func_decl(Z3_context c, Z3_model m, unsigned i);
+```
+
+Return the i-th function declaration.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="m" type="Z3_model">
+  Model
+</ParamField>
+
+<ParamField name="i" type="unsigned">
+  Index (0-based)
+</ParamField>
+
+<ResponseField name="return" type="Z3_func_decl">
+  Function declaration
+</ResponseField>
+
+### Z3_model_get_func_interp
+
+```c
+Z3_func_interp Z3_API Z3_model_get_func_interp(
+    Z3_context c,
+    Z3_model m, 
+    Z3_func_decl f
+);
+```
+
+Return the interpretation of a function.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="m" type="Z3_model">
+  Model
+</ParamField>
+
+<ParamField name="f" type="Z3_func_decl">
+  Function declaration
+</ParamField>
+
+<ResponseField name="return" type="Z3_func_interp">
+  Function interpretation
+</ResponseField>
+
+## Function Interpretation Details
+
+### Z3_func_interp_get_num_entries
+
+```c
+unsigned Z3_API Z3_func_interp_get_num_entries(Z3_context c, Z3_func_interp f);
+```
+
+Return the number of entries in the function graph.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="f" type="Z3_func_interp">
+  Function interpretation
+</ParamField>
+
+<ResponseField name="return" type="unsigned">
+  Number of entries
+</ResponseField>
+
+### Z3_func_interp_get_entry
+
+```c
+Z3_func_entry Z3_API Z3_func_interp_get_entry(
+    Z3_context c,
+    Z3_func_interp f,
+    unsigned i
+);
+```
+
+Return the i-th entry in the function graph.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="f" type="Z3_func_interp">
+  Function interpretation
+</ParamField>
+
+<ParamField name="i" type="unsigned">
+  Entry index
+</ParamField>
+
+<ResponseField name="return" type="Z3_func_entry">
+  Function entry
+</ResponseField>
+
+### Z3_func_interp_get_else
+
+```c
+Z3_ast Z3_API Z3_func_interp_get_else(Z3_context c, Z3_func_interp f);
+```
+
+Return the 'else' value (default) for a function interpretation.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="f" type="Z3_func_interp">
+  Function interpretation
+</ParamField>
+
+<ResponseField name="return" type="Z3_ast">
+  Default value
+</ResponseField>
+
+### Z3_func_entry_get_value
+
+```c
+Z3_ast Z3_API Z3_func_entry_get_value(Z3_context c, Z3_func_entry e);
+```
+
+Return the result value of a function entry.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="e" type="Z3_func_entry">
+  Function entry
+</ParamField>
+
+<ResponseField name="return" type="Z3_ast">
+  Result value
+</ResponseField>
+
+### Z3_func_entry_get_num_args
+
+```c
+unsigned Z3_API Z3_func_entry_get_num_args(Z3_context c, Z3_func_entry e);
+```
+
+Return the number of arguments in a function entry.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="e" type="Z3_func_entry">
+  Function entry
+</ParamField>
+
+<ResponseField name="return" type="unsigned">
+  Number of arguments
+</ResponseField>
+
+### Z3_func_entry_get_arg
+
+```c
+Z3_ast Z3_API Z3_func_entry_get_arg(Z3_context c, Z3_func_entry e, unsigned i);
+```
+
+Return the i-th argument of a function entry.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="e" type="Z3_func_entry">
+  Function entry
+</ParamField>
+
+<ParamField name="i" type="unsigned">
+  Argument index
+</ParamField>
+
+<ResponseField name="return" type="Z3_ast">
+  Argument value
+</ResponseField>
+
+## Sort Universe
+
+### Z3_model_get_num_sorts
+
+```c
+unsigned Z3_API Z3_model_get_num_sorts(Z3_context c, Z3_model m);
+```
+
+Return the number of uninterpreted sorts with finite interpretations.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="m" type="Z3_model">
+  Model
+</ParamField>
+
+<ResponseField name="return" type="unsigned">
+  Number of sorts
+</ResponseField>
+
+### Z3_model_get_sort
+
+```c
+Z3_sort Z3_API Z3_model_get_sort(Z3_context c, Z3_model m, unsigned i);
+```
+
+Return the i-th uninterpreted sort.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="m" type="Z3_model">
+  Model
+</ParamField>
+
+<ParamField name="i" type="unsigned">
+  Sort index
+</ParamField>
+
+<ResponseField name="return" type="Z3_sort">
+  Uninterpreted sort
+</ResponseField>
+
+### Z3_model_get_sort_universe
+
+```c
+Z3_ast_vector Z3_API Z3_model_get_sort_universe(
+    Z3_context c,
+    Z3_model m,
+    Z3_sort s
+);
+```
+
+Return the finite set of elements representing the interpretation of sort s.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="m" type="Z3_model">
+  Model
+</ParamField>
+
+<ParamField name="s" type="Z3_sort">
+  Uninterpreted sort
+</ParamField>
+
+<ResponseField name="return" type="Z3_ast_vector">
+  Vector of elements in the sort's universe
+</ResponseField>
+
+## Model Conversion
+
+### Z3_model_to_string
+
+```c
+Z3_string Z3_API Z3_model_to_string(Z3_context c, Z3_model m);
+```
+
+Convert model to a string representation.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="m" type="Z3_model">
+  Model
+</ParamField>
+
+<ResponseField name="return" type="Z3_string">
+  String representation
+</ResponseField>
+
+**Example:**
+
+```c
+Z3_model model = Z3_solver_get_model(ctx, solver);
+Z3_model_inc_ref(ctx, model);
+printf("%s\n", Z3_model_to_string(ctx, model));
+Z3_model_dec_ref(ctx, model);
+```
+
+## Complete Example
+
+```c
+#include <z3.h>
+#include <stdio.h>
+
+int main() {
+    Z3_config cfg = Z3_mk_config();
+    Z3_set_param_value(cfg, "model", "true");
+    Z3_context ctx = Z3_mk_context(cfg);
+    Z3_del_config(cfg);
+    
+    Z3_solver solver = Z3_mk_solver(ctx);
+    Z3_solver_inc_ref(ctx, solver);
+    
+    // Create variables
+    Z3_sort int_sort = Z3_mk_int_sort(ctx);
+    Z3_ast x = Z3_mk_const(ctx, Z3_mk_string_symbol(ctx, "x"), int_sort);
+    Z3_ast y = Z3_mk_const(ctx, Z3_mk_string_symbol(ctx, "y"), int_sort);
+    
+    // Assert x + y = 10 and x > 5
+    Z3_ast args[2] = {x, y};
+    Z3_ast sum = Z3_mk_add(ctx, 2, args);
+    Z3_ast ten = Z3_mk_int(ctx, 10, int_sort);
+    Z3_ast five = Z3_mk_int(ctx, 5, int_sort);
+    
+    Z3_solver_assert(ctx, solver, Z3_mk_eq(ctx, sum, ten));
+    Z3_solver_assert(ctx, solver, Z3_mk_gt(ctx, x, five));
+    
+    if (Z3_solver_check(ctx, solver) == Z3_L_TRUE) {
+        Z3_model model = Z3_solver_get_model(ctx, solver);
+        Z3_model_inc_ref(ctx, model);
+        
+        // Evaluate expressions
+        Z3_ast x_value, y_value;
+        Z3_model_eval(ctx, model, x, true, &x_value);
+        Z3_model_eval(ctx, model, y, true, &y_value);
+        
+        printf("x = %s\n", Z3_ast_to_string(ctx, x_value));
+        printf("y = %s\n", Z3_ast_to_string(ctx, y_value));
+        
+        // Print full model
+        printf("\nFull model:\n%s\n", Z3_model_to_string(ctx, model));
+        
+        // Iterate through constants
+        printf("\nConstants:\n");
+        unsigned num_consts = Z3_model_get_num_consts(ctx, model);
+        for (unsigned i = 0; i < num_consts; i++) {
+            Z3_func_decl cnst = Z3_model_get_const_decl(ctx, model, i);
+            Z3_symbol name = Z3_get_decl_name(ctx, cnst);
+            Z3_ast value = Z3_model_get_const_interp(ctx, model, cnst);
+            printf("  %s = %s\n",
+                   Z3_get_symbol_string(ctx, name),
+                   Z3_ast_to_string(ctx, value));
+        }
+        
+        Z3_model_dec_ref(ctx, model);
+    }
+    
+    Z3_solver_dec_ref(ctx, solver);
+    Z3_del_context(ctx);
+    return 0;
+}
+```

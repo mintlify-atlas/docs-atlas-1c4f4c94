@@ -1,0 +1,468 @@
+---
+title: Finite Sets
+description: Finite set theory with cardinality constraints
+---
+
+The finite sets theory provides reasoning about finite sets with explicit cardinality tracking, unlike the array-based set encoding. This theory is useful for combinatorial problems and set algebra with bounded domains.
+
+## Finite Set Sort
+
+Create a finite set sort over an element type:
+
+```python
+from z3 import *
+
+# Note: FiniteSet support may vary by Z3 version/binding
+# This documents the C API
+
+# Finite set of integers
+IntFiniteSet = FiniteSetSort(IntSort())
+S = Const('S', IntFiniteSet)
+
+# Finite set of bit-vectors
+BVFiniteSet = FiniteSetSort(BitVecSort(8))
+T = Const('T', BVFiniteSet)
+```
+
+**C API**: `Z3_mk_finite_set_sort(c, elem_sort)` creates finite set sort (api_finite_set.cpp:27)
+
+### Check Sort
+
+Verify if a sort is a finite set:
+
+**C API**: `Z3_is_finite_set_sort(c, s)` (api_finite_set.cpp:38)
+
+### Get Element Sort
+
+Retrieve the element sort of a finite set:
+
+**C API**: `Z3_get_finite_set_sort_basis(c, s)` (api_finite_set.cpp:46)
+
+## Set Construction
+
+### Empty Set
+
+Create an empty set:
+
+```python
+IntFiniteSet = FiniteSetSort(IntSort())
+empty = EmptyFiniteSet(IntFiniteSet)
+
+solve(Size(empty) == 0)
+# sat
+```
+
+**C API**: `Z3_mk_finite_set_empty(c, set_sort)` (api_finite_set.cpp:59)
+
+### Singleton Set
+
+Create a set with one element:
+
+```python
+x = Int('x')
+singleton = SingletonFiniteSet(x)
+
+solve(x == 42, Size(singleton) == 1)
+# sat
+```
+
+**C API**: `Z3_mk_finite_set_singleton(c, elem)` (api_finite_set.cpp:69)
+
+### Set from Range
+
+Create a set containing all integers in a range:
+
+```python
+low = Int('low')
+high = Int('high')
+range_set = FiniteSetRange(low, high)
+
+solve(
+    low == 1,
+    high == 10,
+    Size(range_set) == 10
+)
+# [low = 1, high = 10, |range_set| = 10]
+```
+
+**C API**: `Z3_mk_finite_set_range(c, low, high)` creates set containing low through high (api_finite_set.cpp:175)
+
+## Set Operations
+
+### Union
+
+Combine two sets:
+
+```python
+S = Const('S', FiniteSetSort(IntSort()))
+T = Const('T', FiniteSetSort(IntSort()))
+
+union_set = FiniteSetUnion(S, T)
+
+x = Int('x')
+solve(
+    IsMemberFiniteSet(x, S),
+    Not(IsMemberFiniteSet(x, T)),
+    IsMemberFiniteSet(x, union_set)
+)
+# sat - x is in S, so it's in the union
+```
+
+**C API**: `Z3_mk_finite_set_union(c, s1, s2)` (api_finite_set.cpp:80)
+
+### Intersection
+
+Get common elements:
+
+```python
+intersect_set = FiniteSetIntersect(S, T)
+
+solve(
+    Size(intersect_set) > 0,
+    Size(S) == 5,
+    Size(T) == 5
+)
+# Sets have at least one element in common
+```
+
+**C API**: `Z3_mk_finite_set_intersect(c, s1, s2)` (api_finite_set.cpp:92)
+
+### Difference
+
+Remove elements of one set from another:
+
+```python
+diff_set = FiniteSetDifference(S, T)
+
+solve(
+    Size(S) == 10,
+    Size(T) == 3,
+    Size(diff_set) == 7
+)
+# All elements of T are in S
+```
+
+**C API**: `Z3_mk_finite_set_difference(c, s1, s2)` (api_finite_set.cpp:104)
+
+## Set Predicates
+
+### Membership
+
+Test if an element is in a set:
+
+```python
+S = Const('S', FiniteSetSort(IntSort()))
+x = Int('x')
+
+solve(
+    IsMemberFiniteSet(x, S),
+    x == 42,
+    Size(S) == 1
+)
+# [S = {42}, x = 42]
+```
+
+**C API**: `Z3_mk_finite_set_member(c, elem, set)` (api_finite_set.cpp:116)
+
+### Subset
+
+Test if one set is contained in another:
+
+```python
+S = Const('S', FiniteSetSort(IntSort()))
+T = Const('T', FiniteSetSort(IntSort()))
+
+solve(
+    IsSubsetFiniteSet(S, T),
+    Size(S) == 3,
+    Size(T) == 5,
+    Not(S == T)
+)
+# S ⊆ T and S ≠ T
+```
+
+**C API**: `Z3_mk_finite_set_subset(c, s1, s2)` (api_finite_set.cpp:139)
+
+## Cardinality
+
+### Set Size
+
+Get the number of elements in a set:
+
+```python
+S = Const('S', FiniteSetSort(IntSort()))
+size = Int('size')
+
+solve(
+    size == FiniteSetSize(S),
+    size >= 1,
+    size <= 10
+)
+# S has between 1 and 10 elements
+```
+
+**C API**: `Z3_mk_finite_set_size(c, set)` returns integer representing cardinality (api_finite_set.cpp:128)
+
+### Cardinality Constraints
+
+Reason about set sizes:
+
+```python
+S = Const('S', FiniteSetSort(IntSort()))
+T = Const('T', FiniteSetSort(IntSort()))
+U = FiniteSetUnion(S, T)
+
+solve(
+    Size(S) == 5,
+    Size(T) == 3,
+    Size(FiniteSetIntersect(S, T)) == 2,
+    Size(U) == 6  # |S ∪ T| = |S| + |T| - |S ∩ T|
+)
+# sat
+```
+
+## Higher-Order Operations
+
+### Map
+
+Apply a function to all elements:
+
+```python
+S = Const('S', FiniteSetSort(IntSort()))
+f = Function('f', IntSort(), IntSort())
+
+# Map f over S: {f(x) | x ∈ S}
+mapped_set = FiniteSetMap(f, S)
+
+solve(
+    Size(S) == 3,
+    Size(mapped_set) <= 3  # May be smaller if f is not injective
+)
+```
+
+**C API**: `Z3_mk_finite_set_map(c, f, set)` (api_finite_set.cpp:151)
+
+### Filter
+
+Select elements satisfying a predicate:
+
+```python
+S = Const('S', FiniteSetSort(IntSort()))
+p = Function('p', IntSort(), BoolSort())
+
+# Filter S by predicate: {x ∈ S | p(x)}
+filtered_set = FiniteSetFilter(p, S)
+
+solve(
+    Size(S) == 10,
+    Size(filtered_set) == 5
+)
+# Half the elements satisfy the predicate
+```
+
+**C API**: `Z3_mk_finite_set_filter(c, f, set)` (api_finite_set.cpp:163)
+
+## Complete Examples
+
+### Example 1: Set Cover Problem
+
+```python
+from z3 import *
+
+# Simplified set cover using finite sets
+# Universe of elements: {1, 2, 3, 4, 5}
+# Available sets: S1={1,2}, S2={2,3}, S3={3,4}, S4={4,5}
+# Find minimum number of sets to cover all elements
+
+universe = FiniteSetRange(IntVal(1), IntVal(5))
+
+# Decision variables: include each set or not
+use_s1 = Bool('use_s1')
+use_s2 = Bool('use_s2')
+use_s3 = Bool('use_s3')
+use_s4 = Bool('use_s4')
+
+# Build the covering based on selections
+covering = EmptyFiniteSet(FiniteSetSort(IntSort()))
+# Add sets conditionally (pseudocode - actual encoding more complex)
+
+# Minimize number of sets used
+cost = If(use_s1, 1, 0) + If(use_s2, 1, 0) + If(use_s3, 1, 0) + If(use_s4, 1, 0)
+
+solve(
+    IsSubsetFiniteSet(universe, covering),  # All elements covered
+    cost <= 3  # Use at most 3 sets
+)
+```
+
+### Example 2: Partition Problem
+
+```python
+from z3 import *
+
+# Partition a set into two subsets with equal sum
+original = FiniteSetRange(IntVal(1), IntVal(10))
+S1 = Const('S1', FiniteSetSort(IntSort()))
+S2 = Const('S2', FiniteSetSort(IntSort()))
+
+solve(
+    # S1 and S2 partition the original set
+    FiniteSetUnion(S1, S2) == original,
+    Size(FiniteSetIntersect(S1, S2)) == 0,  # Disjoint
+    
+    # Equal sums (would need sum function)
+    Size(S1) == Size(S2)  # At least equal sizes
+)
+```
+
+### Example 3: Graph Coloring
+
+```python
+from z3 import *
+
+# Color nodes such that no edge connects same-colored nodes
+# Graph represented as adjacency
+
+Color = DeclareSort('Color')
+Node = DeclareSort('Node')
+
+red = Const('red', Color)
+blue = Const('blue', Color)
+green = Const('green', Color)
+
+# Sets of nodes for each color
+red_nodes = Const('red_nodes', FiniteSetSort(Node))
+blue_nodes = Const('blue_nodes', FiniteSetSort(Node))
+green_nodes = Const('green_nodes', FiniteSetSort(Node))
+
+# All nodes colored
+all_nodes = Const('all_nodes', FiniteSetSort(Node))
+
+solve(
+    # Partition nodes by color
+    FiniteSetUnion(red_nodes, FiniteSetUnion(blue_nodes, green_nodes)) == all_nodes,
+    
+    # Colors are disjoint
+    Size(FiniteSetIntersect(red_nodes, blue_nodes)) == 0,
+    Size(FiniteSetIntersect(red_nodes, green_nodes)) == 0,
+    Size(FiniteSetIntersect(blue_nodes, green_nodes)) == 0
+    
+    # Add edge constraints here
+)
+```
+
+### Example 4: Combinatorial Constraints
+
+```python
+from z3 import *
+
+# Select exactly k elements from a set
+elements = FiniteSetRange(IntVal(1), IntVal(10))
+selection = Const('selection', FiniteSetSort(IntSort()))
+k = Int('k')
+
+solve(
+    IsSubsetFiniteSet(selection, elements),
+    Size(selection) == k,
+    k == 5,
+    # Additional constraints on selected elements
+    ForAll([x], 
+        Implies(
+            IsMemberFiniteSet(x, selection),
+            x > 3  # Only select elements > 3
+        )
+    )
+)
+```
+
+### Example 5: Cardinality-Based Reasoning
+
+```python
+from z3 import *
+
+# Prove: |A ∪ B| = |A| + |B| - |A ∩ B|
+A = Const('A', FiniteSetSort(IntSort()))
+B = Const('B', FiniteSetSort(IntSort()))
+
+solve(
+    Size(FiniteSetUnion(A, B)) != 
+    Size(A) + Size(B) - Size(FiniteSetIntersect(A, B))
+)
+# unsat - the formula is a tautology
+```
+
+### Example 6: Bounded Quantification
+
+```python
+from z3 import *
+
+# All elements in a set satisfy a property
+S = Const('S', FiniteSetSort(IntSort()))
+
+# Every element in S is even
+solve(
+    Size(S) > 0,
+    ForAll([x], 
+        Implies(
+            IsMemberFiniteSet(x, S),
+            x % 2 == 0
+        )
+    ),
+    IsMemberFiniteSet(IntVal(3), S)  # Contradiction
+)
+# unsat - cannot have odd number in set of evens
+```
+
+## Advantages Over Array-Based Sets
+
+1. **Explicit Cardinality**: Size is a first-class concept
+2. **Bounded Domains**: Better for finite universe problems
+3. **Combinatorial Reasoning**: Natural encoding for counting problems
+4. **Performance**: Can be more efficient for cardinality-heavy constraints
+
+## Limitations
+
+- Only for finite sets (unbounded sets use array theory)
+- May not be available in all Z3 bindings (C API most complete)
+- Element type must have decidable equality
+
+## Use Cases
+
+- **Combinatorial Optimization**: Set cover, partition, packing problems
+- **Resource Allocation**: Assign items to bins with capacity constraints
+- **Graph Algorithms**: Coloring, independent sets, cliques
+- **Database Queries**: Set operations with cardinality constraints
+- **Type Systems**: Intersection types, type sets
+
+## Comparison with Array-Based Sets
+
+| Feature | Finite Sets | Array-Based Sets |
+|---------|-------------|------------------|
+| Cardinality | Direct | Via axioms |
+| Domain | Finite | Potentially infinite |
+| Operations | Set-theoretic | Array select/store |
+| Use Case | Combinatorics | General sets |
+
+## Implementation Notes
+
+- Finite sets compile to constraints on cardinality
+- Uses specialized decision procedures for set algebra
+- Cardinality bounds help prune search space
+- May use BDD-based representations internally
+
+## API Summary
+
+**C API Functions** (api_finite_set.cpp):
+
+- Sort: `Z3_mk_finite_set_sort`, `Z3_is_finite_set_sort`, `Z3_get_finite_set_sort_basis`
+- Construction: `Z3_mk_finite_set_empty`, `Z3_mk_finite_set_singleton`, `Z3_mk_finite_set_range`
+- Operations: `Z3_mk_finite_set_union`, `Z3_mk_finite_set_intersect`, `Z3_mk_finite_set_difference`
+- Predicates: `Z3_mk_finite_set_member`, `Z3_mk_finite_set_subset`
+- Cardinality: `Z3_mk_finite_set_size`
+- Higher-order: `Z3_mk_finite_set_map`, `Z3_mk_finite_set_filter`
+
+## References
+
+- Implementation: `src/api/api_finite_set.cpp`
+- Theory plugin: Finite sets theory
+- Related: Array theory for infinite sets

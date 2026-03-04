@@ -1,0 +1,399 @@
+---
+title: Getting Started with Z3 Python
+description: Learn the basics of using Z3 in Python with examples
+---
+
+# Getting Started with Z3 Python
+
+This guide introduces the Z3 Python API through practical examples.
+
+## Your First Z3 Program
+
+Let's start with a simple constraint solving example:
+
+```python
+from z3 import *
+
+# Create integer variables
+x = Int('x')
+y = Int('y')
+
+# Create a solver
+s = Solver()
+
+# Add constraints
+s.add(x + y > 5)
+s.add(x > 1)
+s.add(y > 1)
+
+# Check satisfiability
+if s.check() == sat:
+    print("Satisfiable!")
+    m = s.model()
+    print(f"x = {m[x]}")
+    print(f"y = {m[y]}")
+else:
+    print("Unsatisfiable")
+```
+
+**Output:**
+```
+Satisfiable!
+x = 2
+y = 4
+```
+
+## Basic Concepts
+
+### Variables and Sorts
+
+Z3 supports multiple data types (called "sorts"):
+
+```python
+from z3 import *
+
+# Integer variables
+x = Int('x')
+y = Int('y')
+
+# Real variables
+a = Real('a')
+b = Real('b')
+
+# Boolean variables
+p = Bool('p')
+q = Bool('q')
+
+# Bitvector variables (fixed-width integers)
+bv = BitVec('bv', 32)  # 32-bit bitvector
+
+# Create multiple variables at once
+x, y, z = Ints('x y z')
+a, b, c = Reals('a b c')
+p, q, r = Bools('p q r')
+```
+
+### The Solver
+
+The `Solver` class is the main interface for checking satisfiability:
+
+```python
+s = Solver()
+
+# Add constraints
+s.add(x > 0)
+s.add(x < 10)
+
+# Check satisfiability
+result = s.check()
+
+if result == sat:
+    print("Satisfiable")
+    print(s.model())  # Get a satisfying assignment
+elif result == unsat:
+    print("Unsatisfiable")
+else:
+    print("Unknown")
+```
+
+### Building Constraints
+
+Z3 supports standard mathematical and logical operators:
+
+```python
+x, y, z = Ints('x y z')
+
+# Arithmetic
+constraint1 = x + y == z
+constraint2 = x * 2 > y
+constraint3 = x / y == 3  # Integer division
+
+# Comparison
+constraint4 = x >= y
+constraint5 = x != z
+
+# Logical operators
+p, q = Bools('p q')
+constraint6 = And(p, q)
+constraint7 = Or(p, Not(q))
+constraint8 = Implies(p, q)
+```
+
+## Common Patterns
+
+### Working with Models
+
+When a formula is satisfiable, you can extract a model:
+
+```python
+x, y = Ints('x y')
+s = Solver()
+s.add(x + y == 10)
+s.add(x > y)
+
+if s.check() == sat:
+    m = s.model()
+    
+    # Access variable values
+    print(f"x = {m[x]}")
+    print(f"y = {m[y]}")
+    
+    # Evaluate expressions
+    print(f"x + y = {m.eval(x + y)}")
+    
+    # Check if a variable has a value in the model
+    if m[x] is not None:
+        print("x has a value")
+```
+
+### Checking Multiple Constraints
+
+You can check constraints incrementally:
+
+```python
+s = Solver()
+x = Int('x')
+
+s.add(x > 0)
+print(s.check())  # sat
+
+s.add(x < 10)
+print(s.check())  # sat
+
+s.add(x > 20)
+print(s.check())  # unsat
+```
+
+### Push and Pop (Backtracking)
+
+Solvers support backtracking with `push()` and `pop()`:
+
+```python
+s = Solver()
+x = Int('x')
+
+s.add(x > 0)
+print(s.check())  # sat
+
+s.push()  # Save current state
+s.add(x < 0)
+print(s.check())  # unsat
+
+s.pop()  # Restore previous state
+print(s.check())  # sat again
+```
+
+## Real-World Examples
+
+### Example 1: Solving Equations
+
+Solve for x and y in a system of equations:
+
+```python
+from z3 import *
+
+x, y = Reals('x y')
+s = Solver()
+
+# 2x + y = 10
+# x - y = 2
+s.add(2*x + y == 10)
+s.add(x - y == 2)
+
+if s.check() == sat:
+    m = s.model()
+    print(f"x = {m[x]}")
+    print(f"y = {m[y]}")
+```
+
+### Example 2: Boolean Logic (Socrates)
+
+A classic logical reasoning example:
+
+```python
+from z3 import *
+
+# Define a sort for objects
+Object = DeclareSort('Object')
+
+# Define predicates
+Human = Function('Human', Object, BoolSort())
+Mortal = Function('Mortal', Object, BoolSort())
+
+# Define Socrates
+socrates = Const('socrates', Object)
+
+# Variable for universal quantification
+x = Const('x', Object)
+
+# Axioms
+s = Solver()
+s.add(ForAll([x], Implies(Human(x), Mortal(x))))  # All humans are mortal
+s.add(Human(socrates))  # Socrates is human
+
+# Check if axioms are consistent
+print(s.check())  # sat
+
+# Prove Socrates is mortal (by refutation)
+s.add(Not(Mortal(socrates)))
+print(s.check())  # unsat (proof by contradiction)
+```
+
+### Example 3: Bitvector Arithmetic
+
+Working with fixed-width integers:
+
+```python
+from z3 import *
+
+x = BitVec('x', 32)
+y = BitVec('y', 32)
+
+s = Solver()
+
+# Bitwise operations
+s.add(x & y == 0)  # AND
+s.add(x | y == 0xFF)  # OR
+s.add(x ^ y == 0xFF)  # XOR
+
+if s.check() == sat:
+    m = s.model()
+    print(f"x = 0x{m[x].as_long():08x}")
+    print(f"y = 0x{m[y].as_long():08x}")
+```
+
+### Example 4: Formula Simplification
+
+Z3 can simplify complex formulas:
+
+```python
+from z3 import *
+
+x = Bool('x')
+y = Bool('y')
+
+# Complex formula
+formula = And(x, Or(x, y))
+
+# Simplify
+simplified = simplify(formula)
+print(simplified)  # Output: x
+
+# Simplify arithmetic
+a, b = Ints('a b')
+expr = (a + b) * 2 - a * 2
+print(simplify(expr))  # Output: 2*b
+```
+
+## Working with Different Types
+
+### Arrays
+
+Z3 supports arrays (maps from indices to values):
+
+```python
+from z3 import *
+
+# Array from Int to Int
+A = Array('A', IntSort(), IntSort())
+x = Int('x')
+
+s = Solver()
+
+# A[x] = 10
+s.add(A[x] == 10)
+
+# A[5] = 20
+s.add(Store(A, 5, 20)[x] == 10)
+
+if s.check() == sat:
+    m = s.model()
+    print(m[A])
+    print(m[x])
+```
+
+### Strings
+
+String constraints and operations:
+
+```python
+from z3 import *
+
+s1 = String('s1')
+s2 = String('s2')
+
+s = Solver()
+
+# Concatenation
+s.add(Concat(s1, s2) == StringVal("hello world"))
+
+# Length constraint
+s.add(Length(s1) == 5)
+
+if s.check() == sat:
+    m = s.model()
+    print(f"s1 = {m[s1]}")
+    print(f"s2 = {m[s2]}")
+```
+
+## Unsat Cores
+
+When constraints are unsatisfiable, identify the conflicting subset:
+
+```python
+from z3 import *
+
+x = Int('x')
+
+# Create solver with unsat core tracking
+s = Solver()
+
+# Add named constraints
+c1 = x > 10
+c2 = x < 5
+c3 = x > 0
+
+s.assert_and_track(c1, 'c1')
+s.assert_and_track(c2, 'c2')
+s.assert_and_track(c3, 'c3')
+
+if s.check() == unsat:
+    core = s.unsat_core()
+    print("Unsatisfiable core:")
+    for c in core:
+        print(f"  {c}")
+```
+
+## Best Practices
+
+1. **Use appropriate sorts**: Choose Int, Real, or BitVec based on your needs
+2. **Leverage push/pop**: For incremental solving and backtracking
+3. **Simplify formulas**: Use `simplify()` to reduce complexity
+4. **Set timeouts**: Use `s.set('timeout', milliseconds)` for long-running queries
+5. **Check return values**: Always check if `check()` returns `sat`, `unsat`, or `unknown`
+
+## Configuration and Parameters
+
+Customize solver behavior:
+
+```python
+s = Solver()
+
+# Set timeout (in milliseconds)
+s.set('timeout', 5000)
+
+# Set random seed for reproducibility
+s.set('random_seed', 42)
+
+# Enable/disable specific tactics
+s.set('auto_config', False)
+
+# View all parameters
+print(s.param_descrs())
+```
+
+## Next Steps
+
+- [API Reference](/bindings/python/api-reference) - Detailed documentation of all classes and methods
+- [Z3 Guide](https://microsoft.github.io/z3guide/) - Interactive online guide
+- [Examples](https://github.com/Z3Prover/z3/tree/master/examples/python) - More advanced examples

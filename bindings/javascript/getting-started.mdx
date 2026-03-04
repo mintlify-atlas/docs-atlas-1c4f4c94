@@ -1,0 +1,381 @@
+---
+title: Getting Started
+description: Quick start guide for Z3 JavaScript/TypeScript bindings
+icon: rocket
+---
+
+Z3's JavaScript bindings provide both high-level (Z3Py-like) and low-level (C-like) APIs. This guide covers the high-level API, which is recommended for most use cases.
+
+## Quick Start
+
+Create a simple Z3 program:
+
+```javascript example.js
+const { init } = require('z3-solver');
+
+(async () => {
+  // Initialize Z3
+  const { Context } = await init();
+  const { Solver, Int, And } = new Context('main');
+
+  // Create variables
+  const x = Int.const('x');
+
+  // Create solver and add constraints
+  const solver = new Solver();
+  solver.add(And(x.ge(0), x.le(9)));
+
+  // Check satisfiability
+  const result = await solver.check();
+  console.log('Result:', result); // sat
+
+  // Get model
+  if (result === 'sat') {
+    const model = solver.model();
+    console.log('x =', model.eval(x).toString());
+  }
+})();
+```
+
+## High-Level API Overview
+
+The high-level API provides a clean, object-oriented interface similar to Z3Py.
+
+### Initialization
+
+Always start by initializing Z3:
+
+```typescript
+const { init } = require('z3-solver');
+const { Context } = await init();
+const { Solver, Int, Real, Bool } = new Context('main');
+```
+
+<Note>
+  The `init()` function is async because it loads the WebAssembly module.
+</Note>
+
+### Creating Variables
+
+<CodeGroup>
+```javascript Integer Variables
+const x = Int.const('x');
+const y = Int.const('y');
+const z = Int.const('z');
+```
+
+```javascript Real Variables
+const a = Real.const('a');
+const b = Real.const('b');
+```
+
+```javascript Boolean Variables
+const p = Bool.const('p');
+const q = Bool.const('q');
+```
+
+```javascript Bit-Vector Variables
+const { BitVec } = new Context('main');
+const bv = BitVec.const('bv', 8); // 8-bit vector
+```
+</CodeGroup>
+
+### Building Expressions
+
+```javascript
+const { Int, And, Or, Not } = new Context('main');
+
+const x = Int.const('x');
+const y = Int.const('y');
+
+// Arithmetic
+const sum = x.add(y);
+const diff = x.sub(y);
+const prod = x.mul(y);
+
+// Comparisons
+const constraint1 = x.gt(0);        // x > 0
+const constraint2 = y.le(10);       // y <= 10
+const constraint3 = x.eq(y.add(5)); // x == y + 5
+
+// Boolean operations
+const formula = And(
+  x.gt(0),
+  y.le(10),
+  x.add(y).eq(15)
+);
+```
+
+### Solving Constraints
+
+```javascript
+const solver = new Solver();
+
+// Add constraints
+solver.add(x.add(y).eq(10));
+solver.add(x.gt(y));
+
+// Check satisfiability
+const result = await solver.check();
+
+if (result === 'sat') {
+  const model = solver.model();
+  console.log('x =', model.eval(x).toString());
+  console.log('y =', model.eval(y).toString());
+} else if (result === 'unsat') {
+  console.log('No solution exists');
+} else {
+  console.log('Unknown');
+}
+```
+
+## Common Examples
+
+### Example 1: Solving Linear Equations
+
+Solve the system:
+- x + y = 10
+- x - y = 2
+
+```javascript
+const { init } = require('z3-solver');
+
+(async () => {
+  const { Context } = await init();
+  const { Int, Solver } = new Context('main');
+  
+  const x = Int.const('x');
+  const y = Int.const('y');
+  
+  const solver = new Solver();
+  solver.add(x.add(y).eq(10));
+  solver.add(x.sub(y).eq(2));
+  
+  if (await solver.check() === 'sat') {
+    const model = solver.model();
+    console.log('x =', model.eval(x)); // x = 6
+    console.log('y =', model.eval(y)); // y = 4
+  }
+})();
+```
+
+### Example 2: Boolean Logic
+
+Solve: (p ∨ q) ∧ (¬p ∨ ¬q)
+
+```javascript
+const { Context } = await init();
+const { Bool, Solver, And, Or, Not } = new Context('main');
+
+const p = Bool.const('p');
+const q = Bool.const('q');
+
+const solver = new Solver();
+solver.add(And(
+  Or(p, q),
+  Or(Not(p), Not(q))
+));
+
+if (await solver.check() === 'sat') {
+  const model = solver.model();
+  console.log('p =', model.eval(p).toString()); // p = false
+  console.log('q =', model.eval(q).toString()); // q = true
+}
+```
+
+### Example 3: Bit-Vector Arithmetic
+
+```javascript
+const { Context } = await init();
+const { BitVec, Solver } = new Context('main');
+
+const x = BitVec.const('x', 8);
+const y = BitVec.const('y', 8);
+
+const solver = new Solver();
+solver.add(x.add(y).eq(BitVec.val(255, 8)));
+solver.add(x.ugt(y)); // unsigned greater than
+
+if (await solver.check() === 'sat') {
+  const model = solver.model();
+  console.log('x =', model.eval(x).asSignedValue()); // as decimal
+  console.log('y =', model.eval(y).asSignedValue());
+}
+```
+
+### Example 4: Using Simplifiers
+
+From [simplifier-example.ts](/home/daytona/workspace/source/src/api/js/examples/high-level/simplifier-example.ts:1):
+
+```typescript
+const { Context } = await init();
+const { Int, Solver, Simplifier, Params } = Context('main');
+
+// Create and configure parameters
+const params = new Params();
+params.set('elim_and', true);
+params.set('max_steps', 1000);
+
+// Create simplifier
+const simplifier = new Simplifier('solve-eqs');
+
+// Compose simplifiers
+const s1 = new Simplifier('solve-eqs');
+const s2 = new Simplifier('simplify');
+const composed = s1.andThen(s2);
+
+// Add simplifier to solver
+const solver = new Solver();
+solver.addSimplifier(s1);
+
+const x = Int.const('x');
+const y = Int.const('y');
+solver.add(x.eq(y.add(1)));
+solver.add(y.eq(5));
+
+const result = await solver.check();
+if (result === 'sat') {
+  const model = solver.model();
+  console.log('x =', model.eval(x).toString()); // x = 6
+  console.log('y =', model.eval(y).toString()); // y = 5
+}
+```
+
+### Example 5: Parsing SMT-LIB2
+
+```typescript
+const { Context, em } = await init();
+const z3 = Context('main');
+
+const x = z3.BitVec.const('x', 256);
+const y = z3.BitVec.const('y', 256);
+const expr = x.add(y).mul(x.add(z3.BitVec.const('z', 256)));
+
+const solver = new z3.Solver();
+solver.add(expr.eq(z3.Const('test', expr.sort)));
+
+const result = await solver.check();
+if (result === 'sat') {
+  const model = solver.model();
+  // Get S-expression representation
+  const modelStr = model.sexpr();
+  console.log('Model:', modelStr);
+  
+  // Parse back from SMT-LIB2 format
+  const exprs = z3.ast_from_string(modelStr);
+}
+```
+
+## Context Isolation
+
+Z3 contexts are isolated from each other. TypeScript types enforce this at compile time:
+
+```typescript
+const { Int: Int1 } = new Context('context1');
+const { Int: Int2 } = new Context('context2');
+
+const x = Int1.const('x');
+const y = Int2.const('y');
+
+// This will fail to compile in TypeScript:
+// x.ge(y); // Error: contexts don't match
+```
+
+### Working with Multiple Contexts
+
+Use templated functions to propagate types:
+
+```typescript
+function add<Name extends string>(
+  a: Arith<Name>, 
+  b: Arith<Name>
+): Arith<Name> {
+  return a.add(b).add(5);
+}
+```
+
+## Asynchronous Operations
+
+<Warning>
+  Long-running operations are async and run in separate threads. Only one can run at a time.
+</Warning>
+
+These operations are async:
+- `solver.check()`
+- `solver.check(assumptions)`  
+- `solver.consequences()`
+- `tactic.apply()`
+
+```javascript
+// Queue up operations
+const result1 = await solver1.check();
+const result2 = await solver2.check(); // Waits for result1
+```
+
+## Using SMT-LIB2 Format
+
+You can parse and work with SMT-LIB2 strings:
+
+```javascript
+const { Context } = await init();
+const z3 = Context('main');
+
+// Parse SMT-LIB2 expressions
+const smt = '(declare-const x Int) (assert (> x 0))';
+const exprs = z3.from_string(smt);
+
+const solver = new z3.Solver();
+solver.add(...exprs);
+const result = await solver.check();
+```
+
+## TypeScript Support
+
+The bindings include full TypeScript definitions:
+
+```typescript
+import { init } from 'z3-solver';
+import type { Context, Solver, Arith } from 'z3-solver';
+
+const { Context } = await init();
+const { Int, Solver } = new Context('main');
+
+const x: Arith<'main'> = Int.const('x');
+const solver: Solver<'main'> = new Solver();
+```
+
+## Memory Management
+
+Z3's WebAssembly module manages memory automatically. Objects are garbage collected when no longer referenced.
+
+<Tip>
+  For long-running applications, consider periodically creating fresh contexts to avoid memory buildup.
+</Tip>
+
+## Error Handling
+
+```javascript
+try {
+  const result = await solver.check();
+  // ...
+} catch (error) {
+  console.error('Z3 error:', error);
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="API Reference" icon="book" href="/bindings/javascript/api-reference">
+    Complete API documentation
+  </Card>
+  <Card title="Examples" icon="code" href="/examples/basic-solving">
+    More examples and tutorials
+  </Card>
+  <Card title="Low-Level API" icon="terminal" href="https://z3prover.github.io/api/html/z3__api_8h.html">
+    C-like API documentation
+  </Card>
+  <Card title="Source Examples" icon="github" href="https://github.com/Z3Prover/z3/tree/master/src/api/js/examples">
+    Example code on GitHub
+  </Card>
+</CardGroup>

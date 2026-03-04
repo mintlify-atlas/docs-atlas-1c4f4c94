@@ -1,0 +1,638 @@
+---
+title: Optimization API
+description: MaxSMT and optimization queries
+---
+
+## Overview
+
+The Optimization API provides functions for solving optimization problems - finding models that maximize or minimize objective functions while satisfying constraints.
+
+## Types
+
+### Z3_optimize
+
+Context for solving optimization queries. Supports hard constraints, soft constraints, and multiple objectives.
+
+## Optimizer Creation
+
+### Z3_mk_optimize
+
+```c
+Z3_optimize Z3_API Z3_mk_optimize(Z3_context c);
+```
+
+Create an optimization context.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ResponseField name="return" type="Z3_optimize">
+  New optimizer instance
+</ResponseField>
+
+**Example:**
+
+```c
+Z3_optimize opt = Z3_mk_optimize(ctx);
+Z3_optimize_inc_ref(ctx, opt);
+// Use optimizer...
+Z3_optimize_dec_ref(ctx, opt);
+```
+
+### Z3_optimize_inc_ref
+
+```c
+void Z3_API Z3_optimize_inc_ref(Z3_context c, Z3_optimize o);
+```
+
+Increment the reference counter of the optimizer.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="o" type="Z3_optimize">
+  Optimizer
+</ParamField>
+
+### Z3_optimize_dec_ref
+
+```c
+void Z3_API Z3_optimize_dec_ref(Z3_context c, Z3_optimize o);
+```
+
+Decrement the reference counter of the optimizer.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="o" type="Z3_optimize">
+  Optimizer
+</ParamField>
+
+## Hard Constraints
+
+### Z3_optimize_assert
+
+```c
+void Z3_API Z3_optimize_assert(Z3_context c, Z3_optimize o, Z3_ast a);
+```
+
+Assert a hard constraint (must be satisfied).
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="o" type="Z3_optimize">
+  Optimizer
+</ParamField>
+
+<ParamField name="a" type="Z3_ast">
+  Boolean expression (hard constraint)
+</ParamField>
+
+**Description:**
+
+Hard constraints must be satisfied by any solution. If hard constraints are unsatisfiable, the optimizer will return UNSAT.
+
+**Example:**
+
+```c
+// Assert x >= 0 and x <= 100
+Z3_ast x = Z3_mk_const(ctx, Z3_mk_string_symbol(ctx, "x"), Z3_mk_int_sort(ctx));
+Z3_ast zero = Z3_mk_int(ctx, 0, Z3_mk_int_sort(ctx));
+Z3_ast hundred = Z3_mk_int(ctx, 100, Z3_mk_int_sort(ctx));
+
+Z3_optimize_assert(ctx, opt, Z3_mk_ge(ctx, x, zero));
+Z3_optimize_assert(ctx, opt, Z3_mk_le(ctx, x, hundred));
+```
+
+### Z3_optimize_assert_and_track
+
+```c
+void Z3_API Z3_optimize_assert_and_track(
+    Z3_context c,
+    Z3_optimize o,
+    Z3_ast a,
+    Z3_ast t
+);
+```
+
+Assert a hard constraint with a tracking literal.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="o" type="Z3_optimize">
+  Optimizer
+</ParamField>
+
+<ParamField name="a" type="Z3_ast">
+  Boolean expression (hard constraint)
+</ParamField>
+
+<ParamField name="t" type="Z3_ast">
+  Tracking literal (for unsat cores)
+</ParamField>
+
+## Soft Constraints
+
+### Z3_optimize_assert_soft
+
+```c
+unsigned Z3_API Z3_optimize_assert_soft(
+    Z3_context c,
+    Z3_optimize o,
+    Z3_ast a,
+    Z3_string weight,
+    Z3_symbol id
+);
+```
+
+Assert a soft constraint with weight (for MaxSMT).
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="o" type="Z3_optimize">
+  Optimizer
+</ParamField>
+
+<ParamField name="a" type="Z3_ast">
+  Boolean expression (soft constraint)
+</ParamField>
+
+<ParamField name="weight" type="Z3_string">
+  Weight as string (e.g., "1", "2.5")
+</ParamField>
+
+<ParamField name="id" type="Z3_symbol">
+  Optional identifier symbol
+</ParamField>
+
+<ResponseField name="return" type="unsigned">
+  Index of the soft constraint
+</ResponseField>
+
+**Description:**
+
+Soft constraints are preferably satisfied but may be violated. The optimizer minimizes the sum of weights of violated soft constraints.
+
+**Example:**
+
+```c
+// Soft constraint: prefer x > 50 (weight 1)
+Z3_ast x = Z3_mk_const(ctx, Z3_mk_string_symbol(ctx, "x"), Z3_mk_int_sort(ctx));
+Z3_ast fifty = Z3_mk_int(ctx, 50, Z3_mk_int_sort(ctx));
+
+Z3_optimize_assert_soft(
+    ctx, opt,
+    Z3_mk_gt(ctx, x, fifty),
+    "1",
+    Z3_mk_string_symbol(ctx, "prefer_large")
+);
+
+// Soft constraint: prefer x < 30 (weight 2)
+Z3_ast thirty = Z3_mk_int(ctx, 30, Z3_mk_int_sort(ctx));
+Z3_optimize_assert_soft(
+    ctx, opt,
+    Z3_mk_lt(ctx, x, thirty),
+    "2",
+    Z3_mk_string_symbol(ctx, "prefer_small")
+);
+```
+
+## Objectives
+
+### Z3_optimize_maximize
+
+```c
+unsigned Z3_API Z3_optimize_maximize(Z3_context c, Z3_optimize o, Z3_ast t);
+```
+
+Add a maximization objective.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="o" type="Z3_optimize">
+  Optimizer
+</ParamField>
+
+<ParamField name="t" type="Z3_ast">
+  Expression to maximize (typically arithmetic)
+</ParamField>
+
+<ResponseField name="return" type="unsigned">
+  Objective handle
+</ResponseField>
+
+**Description:**
+
+Adds an objective to maximize the value of the expression.
+
+**Example:**
+
+```c
+// Maximize x + 2*y
+Z3_ast x = Z3_mk_const(ctx, Z3_mk_string_symbol(ctx, "x"), Z3_mk_int_sort(ctx));
+Z3_ast y = Z3_mk_const(ctx, Z3_mk_string_symbol(ctx, "y"), Z3_mk_int_sort(ctx));
+
+Z3_ast two = Z3_mk_int(ctx, 2, Z3_mk_int_sort(ctx));
+Z3_ast two_y = Z3_mk_mul(ctx, 1, &two); // 2*y
+Z3_ast args[2] = {x, two_y};
+Z3_ast objective = Z3_mk_add(ctx, 2, args);
+
+unsigned handle = Z3_optimize_maximize(ctx, opt, objective);
+```
+
+### Z3_optimize_minimize
+
+```c
+unsigned Z3_API Z3_optimize_minimize(Z3_context c, Z3_optimize o, Z3_ast t);
+```
+
+Add a minimization objective.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="o" type="Z3_optimize">
+  Optimizer
+</ParamField>
+
+<ParamField name="t" type="Z3_ast">
+  Expression to minimize
+</ParamField>
+
+<ResponseField name="return" type="unsigned">
+  Objective handle
+</ResponseField>
+
+**Description:**
+
+Adds an objective to minimize the value of the expression.
+
+**Example:**
+
+```c
+// Minimize x^2 + y^2 (distance from origin)
+Z3_ast x_squared = Z3_mk_mul(ctx, 1, &x);
+Z3_ast y_squared = Z3_mk_mul(ctx, 1, &y);
+Z3_ast args[2] = {x_squared, y_squared};
+Z3_ast distance = Z3_mk_add(ctx, 2, args);
+
+Z3_optimize_minimize(ctx, opt, distance);
+```
+
+## Checking and Results
+
+### Z3_optimize_check
+
+```c
+Z3_lbool Z3_API Z3_optimize_check(
+    Z3_context c,
+    Z3_optimize o,
+    unsigned num_assumptions,
+    Z3_ast const assumptions[]
+);
+```
+
+Solve the optimization problem.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="o" type="Z3_optimize">
+  Optimizer
+</ParamField>
+
+<ParamField name="num_assumptions" type="unsigned">
+  Number of assumptions
+</ParamField>
+
+<ParamField name="assumptions" type="Z3_ast const[]">
+  Optional array of assumption literals
+</ParamField>
+
+<ResponseField name="return" type="Z3_lbool">
+  Z3_L_TRUE if satisfiable, Z3_L_FALSE if unsatisfiable, Z3_L_UNDEF if unknown
+</ResponseField>
+
+**Example:**
+
+```c
+Z3_lbool result = Z3_optimize_check(ctx, opt, 0, NULL);
+
+if (result == Z3_L_TRUE) {
+    printf("Optimal solution found\n");
+    Z3_model model = Z3_optimize_get_model(ctx, opt);
+    Z3_model_inc_ref(ctx, model);
+    // Use model...
+    Z3_model_dec_ref(ctx, model);
+} else if (result == Z3_L_FALSE) {
+    printf("Unsatisfiable\n");
+} else {
+    printf("Unknown\n");
+}
+```
+
+### Z3_optimize_get_model
+
+```c
+Z3_model Z3_API Z3_optimize_get_model(Z3_context c, Z3_optimize o);
+```
+
+Retrieve the model from the last check.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="o" type="Z3_optimize">
+  Optimizer
+</ParamField>
+
+<ResponseField name="return" type="Z3_model">
+  Model (must increment reference)
+</ResponseField>
+
+### Z3_optimize_get_upper
+
+```c
+Z3_ast Z3_API Z3_optimize_get_upper(Z3_context c, Z3_optimize o, unsigned idx);
+```
+
+Retrieve the upper bound for an objective.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="o" type="Z3_optimize">
+  Optimizer
+</ParamField>
+
+<ParamField name="idx" type="unsigned">
+  Objective handle
+</ParamField>
+
+<ResponseField name="return" type="Z3_ast">
+  Upper bound expression
+</ResponseField>
+
+### Z3_optimize_get_lower
+
+```c
+Z3_ast Z3_API Z3_optimize_get_lower(Z3_context c, Z3_optimize o, unsigned idx);
+```
+
+Retrieve the lower bound for an objective.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="o" type="Z3_optimize">
+  Optimizer
+</ParamField>
+
+<ParamField name="idx" type="unsigned">
+  Objective handle
+</ParamField>
+
+<ResponseField name="return" type="Z3_ast">
+  Lower bound expression
+</ResponseField>
+
+## Backtracking
+
+### Z3_optimize_push
+
+```c
+void Z3_API Z3_optimize_push(Z3_context c, Z3_optimize o);
+```
+
+Create a backtracking point.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="o" type="Z3_optimize">
+  Optimizer
+</ParamField>
+
+### Z3_optimize_pop
+
+```c
+void Z3_API Z3_optimize_pop(Z3_context c, Z3_optimize o);
+```
+
+Backtrack one level.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="o" type="Z3_optimize">
+  Optimizer
+</ParamField>
+
+**Example:**
+
+```c
+Z3_optimize_push(ctx, opt);
+Z3_optimize_assert(ctx, opt, constraint1);
+Z3_optimize_check(ctx, opt, 0, NULL);
+
+Z3_optimize_push(ctx, opt);
+Z3_optimize_assert(ctx, opt, constraint2);
+Z3_optimize_check(ctx, opt, 0, NULL);
+
+Z3_optimize_pop(ctx, opt); // Remove constraint2
+Z3_optimize_pop(ctx, opt); // Remove constraint1
+```
+
+## Information Retrieval
+
+### Z3_optimize_get_reason_unknown
+
+```c
+Z3_string Z3_API Z3_optimize_get_reason_unknown(Z3_context c, Z3_optimize o);
+```
+
+Return a string describing why the last check returned unknown.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="o" type="Z3_optimize">
+  Optimizer
+</ParamField>
+
+<ResponseField name="return" type="Z3_string">
+  Reason string
+</ResponseField>
+
+### Z3_optimize_to_string
+
+```c
+Z3_string Z3_API Z3_optimize_to_string(Z3_context c, Z3_optimize o);
+```
+
+Convert optimizer state to a string.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="o" type="Z3_optimize">
+  Optimizer
+</ParamField>
+
+<ResponseField name="return" type="Z3_string">
+  String representation
+</ResponseField>
+
+### Z3_optimize_get_assertions
+
+```c
+Z3_ast_vector Z3_API Z3_optimize_get_assertions(Z3_context c, Z3_optimize o);
+```
+
+Return the set of asserted formulas.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="o" type="Z3_optimize">
+  Optimizer
+</ParamField>
+
+<ResponseField name="return" type="Z3_ast_vector">
+  Vector of assertions
+</ResponseField>
+
+### Z3_optimize_get_objectives
+
+```c
+Z3_ast_vector Z3_API Z3_optimize_get_objectives(Z3_context c, Z3_optimize o);
+```
+
+Return the objectives.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="o" type="Z3_optimize">
+  Optimizer
+</ParamField>
+
+<ResponseField name="return" type="Z3_ast_vector">
+  Vector of objective expressions
+</ResponseField>
+
+### Z3_optimize_get_unsat_core
+
+```c
+Z3_ast_vector Z3_API Z3_optimize_get_unsat_core(Z3_context c, Z3_optimize o);
+```
+
+Retrieve the unsat core.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="o" type="Z3_optimize">
+  Optimizer
+</ParamField>
+
+<ResponseField name="return" type="Z3_ast_vector">
+  Unsat core (subset of assertions)
+</ResponseField>
+
+## Complete Example
+
+```c
+#include <z3.h>
+#include <stdio.h>
+
+int main() {
+    Z3_config cfg = Z3_mk_config();
+    Z3_context ctx = Z3_mk_context(cfg);
+    Z3_del_config(cfg);
+    
+    Z3_optimize opt = Z3_mk_optimize(ctx);
+    Z3_optimize_inc_ref(ctx, opt);
+    
+    // Variables
+    Z3_sort int_sort = Z3_mk_int_sort(ctx);
+    Z3_ast x = Z3_mk_const(ctx, Z3_mk_string_symbol(ctx, "x"), int_sort);
+    Z3_ast y = Z3_mk_const(ctx, Z3_mk_string_symbol(ctx, "y"), int_sort);
+    
+    // Hard constraints: x >= 0, y >= 0, x + y <= 10
+    Z3_ast zero = Z3_mk_int(ctx, 0, int_sort);
+    Z3_ast ten = Z3_mk_int(ctx, 10, int_sort);
+    
+    Z3_optimize_assert(ctx, opt, Z3_mk_ge(ctx, x, zero));
+    Z3_optimize_assert(ctx, opt, Z3_mk_ge(ctx, opt, zero));
+    
+    Z3_ast args[2] = {x, y};
+    Z3_ast sum = Z3_mk_add(ctx, 2, args);
+    Z3_optimize_assert(ctx, opt, Z3_mk_le(ctx, sum, ten));
+    
+    // Objective: maximize 3*x + 2*y
+    Z3_ast three = Z3_mk_int(ctx, 3, int_sort);
+    Z3_ast two = Z3_mk_int(ctx, 2, int_sort);
+    
+    Z3_ast three_x_args[2] = {three, x};
+    Z3_ast three_x = Z3_mk_mul(ctx, 2, three_x_args);
+    
+    Z3_ast two_y_args[2] = {two, y};
+    Z3_ast two_y = Z3_mk_mul(ctx, 2, two_y_args);
+    
+    Z3_ast obj_args[2] = {three_x, two_y};
+    Z3_ast objective = Z3_mk_add(ctx, 2, obj_args);
+    
+    unsigned obj_handle = Z3_optimize_maximize(ctx, opt, objective);
+    
+    // Solve
+    Z3_lbool result = Z3_optimize_check(ctx, opt, 0, NULL);
+    
+    if (result == Z3_L_TRUE) {
+        printf("Optimal solution:\n");
+        
+        Z3_model model = Z3_optimize_get_model(ctx, opt);
+        Z3_model_inc_ref(ctx, model);
+        
+        Z3_ast x_val, y_val;
+        Z3_model_eval(ctx, model, x, true, &x_val);
+        Z3_model_eval(ctx, model, y, true, &y_val);
+        
+        printf("x = %s\n", Z3_ast_to_string(ctx, x_val));
+        printf("y = %s\n", Z3_ast_to_string(ctx, y_val));
+        
+        Z3_ast upper = Z3_optimize_get_upper(ctx, opt, obj_handle);
+        printf("Objective value: %s\n", Z3_ast_to_string(ctx, upper));
+        
+        Z3_model_dec_ref(ctx, model);
+    }
+    
+    Z3_optimize_dec_ref(ctx, opt);
+    Z3_del_context(ctx);
+    return 0;
+}
+```

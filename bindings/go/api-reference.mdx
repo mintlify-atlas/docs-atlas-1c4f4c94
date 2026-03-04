@@ -1,0 +1,766 @@
+---
+title: API Reference
+description: Complete API reference for Z3 Go bindings
+icon: book
+---
+
+The Z3 Go bindings provide a comprehensive interface to Z3's C API through CGO. This reference documents all major types and operations.
+
+## Package Import
+
+```go
+import "github.com/Z3Prover/z3/src/api/go"
+```
+
+All operations are accessed through the `z3` package.
+
+## Core Types
+
+### Context
+
+The context manages all Z3 objects and operations.
+
+<ResponseField name="NewContext" type="function">
+  ```go
+  func NewContext() *Context
+  ```
+  
+  Creates a new Z3 context with default configuration.
+  
+  **Example**:
+  ```go
+  ctx := z3.NewContext()
+  ```
+</ResponseField>
+
+<ResponseField name="NewContextWithConfig" type="function">
+  ```go
+  func NewContextWithConfig(cfg *Config) *Context
+  ```
+  
+  Creates a context with custom configuration.
+  
+  **Example**:
+  ```go
+  config := z3.NewConfig()
+  config.SetParam("timeout", "5000")
+  ctx := z3.NewContextWithConfig(config)
+  ```
+</ResponseField>
+
+<ResponseField name="SetParam" type="method">
+  ```go
+  func (ctx *Context) SetParam(key, value string)
+  ```
+  
+  Sets a global parameter.
+  
+  **Common parameters**:
+  - `timeout`: Timeout in milliseconds
+  - `proof`: Enable proof generation (true/false)
+  - `model`: Enable model generation (true/false)
+</ResponseField>
+
+### Config
+
+Configuration object for context creation.
+
+```go
+config := z3.NewConfig()
+config.SetParam("timeout", "10000")
+config.SetParam("proof", "true")
+```
+
+### Expr
+
+Represents Z3 expressions (formulas, terms, variables).
+
+**Methods**:
+- `String() string` - Get string representation
+- `Sort() *Sort` - Get the sort (type) of this expression
+- `IsConst() bool` - Check if expression is a constant
+- `IsApp() bool` - Check if expression is a function application
+
+### Sort
+
+Represents Z3 sorts (types).
+
+**Methods**:
+- `String() string` - Get string representation
+- `Kind() SortKind` - Get the kind of sort
+
+## Creating Variables and Constants
+
+### Boolean
+
+<ParamField path="MkBoolConst" type="method">
+  ```go
+  func (ctx *Context) MkBoolConst(name string) *Expr
+  ```
+  
+  Creates a Boolean variable.
+</ParamField>
+
+<ParamField path="MkTrue" type="method">
+  ```go
+  func (ctx *Context) MkTrue() *Expr
+  ```
+  
+  Creates the true Boolean constant.
+</ParamField>
+
+<ParamField path="MkFalse" type="method">
+  ```go
+  func (ctx *Context) MkFalse() *Expr
+  ```
+  
+  Creates the false Boolean constant.
+</ParamField>
+
+### Integer and Real
+
+<ParamField path="MkIntConst" type="method">
+  ```go
+  func (ctx *Context) MkIntConst(name string) *Expr
+  ```
+  
+  Creates an integer variable.
+</ParamField>
+
+<ParamField path="MkRealConst" type="method">
+  ```go
+  func (ctx *Context) MkRealConst(name string) *Expr
+  ```
+  
+  Creates a real variable.
+</ParamField>
+
+<ParamField path="MkInt" type="method">
+  ```go
+  func (ctx *Context) MkInt(value int, sort *Sort) *Expr
+  ```
+  
+  Creates an integer constant.
+  
+  **Example**:
+  ```go
+  intSort := ctx.MkIntSort()
+  ten := ctx.MkInt(10, intSort)
+  ```
+</ParamField>
+
+<ParamField path="MkReal" type="method">
+  ```go
+  func (ctx *Context) MkReal(num, den int) *Expr
+  ```
+  
+  Creates a rational constant (num/den).
+  
+  **Example**:
+  ```go
+  half := ctx.MkReal(1, 2) // 1/2
+  ```
+</ParamField>
+
+### Bit-Vectors
+
+<ParamField path="MkBVConst" type="method">
+  ```go
+  func (ctx *Context) MkBVConst(name string, size uint) *Expr
+  ```
+  
+  Creates a bit-vector variable.
+  
+  **Example**:
+  ```go
+  bv := ctx.MkBVConst("x", 8) // 8-bit vector
+  ```
+</ParamField>
+
+<ParamField path="MkBV" type="method">
+  ```go
+  func (ctx *Context) MkBV(value int, size uint) *Expr
+  ```
+  
+  Creates a bit-vector constant.
+  
+  **Example**:
+  ```go
+  ff := ctx.MkBV(255, 8) // 255 as 8-bit
+  ```
+</ParamField>
+
+## Boolean Operations
+
+<ResponseField name="MkAnd" type="method">
+  ```go
+  func (ctx *Context) MkAnd(exprs ...*Expr) *Expr
+  ```
+  
+  Logical AND. Accepts multiple arguments.
+  
+  **Example**:
+  ```go
+  and := ctx.MkAnd(p, q, r) // p ∧ q ∧ r
+  ```
+</ResponseField>
+
+<ResponseField name="MkOr" type="method">
+  ```go
+  func (ctx *Context) MkOr(exprs ...*Expr) *Expr
+  ```
+  
+  Logical OR.
+</ResponseField>
+
+<ResponseField name="MkNot" type="method">
+  ```go
+  func (ctx *Context) MkNot(expr *Expr) *Expr
+  ```
+  
+  Logical NOT.
+</ResponseField>
+
+<ResponseField name="MkImplies" type="method">
+  ```go
+  func (ctx *Context) MkImplies(lhs, rhs *Expr) *Expr
+  ```
+  
+  Logical implication (lhs → rhs).
+</ResponseField>
+
+<ResponseField name="MkIff" type="method">
+  ```go
+  func (ctx *Context) MkIff(lhs, rhs *Expr) *Expr
+  ```
+  
+  If-and-only-if (lhs ↔ rhs).
+</ResponseField>
+
+<ResponseField name="MkXor" type="method">
+  ```go
+  func (ctx *Context) MkXor(lhs, rhs *Expr) *Expr
+  ```
+  
+  Exclusive OR.
+</ResponseField>
+
+<ResponseField name="MkDistinct" type="method">
+  ```go
+  func (ctx *Context) MkDistinct(exprs ...*Expr) *Expr
+  ```
+  
+  All arguments are pairwise distinct.
+</ResponseField>
+
+## Arithmetic Operations
+
+<ResponseField name="MkAdd" type="method">
+  ```go
+  func (ctx *Context) MkAdd(exprs ...*Expr) *Expr
+  ```
+  
+  Addition. Supports multiple arguments.
+</ResponseField>
+
+<ResponseField name="MkSub" type="method">
+  ```go
+  func (ctx *Context) MkSub(exprs ...*Expr) *Expr
+  ```
+  
+  Subtraction.
+</ResponseField>
+
+<ResponseField name="MkMul" type="method">
+  ```go
+  func (ctx *Context) MkMul(exprs ...*Expr) *Expr
+  ```
+  
+  Multiplication.
+</ResponseField>
+
+<ResponseField name="MkDiv" type="method">
+  ```go
+  func (ctx *Context) MkDiv(lhs, rhs *Expr) *Expr
+  ```
+  
+  Division. Integer division for Int, real division for Real.
+</ResponseField>
+
+<ResponseField name="MkMod" type="method">
+  ```go
+  func (ctx *Context) MkMod(lhs, rhs *Expr) *Expr
+  ```
+  
+  Modulo (integer only).
+</ResponseField>
+
+<ResponseField name="MkRem" type="method">
+  ```go
+  func (ctx *Context) MkRem(lhs, rhs *Expr) *Expr
+  ```
+  
+  Remainder (integer only).
+</ResponseField>
+
+<ResponseField name="MkPower" type="method">
+  ```go
+  func (ctx *Context) MkPower(base, exponent *Expr) *Expr
+  ```
+  
+  Exponentiation.
+</ResponseField>
+
+## Comparison Operations
+
+<ResponseField name="MkEq" type="method">
+  ```go
+  func (ctx *Context) MkEq(lhs, rhs *Expr) *Expr
+  ```
+  
+  Equality.
+</ResponseField>
+
+<ResponseField name="MkLt" type="method">
+  ```go
+  func (ctx *Context) MkLt(lhs, rhs *Expr) *Expr
+  ```
+  
+  Less than.
+</ResponseField>
+
+<ResponseField name="MkLe" type="method">
+  ```go
+  func (ctx *Context) MkLe(lhs, rhs *Expr) *Expr
+  ```
+  
+  Less than or equal.
+</ResponseField>
+
+<ResponseField name="MkGt" type="method">
+  ```go
+  func (ctx *Context) MkGt(lhs, rhs *Expr) *Expr
+  ```
+  
+  Greater than.
+</ResponseField>
+
+<ResponseField name="MkGe" type="method">
+  ```go
+  func (ctx *Context) MkGe(lhs, rhs *Expr) *Expr
+  ```
+  
+  Greater than or equal.
+</ResponseField>
+
+## Bit-Vector Operations
+
+### Arithmetic
+
+- `MkBVAdd(lhs, rhs *Expr) *Expr` - Addition
+- `MkBVSub(lhs, rhs *Expr) *Expr` - Subtraction
+- `MkBVMul(lhs, rhs *Expr) *Expr` - Multiplication
+- `MkBVUDiv(lhs, rhs *Expr) *Expr` - Unsigned division
+- `MkBVSDiv(lhs, rhs *Expr) *Expr` - Signed division
+- `MkBVURem(lhs, rhs *Expr) *Expr` - Unsigned remainder
+- `MkBVSRem(lhs, rhs *Expr) *Expr` - Signed remainder
+- `MkBVSMod(lhs, rhs *Expr) *Expr` - Signed modulo
+- `MkBVNeg(expr *Expr) *Expr` - Negation
+
+### Bitwise
+
+- `MkBVAnd(lhs, rhs *Expr) *Expr` - Bitwise AND
+- `MkBVOr(lhs, rhs *Expr) *Expr` - Bitwise OR
+- `MkBVXor(lhs, rhs *Expr) *Expr` - Bitwise XOR
+- `MkBVNot(expr *Expr) *Expr` - Bitwise NOT
+- `MkBVNand(lhs, rhs *Expr) *Expr` - Bitwise NAND
+- `MkBVNor(lhs, rhs *Expr) *Expr` - Bitwise NOR
+- `MkBVXnor(lhs, rhs *Expr) *Expr` - Bitwise XNOR
+
+### Shifts and Rotations
+
+- `MkBVShl(lhs, rhs *Expr) *Expr` - Shift left
+- `MkBVLShr(lhs, rhs *Expr) *Expr` - Logical shift right
+- `MkBVAShr(lhs, rhs *Expr) *Expr` - Arithmetic shift right
+- `MkBVRotateLeft(expr *Expr, i uint) *Expr` - Rotate left
+- `MkBVRotateRight(expr *Expr, i uint) *Expr` - Rotate right
+
+### Comparisons
+
+- `MkBVULT(lhs, rhs *Expr) *Expr` - Unsigned less than
+- `MkBVSLT(lhs, rhs *Expr) *Expr` - Signed less than
+- `MkBVULE(lhs, rhs *Expr) *Expr` - Unsigned less or equal
+- `MkBVSLE(lhs, rhs *Expr) *Expr` - Signed less or equal
+- `MkBVUGE(lhs, rhs *Expr) *Expr` - Unsigned greater or equal
+- `MkBVSGE(lhs, rhs *Expr) *Expr` - Signed greater or equal
+- `MkBVUGT(lhs, rhs *Expr) *Expr` - Unsigned greater than
+- `MkBVSGT(lhs, rhs *Expr) *Expr` - Signed greater than
+
+### Extraction and Extension
+
+- `MkConcat(lhs, rhs *Expr) *Expr` - Concatenate bit-vectors
+- `MkExtract(high, low uint, expr *Expr) *Expr` - Extract bits [high:low]
+- `MkSignExt(i uint, expr *Expr) *Expr` - Sign extension
+- `MkZeroExt(i uint, expr *Expr) *Expr` - Zero extension
+- `MkRepeat(i uint, expr *Expr) *Expr` - Repeat bit-vector
+
+## Floating-Point Operations
+
+### Sorts
+
+- `MkFPSort(ebits, sbits uint) *Sort` - Custom FP sort (ebits exponent, sbits significand)
+- `MkFPSort16() *Sort` - IEEE 754 half precision (16-bit)
+- `MkFPSort32() *Sort` - IEEE 754 single precision (32-bit)
+- `MkFPSort64() *Sort` - IEEE 754 double precision (64-bit)
+- `MkFPSort128() *Sort` - IEEE 754 quadruple precision (128-bit)
+- `MkFPRoundingModeSort() *Sort` - Rounding mode sort
+
+### Special Values
+
+- `MkFPInf(sort *Sort, negative bool) *Expr` - Infinity
+- `MkFPNaN(sort *Sort) *Expr` - Not-a-Number
+- `MkFPZero(sort *Sort, negative bool) *Expr` - Zero (+0.0 or -0.0)
+
+### Arithmetic
+
+- `MkFPAdd(rm, lhs, rhs *Expr) *Expr` - Addition with rounding mode
+- `MkFPSub(rm, lhs, rhs *Expr) *Expr` - Subtraction
+- `MkFPMul(rm, lhs, rhs *Expr) *Expr` - Multiplication
+- `MkFPDiv(rm, lhs, rhs *Expr) *Expr` - Division
+- `MkFPFMA(rm, x, y, z *Expr) *Expr` - Fused multiply-add: x*y+z
+- `MkFPSqrt(rm, expr *Expr) *Expr` - Square root
+- `MkFPRem(lhs, rhs *Expr) *Expr` - Remainder
+- `MkFPAbs(expr *Expr) *Expr` - Absolute value
+- `MkFPNeg(expr *Expr) *Expr` - Negation
+
+### Comparisons
+
+- `MkFPLT(lhs, rhs *Expr) *Expr` - Less than
+- `MkFPGT(lhs, rhs *Expr) *Expr` - Greater than
+- `MkFPLE(lhs, rhs *Expr) *Expr` - Less or equal
+- `MkFPGE(lhs, rhs *Expr) *Expr` - Greater or equal
+- `MkFPEq(lhs, rhs *Expr) *Expr` - Equality
+
+### Predicates
+
+- `MkFPIsNaN(expr *Expr) *Expr` - Is NaN
+- `MkFPIsInf(expr *Expr) *Expr` - Is infinite
+- `MkFPIsZero(expr *Expr) *Expr` - Is zero
+- `MkFPIsNormal(expr *Expr) *Expr` - Is normal
+- `MkFPIsSubnormal(expr *Expr) *Expr` - Is subnormal
+- `MkFPIsNegative(expr *Expr) *Expr` - Is negative
+- `MkFPIsPositive(expr *Expr) *Expr` - Is positive
+
+## String/Sequence Operations
+
+### Creation
+
+- `MkStringSort() *Sort` - String sort
+- `MkSeqSort(elemSort *Sort) *Sort` - Sequence sort
+- `MkString(value string) *Expr` - String constant
+- `MkEmptySeq(sort *Sort) *Expr` - Empty sequence
+
+### Operations
+
+- `MkSeqConcat(exprs ...*Expr) *Expr` - Concatenation
+- `MkSeqLength(seq *Expr) *Expr` - Length
+- `MkSeqAt(seq, index *Expr) *Expr` - Character at index
+- `MkSeqExtract(seq, offset, length *Expr) *Expr` - Substring
+- `MkSeqPrefix(prefix, seq *Expr) *Expr` - Prefix predicate
+- `MkSeqSuffix(suffix, seq *Expr) *Expr` - Suffix predicate
+- `MkSeqContains(container, contained *Expr) *Expr` - Contains predicate
+- `MkSeqIndexOf(seq, substr, offset *Expr) *Expr` - Index of substring
+- `MkSeqReplace(seq, src, dst *Expr) *Expr` - Replace substring
+- `MkStrToInt(str *Expr) *Expr` - String to integer
+- `MkIntToStr(i *Expr) *Expr` - Integer to string
+
+## Array Operations
+
+- `MkArraySort(domain, range *Sort) *Sort` - Create array sort
+- `MkSelect(array, index *Expr) *Expr` - Read: array[index]
+- `MkStore(array, index, value *Expr) *Expr` - Write: array[index := value]
+- `MkConstArray(domain *Sort, value *Expr) *Expr` - Constant array
+- `MkArrayDefault(array *Expr) *Expr` - Default value
+
+## Datatypes
+
+### Lists
+
+```go
+func (ctx *Context) MkListSort(
+    name string, 
+    elemSort *Sort
+) (listSort *Sort, nil, cons, isCons, isNil, head, tail *FuncDecl)
+```
+
+Creates a list datatype with constructors and accessors.
+
+### Tuples
+
+```go
+func (ctx *Context) MkTupleSort(
+    name string,
+    fieldNames []string,
+    fieldSorts []*Sort
+) (tupleSort *Sort, constructor *FuncDecl, projections []*FuncDecl)
+```
+
+### Enumerations
+
+```go
+func (ctx *Context) MkEnumSort(
+    name string,
+    enumNames []string
+) (enumSort *Sort, consts []*FuncDecl, testers []*FuncDecl)
+```
+
+## Solver
+
+### Creation
+
+<ResponseField name="NewSolver" type="method">
+  ```go
+  func (ctx *Context) NewSolver() *Solver
+  ```
+  
+  Creates a new general-purpose solver.
+</ResponseField>
+
+<ResponseField name="NewSolverForLogic" type="method">
+  ```go
+  func (ctx *Context) NewSolverForLogic(logic string) *Solver
+  ```
+  
+  Creates a solver for a specific logic (e.g., "QF_LIA", "QF_BV").
+</ResponseField>
+
+### Adding Constraints
+
+<ResponseField name="Assert" type="method">
+  ```go
+  func (s *Solver) Assert(constraint *Expr)
+  ```
+  
+  Adds a constraint to the solver.
+</ResponseField>
+
+<ResponseField name="AssertAndTrack" type="method">
+  ```go
+  func (s *Solver) AssertAndTrack(constraint, tracker *Expr)
+  ```
+  
+  Adds a constraint with a tracker for unsat core.
+</ResponseField>
+
+### Checking Satisfiability
+
+<ResponseField name="Check" type="method">
+  ```go
+  func (s *Solver) Check() LBool
+  ```
+  
+  Checks satisfiability. Returns:
+  - `z3.Satisfiable` (LTrue)
+  - `z3.Unsatisfiable` (LFalse)
+  - `z3.Unknown` (LUndef)
+</ResponseField>
+
+<ResponseField name="CheckAssumptions" type="method">
+  ```go
+  func (s *Solver) CheckAssumptions(assumptions ...*Expr) LBool
+  ```
+  
+  Checks satisfiability under assumptions.
+</ResponseField>
+
+### Backtracking
+
+<ResponseField name="Push" type="method">
+  ```go
+  func (s *Solver) Push()
+  ```
+  
+  Creates a backtracking point.
+</ResponseField>
+
+<ResponseField name="Pop" type="method">
+  ```go
+  func (s *Solver) Pop(n uint)
+  ```
+  
+  Backtracks n levels.
+</ResponseField>
+
+<ResponseField name="Reset" type="method">
+  ```go
+  func (s *Solver) Reset()
+  ```
+  
+  Removes all assertions.
+</ResponseField>
+
+### Results
+
+<ResponseField name="Model" type="method">
+  ```go
+  func (s *Solver) Model() *Model
+  ```
+  
+  Returns the model if result was satisfiable.
+</ResponseField>
+
+<ResponseField name="UnsatCore" type="method">
+  ```go
+  func (s *Solver) UnsatCore() *ASTVector
+  ```
+  
+  Returns the unsat core (requires tracked assertions).
+</ResponseField>
+
+<ResponseField name="Proof" type="method">
+  ```go
+  func (s *Solver) Proof() *Expr
+  ```
+  
+  Returns the proof (if proof generation enabled).
+</ResponseField>
+
+<ResponseField name="Statistics" type="method">
+  ```go
+  func (s *Solver) Statistics() *Stats
+  ```
+  
+  Returns solver statistics.
+</ResponseField>
+
+## Model
+
+<ResponseField name="Eval" type="method">
+  ```go
+  func (m *Model) Eval(expr *Expr, modelCompletion bool) (*Expr, bool)
+  ```
+  
+  Evaluates expression in model. Returns (value, ok).
+  
+  **Parameters**:
+  - `expr`: Expression to evaluate
+  - `modelCompletion`: Assign default values to unbound variables
+</ResponseField>
+
+<ResponseField name="NumConsts" type="method">
+  ```go
+  func (m *Model) NumConsts() int
+  ```
+  
+  Number of constant interpretations.
+</ResponseField>
+
+<ResponseField name="NumFuncs" type="method">
+  ```go
+  func (m *Model) NumFuncs() int
+  ```
+  
+  Number of function interpretations.
+</ResponseField>
+
+<ResponseField name="ConstDecl" type="method">
+  ```go
+  func (m *Model) ConstDecl(i int) *FuncDecl
+  ```
+  
+  Get i-th constant declaration.
+</ResponseField>
+
+<ResponseField name="ConstInterp" type="method">
+  ```go
+  func (m *Model) ConstInterp(decl *FuncDecl) *Expr
+  ```
+  
+  Get constant interpretation.
+</ResponseField>
+
+## Optimize
+
+Solver for optimization problems.
+
+```go
+opt := ctx.NewOptimize()
+opt.Assert(constraints...)
+opt.Maximize(objective)
+if opt.Check() == z3.Satisfiable {
+    model := opt.Model()
+}
+```
+
+**Methods**:
+- `Assert(constraint *Expr)` - Add hard constraint
+- `AssertSoft(constraint *Expr, weight, group string)` - Add soft constraint
+- `Maximize(expr *Expr) uint` - Add maximization objective
+- `Minimize(expr *Expr) uint` - Add minimization objective
+- `Check(assumptions ...*Expr) LBool` - Check and optimize
+- `Model() *Model` - Get optimal model
+- `GetLower/Upper(index uint) *Expr` - Get objective bounds
+- `Push/Pop()` - Backtracking
+
+## Tactics
+
+Tactics provide goal-based solving.
+
+```go
+tactic := ctx.MkTactic("simplify")
+goal := ctx.MkGoal(false, false, false)
+goal.Assert(formula)
+result := tactic.Apply(goal)
+```
+
+**Common tactics**:
+- `"simplify"` - Simplification
+- `"solve-eqs"` - Solve equations
+- `"qe"` - Quantifier elimination
+- `"sat"` - SAT solver
+- `"smt"` - SMT solver
+- `"qfnra"` - Nonlinear real arithmetic
+
+**Combinators**:
+- `AndThen(t1, t2 *Tactic, tactics ...*Tactic) *Tactic` - Sequential
+- `OrElse(t1, t2 *Tactic) *Tactic` - Try first, fallback
+- `Repeat(t *Tactic, max uint) *Tactic` - Repeat tactic
+
+## Constants and Enums
+
+### LBool
+
+Satisfiability result:
+```go
+const (
+    LFalse LBool = -1  // Unsatisfiable
+    LUndef LBool = 0   // Unknown
+    LTrue  LBool = 1   // Satisfiable
+)
+```
+
+Convenience constants:
+```go
+const (
+    Unsatisfiable = LFalse
+    Unknown       = LUndef
+    Satisfiable   = LTrue
+)
+```
+
+## Further Reading
+
+<CardGroup cols={2}>
+  <Card title="Getting Started" icon="rocket" href="/bindings/go/getting-started">
+    Practical examples and tutorials
+  </Card>
+  <Card title="C API Reference" icon="terminal" href="https://z3prover.github.io/api/html/index.html">
+    Underlying C API documentation
+  </Card>
+  <Card title="Z3 Guide" icon="book" href="https://microsoft.github.io/z3guide/">
+    Comprehensive Z3 guide
+  </Card>
+  <Card title="GitHub Source" icon="github" href="https://github.com/Z3Prover/z3/tree/master/src/api/go">
+    Go bindings source code
+  </Card>
+</CardGroup>

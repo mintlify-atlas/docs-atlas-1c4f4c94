@@ -1,0 +1,144 @@
+---
+title: Introduction to Z3
+description: Learn what Z3 is and how it can help you solve complex constraint problems
+---
+
+Z3 is a state-of-the-art theorem prover from Microsoft Research. It's a powerful tool for checking the satisfiability of logical formulas over various theories, making it invaluable for program verification, constraint solving, and automated reasoning.
+
+## What is Z3?
+
+Z3 is a Satisfiability Modulo Theories (SMT) solver. Unlike simple SAT solvers that only work with boolean logic, Z3 can reason about:
+
+- Integers and real numbers
+- Bit-vectors and arrays
+- Algebraic datatypes
+- Floating-point arithmetic
+- Strings and sequences
+- Quantifiers
+
+This makes Z3 suitable for a wide range of applications, from verifying software correctness to optimizing resource allocation.
+
+## What is SMT solving?
+
+SMT (Satisfiability Modulo Theories) solving extends boolean satisfiability (SAT) with theories that handle specific data types and operations. Instead of working only with true/false values, you can express constraints over:
+
+<CardGroup cols={2}>
+  <Card title="Arithmetic" icon="calculator">
+    Linear and non-linear constraints over integers and real numbers
+  </Card>
+  <Card title="Bit-vectors" icon="binary">
+    Fixed-width integers with operations like bitwise AND, shifts, and overflow
+  </Card>
+  <Card title="Arrays" icon="grid">
+    Uninterpreted functions and extensional array theory
+  </Card>
+  <Card title="Data structures" icon="diagram-project">
+    Algebraic datatypes like lists, trees, and custom structures
+  </Card>
+</CardGroup>
+
+Z3 can determine if a set of constraints is satisfiable and, if so, provide a model (an assignment of values) that satisfies all constraints.
+
+## Key features
+
+Z3 stands out with several powerful capabilities:
+
+<AccordionGroup>
+  <Accordion title="Multiple theories" icon="layer-group">
+    Z3 supports reasoning over integers, reals, bit-vectors, arrays, algebraic datatypes, floating-point numbers, strings, sequences, and finite sets. You can combine these theories in a single formula.
+  </Accordion>
+  
+  <Accordion title="Optimization" icon="gauge-high">
+    Beyond just satisfiability checking, Z3 can optimize objective functions subject to constraints using the Optimize API.
+  </Accordion>
+  
+  <Accordion title="Quantifiers" icon="sigma">
+    Z3 includes sophisticated heuristics for handling formulas with universal and existential quantifiers.
+  </Accordion>
+  
+  <Accordion title="Tactics and solvers" icon="toolbox">
+    A rich library of tactics allows you to customize solving strategies and combine multiple solving approaches.
+  </Accordion>
+  
+  <Accordion title="Multiple language bindings" icon="code">
+    Use Z3 from Python, C++, C, Java, .NET, JavaScript/TypeScript, Go, OCaml, Julia, and more.
+  </Accordion>
+  
+  <Accordion title="SMTLIB2 support" icon="file-code">
+    Full support for the standard SMTLIB2 format for solver interoperability.
+  </Accordion>
+</AccordionGroup>
+
+## Common use cases
+
+Z3 is used in various domains:
+
+**Program verification**: Prove that programs meet their specifications by encoding program semantics as logical formulas.
+
+**Symbolic execution**: Explore program paths symbolically to find bugs or verify correctness.
+
+**Test generation**: Generate test inputs that satisfy specific path conditions or cover edge cases.
+
+**Constraint solving**: Solve complex optimization problems like scheduling, resource allocation, and configuration synthesis.
+
+**Model checking**: Verify properties of finite and infinite state systems.
+
+**Security analysis**: Find vulnerabilities by reasoning about program behavior under adversarial conditions.
+
+## How Z3 works
+
+Z3 uses a combination of techniques:
+
+1. **DPLL(T)**: Combines boolean satisfiability (SAT) solving with theory-specific decision procedures
+2. **Conflict-driven learning**: Learns from conflicts to prune the search space
+3. **Theory propagation**: Each theory can propagate constraints and detect conflicts early
+4. **E-matching**: Instantiates quantifiers based on pattern matching in the ground term set
+
+<Info>
+  While Z3 is highly effective for many problems, some constraint problems (especially those with complex quantifiers) may be undecidable or require significant computational resources.
+</Info>
+
+## System architecture
+
+Z3's architecture consists of several layers:
+
+```
+┌─────────────────────────────────────┐
+│     Language Bindings (APIs)        │
+│  Python, C++, Java, .NET, Go, etc.  │
+├─────────────────────────────────────┤
+│          C API Layer                │
+├─────────────────────────────────────┤
+│     SMT Solver Core                 │
+│  • DPLL(T) engine                   │
+│  • Conflict resolution              │
+│  • Model construction               │
+├─────────────────────────────────────┤
+│       Theory Solvers                │
+│  Arithmetic, Arrays, Bit-vectors,   │
+│  Datatypes, Strings, etc.           │
+├─────────────────────────────────────┤
+│     Simplifiers & Tactics           │
+└─────────────────────────────────────┘
+```
+
+## License
+
+Z3 is open source and released under the MIT License, making it free to use in both commercial and non-commercial projects.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Get started quickly" icon="rocket" href="/quickstart">
+    Install Z3 and solve your first problem in minutes
+  </Card>
+  <Card title="Install Z3" icon="download" href="/installation">
+    Detailed installation instructions for all platforms
+  </Card>
+  <Card title="Core concepts" icon="book" href="/concepts/smt-solving">
+    Deep dive into SMT solving and Z3's capabilities
+  </Card>
+  <Card title="API reference" icon="code" href="/api/context">
+    Explore Z3's comprehensive API documentation
+  </Card>
+</CardGroup>

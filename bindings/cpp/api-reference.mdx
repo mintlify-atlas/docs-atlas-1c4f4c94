@@ -1,0 +1,672 @@
+---
+title: 'C++ API Reference'
+description: 'Complete reference for Z3 C++ API classes and methods'
+---
+
+# C++ API Reference
+
+Complete reference documentation for the Z3 C++ API. All classes are in the `z3` namespace.
+
+## Core Classes
+
+### z3::context
+
+Manages all Z3 objects and global configuration. Every Z3 object is associated with a context.
+
+#### Constructor
+
+```cpp
+z3::context()
+z3::context(z3::config& cfg)
+```
+
+Create a new Z3 context, optionally with custom configuration.
+
+**Example:**
+```cpp
+z3::context c;
+
+// With configuration
+z3::config cfg;
+cfg.set("timeout", 30000);
+z3::context c2(cfg);
+```
+
+#### Sort Creation Methods
+
+```cpp
+z3::sort bool_sort();
+z3::sort int_sort();
+z3::sort real_sort();
+z3::sort bv_sort(unsigned sz);
+z3::sort string_sort();
+z3::sort array_sort(sort d, sort r);
+z3::sort fpa_sort(unsigned ebits, unsigned sbits);
+```
+
+Create various sorts (types) for expressions.
+
+**Example:**
+```cpp
+z3::context c;
+z3::sort i = c.int_sort();           // Integer sort
+z3::sort bv32 = c.bv_sort(32);       // 32-bit bitvector
+z3::sort arr = c.array_sort(i, i);   // Int -> Int array
+```
+
+#### Constant Creation Methods
+
+```cpp
+z3::expr bool_const(char const* name);
+z3::expr int_const(char const* name);
+z3::expr real_const(char const* name);
+z3::expr bv_const(char const* name, unsigned sz);
+z3::expr constant(char const* name, sort const& s);
+```
+
+Create named constants of various types.
+
+**Example:**
+```cpp
+z3::context c;
+z3::expr b = c.bool_const("b");       // Boolean variable
+z3::expr x = c.int_const("x");        // Integer variable
+z3::expr bv = c.bv_const("bv", 16);   // 16-bit bitvector
+```
+
+#### Value Creation Methods
+
+```cpp
+z3::expr bool_val(bool b);
+z3::expr int_val(int n);
+z3::expr int_val(char const* n);
+z3::expr real_val(int n, int d);        // Fraction n/d
+z3::expr real_val(char const* n);
+z3::expr bv_val(int n, unsigned sz);
+z3::expr string_val(char const* s);
+```
+
+Create concrete values.
+
+**Example:**
+```cpp
+z3::context c;
+z3::expr t = c.bool_val(true);
+z3::expr forty_two = c.int_val(42);
+z3::expr half = c.real_val(1, 2);     // 1/2
+z3::expr pi = c.real_val("3.14159");
+```
+
+#### Function Declaration
+
+```cpp
+z3::func_decl function(char const* name, sort const& domain, sort const& range);
+z3::func_decl function(char const* name, unsigned arity, sort const* domain, sort const& range);
+z3::func_decl function(char const* name, sort_vector const& domain, sort const& range);
+```
+
+Declare uninterpreted functions.
+
+**Example:**
+```cpp
+z3::context c;
+z3::sort I = c.int_sort();
+
+// f: Int -> Int
+z3::func_decl f = c.function("f", I, I);
+
+z3::expr x = c.int_const("x");
+z3::expr fx = f(x);  // Apply function to x
+```
+
+#### Configuration
+
+```cpp
+void set(char const* param, char const* value);
+void set(char const* param, bool value);
+void set(char const* param, int value);
+```
+
+Update context parameters.
+
+**Example:**
+```cpp
+z3::context c;
+c.set("timeout", 5000);     // 5 second timeout
+c.set("auto_config", true);
+```
+
+#### Parsing
+
+```cpp
+z3::expr_vector parse_string(char const* s);
+z3::expr_vector parse_file(char const* file);
+```
+
+Parse SMT-LIB2 format strings or files.
+
+---
+
+### z3::solver
+
+The main interface for solving constraints.
+
+#### Constructor
+
+```cpp
+z3::solver(z3::context& c);
+z3::solver(z3::context& c, char const* logic);
+```
+
+Create a solver, optionally for a specific logic (e.g., "QF_LIA" for quantifier-free linear integer arithmetic).
+
+**Example:**
+```cpp
+z3::context c;
+z3::solver s(c);
+
+// Solver for specific logic
+z3::solver s2(c, "QF_BV");  // Bitvectors
+```
+
+#### Adding Constraints
+
+```cpp
+void add(expr const& e);
+void add(expr const& e, expr const& p);  // Track with proof literal
+void add(expr const& e, char const* p);  // Track with named literal
+void add(expr_vector const& v);
+```
+
+Add constraints to the solver.
+
+**Example:**
+```cpp
+z3::context c;
+z3::solver s(c);
+z3::expr x = c.int_const("x");
+
+s.add(x > 0);
+s.add(x < 10);
+
+// Tracked assertion for unsat cores
+s.add(x < 5, "p1");
+```
+
+#### Checking Satisfiability
+
+```cpp
+z3::check_result check();
+z3::check_result check(unsigned n, expr const* assumptions);
+z3::check_result check(expr_vector const& assumptions);
+```
+
+Check if the current set of constraints is satisfiable.
+
+**Returns:** `z3::sat`, `z3::unsat`, or `z3::unknown`
+
+**Example:**
+```cpp
+z3::context c;
+z3::solver s(c);
+z3::expr x = c.int_const("x");
+
+s.add(x > 0);
+
+if (s.check() == z3::sat) {
+    std::cout << "Satisfiable!\n";
+} else if (s.check() == z3::unsat) {
+    std::cout << "Unsatisfiable!\n";
+}
+```
+
+#### Extracting Models
+
+```cpp
+z3::model get_model() const;
+```
+
+Retrieve a model when the constraints are satisfiable.
+
+**Example:**
+```cpp
+z3::context c;
+z3::solver s(c);
+z3::expr x = c.int_const("x");
+
+s.add(x >= 1 && x <= 10);
+
+if (s.check() == z3::sat) {
+    z3::model m = s.get_model();
+    std::cout << "x = " << m.eval(x) << "\n";
+}
+```
+
+#### Backtracking
+
+```cpp
+void push();
+void pop(unsigned n = 1);
+void reset();
+```
+
+Manage the assertion stack for incremental solving.
+
+**Example:**
+```cpp
+z3::context c;
+z3::solver s(c);
+z3::expr x = c.int_const("x");
+
+s.add(x > 0);
+s.push();           // Save state
+s.add(x < 0);       // Add conflicting constraint
+s.check();          // unsat
+s.pop();            // Restore to saved state
+s.check();          // sat again
+```
+
+#### Getting Information
+
+```cpp
+z3::expr_vector assertions() const;
+z3::expr_vector unsat_core() const;
+z3::stats statistics() const;
+std::string reason_unknown() const;
+std::string to_smt2(char const* status = "unknown");
+```
+
+Retrieve information about the solver state.
+
+**Example:**
+```cpp
+z3::solver s(c);
+s.add(x > 0);
+s.add(x < 0, "p1");
+
+if (s.check() == z3::unsat) {
+    z3::expr_vector core = s.unsat_core();
+    std::cout << "Unsat core: " << core << "\n";
+}
+```
+
+---
+
+### z3::expr
+
+Represents formulas and terms. This is the main class for building expressions.
+
+#### Type Checking
+
+```cpp
+bool is_bool() const;
+bool is_int() const;
+bool is_real() const;
+bool is_arith() const;
+bool is_bv() const;
+bool is_array() const;
+bool is_numeral() const;
+bool is_app() const;
+bool is_const() const;
+bool is_quantifier() const;
+```
+
+Check the type and kind of expression.
+
+**Example:**
+```cpp
+z3::context c;
+z3::expr x = c.int_const("x");
+
+if (x.is_int()) {
+    std::cout << "x is an integer\n";
+}
+```
+
+#### Getting Information
+
+```cpp
+z3::sort get_sort() const;
+z3::context& ctx() const;
+unsigned id() const;
+unsigned hash() const;
+```
+
+Retrieve properties of the expression.
+
+**Example:**
+```cpp
+z3::context c;
+z3::expr x = c.int_const("x");
+z3::sort s = x.get_sort();
+std::cout << "Sort: " << s << "\n";
+```
+
+#### Extracting Numeral Values
+
+```cpp
+bool is_numeral_i(int& i) const;
+bool is_numeral_u(unsigned& i) const;
+bool is_numeral_i64(int64_t& i) const;
+bool is_numeral_u64(uint64_t& i) const;
+bool is_numeral(std::string& s) const;
+int get_numeral_int() const;
+uint64_t get_numeral_uint64() const;
+```
+
+Extract numeric values from numeral expressions.
+
+**Example:**
+```cpp
+z3::context c;
+z3::expr val = c.int_val(42);
+
+if (val.is_numeral()) {
+    int n = val.get_numeral_int();
+    std::cout << "Value: " << n << "\n";
+}
+```
+
+#### Application Information
+
+```cpp
+z3::func_decl decl() const;        // requires is_app()
+unsigned num_args() const;         // requires is_app()
+z3::expr arg(unsigned i) const;    // requires is_app()
+z3::expr_vector args() const;      // requires is_app()
+```
+
+Access parts of an application expression.
+
+**Example:**
+```cpp
+z3::context c;
+z3::expr x = c.int_const("x");
+z3::expr y = c.int_const("y");
+z3::expr sum = x + y;
+
+if (sum.is_app()) {
+    unsigned n = sum.num_args();     // 2
+    z3::expr arg0 = sum.arg(0);      // x
+    z3::expr arg1 = sum.arg(1);      // y
+}
+```
+
+#### Simplification
+
+```cpp
+z3::expr simplify() const;
+z3::expr simplify(params const& p) const;
+```
+
+Simplify the expression.
+
+**Example:**
+```cpp
+z3::context c;
+z3::expr x = c.int_const("x");
+z3::expr e = x + 0;
+z3::expr simple = e.simplify();  // Returns just x
+```
+
+#### Substitution
+
+```cpp
+z3::expr substitute(expr_vector const& src, expr_vector const& dst);
+z3::expr substitute(expr_vector const& dst);
+```
+
+Perform substitution on the expression.
+
+---
+
+### z3::model
+
+Represents a satisfying assignment (model) for a set of constraints.
+
+#### Evaluating Expressions
+
+```cpp
+z3::expr eval(expr const& e, bool model_completion = false) const;
+```
+
+Evaluate an expression in the model.
+
+**Example:**
+```cpp
+z3::context c;
+z3::solver s(c);
+z3::expr x = c.int_const("x");
+z3::expr y = c.int_const("y");
+
+s.add(x > 0 && y == x + 1);
+
+if (s.check() == z3::sat) {
+    z3::model m = s.get_model();
+    std::cout << "x = " << m.eval(x) << "\n";
+    std::cout << "y = " << m.eval(y) << "\n";
+    std::cout << "x + y = " << m.eval(x + y) << "\n";
+}
+```
+
+#### Inspecting the Model
+
+```cpp
+unsigned size() const;
+z3::func_decl operator[](unsigned i) const;
+z3::expr get_const_interp(func_decl const& c) const;
+```
+
+Iterate over the model's assignments.
+
+**Example:**
+```cpp
+z3::model m = s.get_model();
+
+for (unsigned i = 0; i < m.size(); i++) {
+    z3::func_decl v = m[i];
+    std::cout << v.name() << " = " 
+              << m.get_const_interp(v) << "\n";
+}
+```
+
+---
+
+## Operator Overloading
+
+The C++ API provides natural operator syntax for building expressions.
+
+### Boolean Operators
+
+```cpp
+expr operator!(expr const& a);                  // NOT
+expr operator&&(expr const& a, expr const& b);  // AND
+expr operator||(expr const& a, expr const& b);  // OR
+expr operator==(expr const& a, expr const& b);  // Equality
+expr operator!=(expr const& a, expr const& b);  // Disequality
+expr implies(expr const& a, expr const& b);     // Implication
+```
+
+**Example:**
+```cpp
+z3::context c;
+z3::expr p = c.bool_const("p");
+z3::expr q = c.bool_const("q");
+
+z3::expr formula = (!p || q) && (p || !q);
+```
+
+### Arithmetic Operators
+
+```cpp
+expr operator+(expr const& a, expr const& b);   // Addition
+expr operator-(expr const& a, expr const& b);   // Subtraction
+expr operator-(expr const& a);                   // Negation
+expr operator*(expr const& a, expr const& b);   // Multiplication
+expr operator/(expr const& a, expr const& b);   // Division
+expr operator%(expr const& a, expr const& b);   // Modulo
+```
+
+**Example:**
+```cpp
+z3::context c;
+z3::expr x = c.int_const("x");
+z3::expr y = c.int_const("y");
+
+z3::expr formula = 2*x + 3*y == 10;
+```
+
+### Comparison Operators
+
+```cpp
+expr operator<(expr const& a, expr const& b);
+expr operator<=(expr const& a, expr const& b);
+expr operator>(expr const& a, expr const& b);
+expr operator>=(expr const& a, expr const& b);
+```
+
+**Example:**
+```cpp
+z3::context c;
+z3::expr x = c.int_const("x");
+z3::expr y = c.int_const("y");
+
+z3::expr constraint = (x >= 0) && (x < 10) && (x < y);
+```
+
+### Bitvector Operators
+
+```cpp
+expr operator&(expr const& a, expr const& b);   // Bitwise AND
+expr operator|(expr const& a, expr const& b);   // Bitwise OR
+expr operator^(expr const& a, expr const& b);   // Bitwise XOR
+expr operator~(expr const& a);                   // Bitwise NOT
+expr extract(unsigned hi, unsigned lo) const;    // Bit extraction
+```
+
+**Example:**
+```cpp
+z3::context c;
+z3::expr x = c.bv_const("x", 8);  // 8-bit
+z3::expr y = c.bv_const("y", 8);
+
+z3::expr formula = (x & y) == c.bv_val(0, 8);
+z3::expr low_nibble = x.extract(3, 0);
+```
+
+---
+
+## Helper Functions
+
+### Quantifiers
+
+```cpp
+expr forall(expr const& x, expr const& body);
+expr forall(expr_vector const& xs, expr const& body);
+expr exists(expr const& x, expr const& body);
+expr exists(expr_vector const& xs, expr const& body);
+```
+
+Create quantified formulas.
+
+**Example:**
+```cpp
+z3::context c;
+z3::expr x = c.int_const("x");
+z3::expr y = c.int_const("y");
+z3::sort I = c.int_sort();
+z3::func_decl f = c.function("f", I, I, I);
+
+// forall x, y: f(x, y) >= 0
+z3::expr formula = forall(x, forall(y, f(x, y) >= 0));
+```
+
+### Array Operations
+
+```cpp
+expr select(expr const& a, expr const& i);
+expr store(expr const& a, expr const& i, expr const& v);
+expr const_array(sort const& s, expr const& v);
+```
+
+Manipulate array expressions.
+
+**Example:**
+```cpp
+z3::context c;
+z3::sort I = c.int_sort();
+z3::sort A = c.array_sort(I, I);
+
+z3::expr a = c.constant("a", A);
+z3::expr i = c.int_const("i");
+z3::expr v = c.int_const("v");
+
+z3::expr read = select(a, i);
+z3::expr updated = store(a, i, v);
+```
+
+### Other Helpers
+
+```cpp
+expr ite(expr const& c, expr const& t, expr const& e);  // if-then-else
+expr distinct(expr_vector const& args);                  // All different
+expr concat(expr const& a, expr const& b);               // Concatenate
+expr mk_and(expr_vector const& args);                    // N-ary AND
+expr mk_or(expr_vector const& args);                     // N-ary OR
+```
+
+---
+
+## Additional Classes
+
+### z3::config
+
+Configuration object for context creation.
+
+```cpp
+z3::config cfg;
+cfg.set("timeout", 5000);
+cfg.set("auto_config", true);
+z3::context c(cfg);
+```
+
+### z3::params
+
+Parameters for solvers and tactics.
+
+```cpp
+z3::params p(c);
+p.set("unsat_core", true);
+p.set("timeout", 30000);
+s.set(p);
+```
+
+### z3::expr_vector
+
+Vector of expressions.
+
+```cpp
+z3::expr_vector v(c);
+v.push_back(x);
+v.push_back(y);
+unsigned sz = v.size();
+z3::expr e = v[0];
+```
+
+### z3::sort_vector
+
+Vector of sorts.
+
+```cpp
+z3::sort_vector sv(c);
+sv.push_back(c.int_sort());
+sv.push_back(c.bool_sort());
+```
+
+---
+
+## Next Steps
+
+- [Getting Started Guide](/bindings/cpp/getting-started) - Learn basic usage patterns
+- [Z3 Guide](/guide) - Theory and advanced topics
+- [Examples](https://github.com/Z3Prover/z3/tree/master/examples/c%2B%2B) - Complete example programs

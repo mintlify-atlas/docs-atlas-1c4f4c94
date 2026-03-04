@@ -1,0 +1,461 @@
+---
+title: Floating-Point Arithmetic
+description: Work with IEEE 754 floating-point numbers in Z3, including rounding modes, special values, and conversions
+---
+
+Z3 provides comprehensive support for IEEE 754 floating-point arithmetic through the FPA (Floating-Point Arithmetic) theory. This allows precise reasoning about floating-point computations, rounding errors, and special values like NaN and infinity.
+
+## Overview
+
+Z3's floating-point support includes:
+- **IEEE 754 compliance**: Standard binary floating-point formats
+- **Rounding modes**: All five IEEE 754 rounding modes
+- **Special values**: NaN, infinity, signed zeros
+- **Conversions**: Between floating-point, integers, and bit-vectors
+- **Arithmetic operations**: +, -, *, /, sqrt, fma, etc.
+- **Comparisons**: Proper handling of NaN and signed zeros
+
+## Floating-Point Sorts
+
+### Creating Floating-Point Sorts
+
+```python
+from z3 import *
+
+# Standard IEEE 754 formats
+float16 = Float16()      # Half precision (5 exp bits, 10 sig bits)
+float32 = Float32()      # Single precision (8 exp bits, 23 sig bits)
+float64 = Float64()      # Double precision (11 exp bits, 52 sig bits)
+float128 = Float128()    # Quadruple precision (15 exp bits, 112 sig bits)
+
+# Custom format: FloatSort(exponent_bits, significand_bits)
+custom = FloatSort(8, 16)  # 8 exp bits, 16 significand bits
+
+# Create variables
+x = FP('x', float32)
+y = FP('y', float64)
+z = Const('z', custom)
+```
+
+### Floating-Point Values
+
+```python
+from z3 import *
+
+# From Python float
+a = FPVal(3.14, Float32())
+b = FPVal(-2.5, Float64())
+
+# From rational
+c = FPVal(22/7, Float32())  # Approximation of π
+
+# Special values
+pos_inf = fpPlusInfinity(Float32())
+neg_inf = fpMinusInfinity(Float32())
+nan = fpNaN(Float32())
+pos_zero = fpPlusZero(Float32())
+neg_zero = fpMinusZero(Float32())
+
+# From bit-vector representation (IEEE 754 bit pattern)
+bits = BitVecVal(0x40490FDB, 32)  # π as Float32 bits
+pi = fpBVToFP(bits, Float32())
+```
+
+## Rounding Modes
+
+IEEE 754 defines five rounding modes. Z3 supports all of them:
+
+```python
+from z3 import *
+
+# Rounding modes
+rne = RNE()  # Round to Nearest, ties to Even (default)
+rna = RNA()  # Round to Nearest, ties to Away
+rtp = RTP()  # Round Toward Positive (+∞)
+rtn = RTN()  # Round Toward Negative (-∞)
+rtz = RTZ()  # Round Toward Zero
+
+# All operations take a rounding mode
+x = FP('x', Float32())
+y = FP('y', Float32())
+
+# Addition with rounding mode
+result = fpAdd(rne, x, y)  # Round to nearest even
+
+# Multiplication
+product = fpMul(rtp, x, y)  # Round toward positive infinity
+```
+
+### Rounding Mode Effects
+
+```python
+from z3 import *
+
+s = Solver()
+
+x = FPVal(1.0, Float32())
+y = FPVal(3.0, Float32())
+
+# 1.0 / 3.0 with different rounding modes
+result_rne = fpDiv(RNE(), x, y)
+result_rtp = fpDiv(RTP(), x, y)
+result_rtn = fpDiv(RTN(), x, y)
+
+s.add(result_rne != result_rtp)  # Different results
+if s.check() == sat:
+    m = s.model()
+    print(f"RNE: {m.eval(result_rne)}")
+    print(f"RTP: {m.eval(result_rtp)}")
+    print(f"RTN: {m.eval(result_rtn)}")
+```
+
+## Arithmetic Operations
+
+### Basic Operations
+
+```python
+from z3 import *
+
+rm = RNE()  # Rounding mode
+x = FP('x', Float32())
+y = FP('y', Float32())
+
+# Arithmetic (all require rounding mode)
+add_result = fpAdd(rm, x, y)       # x + y
+sub_result = fpSub(rm, x, y)       # x - y
+mul_result = fpMul(rm, x, y)       # x * y
+div_result = fpDiv(rm, x, y)       # x / y
+sqrt_result = fpSqrt(rm, x)        # √x
+
+# Fused multiply-add: (x * y) + z with single rounding
+z = FP('z', Float32())
+fma_result = fpFMA(rm, x, y, z)    # More accurate than fpAdd(rm, fpMul(rm, x, y), z)
+
+# Remainder
+rem_result = fpRem(x, y)           # IEEE remainder (no rounding mode)
+
+# Absolute value, negation (exact operations)
+abs_result = fpAbs(x)
+neg_result = fpNeg(x)
+```
+
+### Rounding Operations
+
+```python
+from z3 import *
+
+rm = RNE()
+x = FP('x', Float64())
+
+# Round to integral value (in floating-point format)
+rounded = fpRoundToIntegral(rm, x)
+
+# Example: round 3.7 to nearest integer
+s = Solver()
+s.add(x == FPVal(3.7, Float64()))
+s.add(rounded == fpRoundToIntegral(RNE(), x))
+if s.check() == sat:
+    print(s.model()[rounded])  # 4.0 as floating-point
+```
+
+## Comparisons and Predicates
+
+### Comparison Operations
+
+```python
+from z3 import *
+
+x = FP('x', Float32())
+y = FP('y', Float32())
+
+# Standard comparisons (NaN-aware)
+eq_result = fpEQ(x, y)        # Equal
+lt_result = fpLT(x, y)        # Less than
+gt_result = fpGT(x, y)        # Greater than
+leq_result = fpLEQ(x, y)      # Less or equal
+geq_result = fpGEQ(x, y)      # Greater or equal
+
+# Note: NaN comparisons always return false (except !=)
+s = Solver()
+nan = fpNaN(Float32())
+s.add(fpEQ(nan, nan))  # Always false!
+print(s.check())  # unsat
+```
+
+### Predicates
+
+```python
+from z3 import *
+
+x = FP('x', Float32())
+
+# Special value predicates
+is_nan = fpIsNaN(x)           # Is NaN?
+is_inf = fpIsInf(x)           # Is infinity?
+is_zero = fpIsZero(x)         # Is zero (+ or -)?
+is_normal = fpIsNormal(x)     # Is normalized?
+is_subnormal = fpIsSubnormal(x)  # Is subnormal?
+is_positive = fpIsPositive(x) # Is positive (including +0)?
+is_negative = fpIsNegative(x) # Is negative (including -0)?
+
+# Example: check if result might be NaN
+s = Solver()
+y = FP('y', Float32())
+result = fpDiv(RNE(), x, y)
+s.add(fpIsNaN(result))
+if s.check() == sat:
+    m = s.model()
+    print(f"Division can produce NaN: {m[x]} / {m[y]}")
+```
+
+## Conversions
+
+### To/From Bit-Vectors
+
+```python
+from z3 import *
+
+# Floating-point to bit-vector (IEEE 754 representation)
+x = FP('x', Float32())
+bv = fpToIEEEBV(x)  # Returns 32-bit bit-vector
+
+# Bit-vector to floating-point
+bits = BitVec('bits', 32)
+fp_val = fpBVToFP(bits, Float32())
+
+# Example: extract sign, exponent, significand
+s = Solver()
+val = FPVal(3.14, Float32())
+bv_repr = fpToIEEEBV(val)
+
+sign = Extract(31, 31, bv_repr)
+exponent = Extract(30, 23, bv_repr)
+significand = Extract(22, 0, bv_repr)
+
+print(f"Sign: {sign}")
+print(f"Exponent: {exponent}")
+print(f"Significand: {significand}")
+```
+
+### To/From Reals and Integers
+
+```python
+from z3 import *
+
+rm = RNE()
+
+# Real to floating-point
+r = Real('r')
+fp_from_real = fpRealToFP(rm, r, Float32())
+
+# Signed integer to floating-point
+i = Int('i')
+fp_from_signed = fpSignedToFP(rm, i, Float32())
+
+# Unsigned bit-vector to floating-point
+bv = BitVec('bv', 32)
+fp_from_unsigned = fpUnsignedToFP(rm, bv, Float32())
+
+# Floating-point to real (partial function, undefined for NaN/inf)
+x = FP('x', Float32())
+real_val = fpToReal(x)
+
+# Example: convert and check
+s = Solver()
+s.add(fpIsNormal(x))  # Ensure x is not special value
+s.add(real_val == RealVal(3.5))
+if s.check() == sat:
+    print(s.model()[x])
+```
+
+### Format Conversions
+
+```python
+from z3 import *
+
+rm = RNE()
+
+# Float32 to Float64 (widening, exact)
+x32 = FP('x', Float32())
+x64 = fpFPToFP(rm, x32, Float64())
+
+# Float64 to Float32 (narrowing, may round)
+y64 = FP('y', Float64())
+y32 = fpFPToFP(rm, y64, Float32())
+
+# Example: precision loss
+s = Solver()
+large = FPVal(1e30, Float64())
+narrow = fpFPToFP(RNE(), large, Float32())
+s.add(fpIsInf(narrow))  # May overflow to infinity
+print(s.check())  # sat if overflow occurs
+```
+
+## Practical Examples
+
+### Checking Floating-Point Accuracy
+
+```python
+from z3 import *
+
+# Check if computation is exact
+def is_exact_addition(a, b):
+    s = Solver()
+    
+    x = FPVal(a, Float32())
+    y = FPVal(b, Float32())
+    
+    # Compute in single precision
+    result_fp = fpAdd(RNE(), x, y)
+    
+    # Compute in real arithmetic
+    result_real = fpRealToFP(RNE(), RealVal(a) + RealVal(b), Float32())
+    
+    # Check if they differ
+    s.add(result_fp != result_real)
+    
+    if s.check() == unsat:
+        print(f"{a} + {b} is exact in Float32")
+        return True
+    else:
+        print(f"{a} + {b} has rounding error")
+        return False
+
+is_exact_addition(1.0, 2.0)  # Exact
+is_exact_addition(0.1, 0.2)  # Not exact!
+```
+
+### Verifying Numerical Stability
+
+```python
+from z3 import *
+
+# Check if (a + b) + c == a + (b + c)
+def test_associativity():
+    s = Solver()
+    
+    a = FP('a', Float32())
+    b = FP('b', Float32())
+    c = FP('c', Float32())
+    
+    # Constrain to normal values (exclude NaN, inf)
+    s.add(fpIsNormal(a))
+    s.add(fpIsNormal(b))
+    s.add(fpIsNormal(c))
+    
+    # Two different evaluation orders
+    left = fpAdd(RNE(), fpAdd(RNE(), a, b), c)
+    right = fpAdd(RNE(), a, fpAdd(RNE(), b, c))
+    
+    # Find counterexample
+    s.add(left != right)
+    
+    if s.check() == sat:
+        m = s.model()
+        print("Addition is NOT associative:")
+        print(f"a = {m[a]}")
+        print(f"b = {m[b]}")
+        print(f"c = {m[c]}")
+        return False
+    else:
+        print("Addition is associative (unlikely to reach here)")
+        return True
+
+test_associativity()
+```
+
+### Solving Floating-Point Constraints
+
+```python
+from z3 import *
+
+# Find value where sqrt(x*x) != x
+s = Solver()
+
+x = FP('x', Float32())
+squared = fpMul(RNE(), x, y)
+sqrt_result = fpSqrt(RNE(), squared)
+
+s.add(fpIsNormal(x))
+s.add(sqrt_result != fpAbs(x))  # Should be |x|, not x
+
+if s.check() == sat:
+    m = s.model()
+    val = m[x]
+    print(f"Counterexample: x = {val}")
+    print(f"sqrt(x*x) = {m[sqrt_result]}")
+```
+
+## C API Reference
+
+Floating-point operations in C:
+
+```c
+#include <z3.h>
+
+// Create Float32 sort
+Z3_sort float32 = Z3_mk_fpa_sort_32(ctx);
+
+// Create custom float sort (11 exp, 53 sig = Float64)
+Z3_sort custom = Z3_mk_fpa_sort(ctx, 11, 53);
+
+// Rounding modes
+Z3_ast rne = Z3_mk_fpa_rne(ctx);
+Z3_ast rna = Z3_mk_fpa_rna(ctx);
+Z3_ast rtp = Z3_mk_fpa_rtp(ctx);
+Z3_ast rtn = Z3_mk_fpa_rtn(ctx);
+Z3_ast rtz = Z3_mk_fpa_rtz(ctx);
+
+// Create FP value from double
+Z3_ast fp_val = Z3_mk_fpa_numeral_double(ctx, 3.14, float32);
+
+// Operations
+Z3_ast sum = Z3_mk_fpa_add(ctx, rne, x, y);
+Z3_ast product = Z3_mk_fpa_mul(ctx, rne, x, y);
+Z3_ast quotient = Z3_mk_fpa_div(ctx, rne, x, y);
+Z3_ast root = Z3_mk_fpa_sqrt(ctx, rne, x);
+
+// Comparisons
+Z3_ast eq = Z3_mk_fpa_eq(ctx, x, y);
+Z3_ast lt = Z3_mk_fpa_lt(ctx, x, y);
+
+// Predicates
+Z3_ast is_nan = Z3_mk_fpa_is_nan(ctx, x);
+Z3_ast is_inf = Z3_mk_fpa_is_infinite(ctx, x);
+
+// Special values
+Z3_ast nan = Z3_mk_fpa_nan(ctx, float32);
+Z3_ast pos_inf = Z3_mk_fpa_plus_infinity(ctx, float32);
+Z3_ast neg_inf = Z3_mk_fpa_minus_infinity(ctx, float32);
+Z3_ast pos_zero = Z3_mk_fpa_plus_zero(ctx, float32);
+Z3_ast neg_zero = Z3_mk_fpa_minus_zero(ctx, float32);
+```
+
+## Key Functions
+
+| Function | Description |
+|----------|-------------|
+| `Z3_mk_fpa_sort` | Create custom FP sort |
+| `Z3_mk_fpa_sort_{16,32,64,128}` | Create standard formats |
+| `Z3_mk_fpa_rne/rna/rtp/rtn/rtz` | Rounding modes |
+| `Z3_mk_fpa_add/sub/mul/div` | Arithmetic operations |
+| `Z3_mk_fpa_sqrt` | Square root |
+| `Z3_mk_fpa_fma` | Fused multiply-add |
+| `Z3_mk_fpa_eq/lt/gt/leq/geq` | Comparisons |
+| `Z3_mk_fpa_is_nan/inf/zero` | Special value tests |
+| `Z3_mk_fpa_to_ieee_bv` | Convert to bit-vector |
+| `Z3_mk_fpa_to_fp_bv` | Convert from bit-vector |
+
+## Common Pitfalls
+
+1. **Forgetting rounding modes**: Most operations require explicit rounding mode
+2. **NaN comparisons**: NaN != NaN (unlike standard equality)
+3. **Signed zeros**: +0.0 and -0.0 are distinct but compare equal
+4. **Precision loss**: Converting from higher to lower precision
+5. **Overflow/underflow**: Results may become infinity or subnormal
+
+## See Also
+
+- [API Reference](/api-reference/floating-point) - Complete FPA API
+- [Bit-Vectors](/guides/bit-vectors) - Related fixed-width arithmetic
+- [IEEE 754 Standard](https://standards.ieee.org/standard/754-2019.html) - Floating-point specification

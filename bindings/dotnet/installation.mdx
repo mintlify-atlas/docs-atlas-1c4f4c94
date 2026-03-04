@@ -1,0 +1,352 @@
+---
+title: '.NET API Installation'
+description: 'Install and configure Z3 for .NET applications'
+---
+
+The Z3 .NET API provides a managed interface to Z3 for .NET, C#, F#, and other .NET languages.
+
+## Prerequisites
+
+- .NET Framework 4.5+ or .NET Core 2.0+ or .NET 5+
+- Visual Studio (recommended) or any .NET-compatible IDE
+- NuGet package manager
+
+## Installation Options
+
+### Option 1: NuGet Package (Recommended)
+
+The easiest way to use Z3 in .NET projects is via the official NuGet package.
+
+<Tabs>
+  <Tab title="Package Manager Console">
+    ```powershell
+    Install-Package Microsoft.Z3
+    ```
+  </Tab>
+  
+  <Tab title=".NET CLI">
+    ```bash
+    dotnet add package Microsoft.Z3
+    ```
+  </Tab>
+  
+  <Tab title="PackageReference">
+    Add to your `.csproj` file:
+    ```xml
+    <ItemGroup>
+      <PackageReference Include="Microsoft.Z3" Version="4.*" />
+    </ItemGroup>
+    ```
+  </Tab>
+</Tabs>
+
+<Note>
+  The NuGet package includes native binaries for Windows, Linux, and macOS, so no additional configuration is needed.
+</Note>
+
+### Option 2: Pre-built Binaries
+
+Download from the [GitHub Releases page](https://github.com/Z3Prover/z3/releases).
+
+<Steps>
+  <Step title="Download Z3">
+    Download the appropriate package:
+    - **Windows**: `z3-x.x.x-x64-win.zip`
+    - **Linux**: `z3-x.x.x-x64-glibc-x.x.zip`
+    - **macOS**: `z3-x.x.x-x64-osx-x.x.zip`
+  </Step>
+  
+  <Step title="Extract Archive">
+    Extract to a location (e.g., `C:\z3`).
+  </Step>
+  
+  <Step title="Locate .NET Files">
+    The `bin` directory contains:
+    - `Microsoft.Z3.dll` - .NET assembly
+    - `libz3.dll` / `libz3.so` / `libz3.dylib` - Native library
+  </Step>
+  
+  <Step title="Add Reference">
+    In your .NET project, add a reference to `Microsoft.Z3.dll` and ensure `libz3.*` is in the same directory as your executable or in the system PATH.
+  </Step>
+</Steps>
+
+### Option 3: Build from Source
+
+Build Z3 with .NET bindings enabled:
+
+<CodeGroup>
+```bash Linux/macOS
+git clone https://github.com/Z3Prover/z3.git
+cd z3
+python scripts/mk_make.py --dotnet
+cd build
+make
+```
+
+```powershell Windows
+git clone https://github.com/Z3Prover/z3.git
+cd z3
+python scripts/mk_make.py --dotnet
+cd build
+nmake
+```
+</CodeGroup>
+
+The .NET bindings will be in the `build` directory.
+
+## Visual Studio Setup
+
+### New Project with NuGet
+
+<Steps>
+  <Step title="Create Project">
+    Create a new C# Console Application or any .NET project type.
+  </Step>
+  
+  <Step title="Install NuGet Package">
+    Right-click project → **Manage NuGet Packages** → Search for "Microsoft.Z3" → Install.
+  </Step>
+  
+  <Step title="Start Coding">
+    Add `using Microsoft.Z3;` and start using Z3!
+  </Step>
+</Steps>
+
+### Manual Reference (Without NuGet)
+
+<Steps>
+  <Step title="Add Assembly Reference">
+    Right-click project → **Add** → **Reference** → **Browse** → Select `Microsoft.Z3.dll`.
+  </Step>
+  
+  <Step title="Copy Native Library">
+    Copy `libz3.dll` (Windows) / `libz3.so` (Linux) / `libz3.dylib` (macOS) to your project's output directory (usually `bin\Debug` or `bin\Release`).
+    
+    Or set it to copy automatically:
+    - Add `libz3.dll` to project
+    - Properties → **Copy to Output Directory** → **Copy if newer**
+  </Step>
+</Steps>
+
+## .NET Core / .NET 5+ CLI
+
+### Create New Project
+
+```bash
+# Create new console app
+dotnet new console -n MyZ3App
+cd MyZ3App
+
+# Add Z3 package
+dotnet add package Microsoft.Z3
+
+# Build and run
+dotnet build
+dotnet run
+```
+
+### Project File Example
+
+```xml MyZ3App.csproj
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net6.0</TargetFramework>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Z3" Version="4.12.0" />
+  </ItemGroup>
+</Project>
+```
+
+## Verify Installation
+
+Create a test file:
+
+```csharp Program.cs
+using System;
+using Microsoft.Z3;
+
+class Program
+{
+    static void Main(string[] args)
+    {
+        Console.WriteLine("Creating Z3 context...");
+        
+        using (Context ctx = new Context())
+        {
+            Console.WriteLine($"Z3 version: {ctx.Version}");
+            Console.WriteLine($"Full version: {Microsoft.Z3.Version.ToString()}");
+            
+            // Simple test: x > 0
+            IntExpr x = ctx.MkIntConst("x");
+            Solver solver = ctx.MkSolver();
+            solver.Assert(ctx.MkGt(x, ctx.MkInt(0)));
+            
+            if (solver.Check() == Status.SATISFIABLE)
+            {
+                Console.WriteLine("SAT");
+                Console.WriteLine($"Model: {solver.Model}");
+            }
+            
+            Console.WriteLine("Success!");
+        }
+    }
+}
+```
+
+Build and run:
+
+<CodeGroup>
+```bash .NET CLI
+dotnet build
+dotnet run
+```
+
+```powershell Visual Studio
+# Press F5 or Ctrl+F5 to run
+```
+</CodeGroup>
+
+Expected output:
+```
+Creating Z3 context...
+Z3 version: 4.x.x.x
+Full version: 4.x.x.x
+SAT
+Model: x -> 1
+Success!
+```
+
+## F# Setup
+
+Z3 works seamlessly with F#:
+
+```fsharp Program.fs
+open Microsoft.Z3
+open System
+
+[<EntryPoint>]
+let main argv =
+    use ctx = new Context()
+    printfn "Z3 version: %s" (ctx.Version.ToString())
+    
+    // Simple test
+    let x = ctx.MkIntConst("x")
+    let solver = ctx.MkSolver()
+    solver.Assert(ctx.MkGt(x, ctx.MkInt(0)))
+    
+    match solver.Check() with
+    | Status.SATISFIABLE -> 
+        printfn "SAT"
+        printfn "Model: %O" solver.Model
+    | Status.UNSATISFIABLE -> printfn "UNSAT"
+    | _ -> printfn "UNKNOWN"
+    
+    0
+```
+
+## Platform-Specific Notes
+
+### Windows
+
+- Native library: `libz3.dll`
+- The NuGet package automatically handles native dependencies
+- For manual installation, ensure `libz3.dll` is in the same directory as your executable or in PATH
+
+### Linux
+
+- Native library: `libz3.so`
+- May need to install dependencies: `sudo apt-get install libgomp1` (Ubuntu/Debian)
+- Set `LD_LIBRARY_PATH` if needed: `export LD_LIBRARY_PATH=/path/to/z3/lib:$LD_LIBRARY_PATH`
+
+### macOS
+
+- Native library: `libz3.dylib`
+- Set `DYLD_LIBRARY_PATH` if needed: `export DYLD_LIBRARY_PATH=/path/to/z3/lib:$DYLD_LIBRARY_PATH`
+
+## Troubleshooting
+
+### FileNotFoundException: Microsoft.Z3.dll
+
+**Problem:** Cannot find the managed assembly.
+
+**Solution:**
+- Reinstall the NuGet package
+- If using manual reference, verify the path to `Microsoft.Z3.dll`
+- Check that the assembly is being copied to the output directory
+
+### DllNotFoundException: libz3
+
+**Problem:** Cannot load the native library.
+
+**Solution:**
+- **Windows:** Ensure `libz3.dll` is in the same folder as your exe or in PATH
+- **Linux:** Install required dependencies, set `LD_LIBRARY_PATH`
+- **macOS:** Set `DYLD_LIBRARY_PATH`
+- If using NuGet, try cleaning and rebuilding: `dotnet clean && dotnet build`
+
+### BadImageFormatException
+
+**Problem:** Architecture mismatch (32-bit vs 64-bit).
+
+**Solution:**
+- Ensure your application target matches the Z3 binary architecture
+- Most Z3 distributions are 64-bit; set your project to x64:
+  - Project Properties → Build → Platform target → x64
+  - Or in .csproj: `<PlatformTarget>x64</PlatformTarget>`
+
+### TypeLoadException
+
+**Problem:** Version mismatch between managed and native libraries.
+
+**Solution:**
+- Ensure `Microsoft.Z3.dll` and `libz3.*` are from the same Z3 version
+- Reinstall the NuGet package
+
+## NuGet Package Details
+
+The official NuGet package:
+- **Package ID:** `Microsoft.Z3`
+- **Homepage:** https://www.nuget.org/packages/Microsoft.Z3/
+- **Repository:** https://github.com/Z3Prover/z3
+- **License:** MIT
+
+The package includes:
+- `Microsoft.Z3.dll` - Managed .NET assembly
+- Native libraries for Windows (x64, x86, ARM64)
+- Native libraries for Linux (x64, ARM64)
+- Native libraries for macOS (x64, ARM64)
+
+## Multi-Targeting
+
+For libraries that target multiple frameworks:
+
+```xml
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>net6.0;net48;netstandard2.0</TargetFrameworks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Z3" Version="4.12.0" />
+  </ItemGroup>
+</Project>
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Getting Started" icon="rocket" href="/bindings/dotnet/getting-started">
+    Learn the basics of the Z3 .NET API
+  </Card>
+  <Card title="API Reference" icon="book" href="/bindings/dotnet/api-reference">
+    Explore the complete .NET API documentation
+  </Card>
+  <Card title="NuGet Package" icon="box" href="https://www.nuget.org/packages/Microsoft.Z3/">
+    View on NuGet.org
+  </Card>
+</CardGroup>

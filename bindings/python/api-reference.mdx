@@ -1,0 +1,717 @@
+---
+title: Python API Reference
+description: Complete reference for Z3 Python bindings
+---
+
+# Python API Reference
+
+Comprehensive documentation for the Z3 Python API.
+
+## Core Classes
+
+### Context
+
+Manages Z3 objects and configuration options.
+
+```python
+class Context:
+    def __init__(self, *args, **kws)
+```
+
+**Description:**
+A Context manages all Z3 objects and global configuration. Z3Py uses a default global context for most applications. Multiple contexts can be created, but objects from different contexts cannot be mixed.
+
+**Parameters:**
+- `*args`: Configuration options as key-value pairs
+- `**kws`: Configuration options as keyword arguments
+
+**Example:**
+```python
+# Use default context
+x = Int('x')
+
+# Create custom context
+ctx = Context()
+y = Int('y', ctx)
+
+# Context with configuration
+ctx2 = Context(timeout=5000)
+```
+
+**Methods:**
+
+#### `ref()`
+Returns reference to the C pointer to the Z3 context.
+
+#### `interrupt()`
+Interrupt a solver performing a satisfiability test. Can be called from a different thread.
+
+```python
+ctx.interrupt()
+```
+
+#### `param_descrs()`
+Return the global parameter description set.
+
+```python
+descrs = ctx.param_descrs()
+```
+
+---
+
+### Solver
+
+Main interface for SMT solving.
+
+```python
+class Solver:
+    def __init__(self, solver=None, ctx=None, logFile=None)
+```
+
+**Description:**
+The Solver API provides methods for implementing SMT 2.0 commands: push, pop, check, get-model, etc.
+
+**Parameters:**
+- `solver`: Optional existing solver
+- `ctx`: Context (uses global context if None)
+- `logFile`: Optional file path for logging
+
+**Methods:**
+
+#### `add(*constraints)`
+Add constraints to the solver.
+
+```python
+s = Solver()
+x = Int('x')
+s.add(x > 0, x < 10)
+```
+
+#### `check(*assumptions)`
+Check satisfiability of current constraints.
+
+**Returns:** `sat`, `unsat`, or `unknown`
+
+```python
+result = s.check()
+if result == sat:
+    print("Satisfiable")
+```
+
+#### `model()`
+Get a model for the last satisfiable check.
+
+```python
+if s.check() == sat:
+    m = s.model()
+    print(m)
+```
+
+#### `push()`
+Save the current solver state.
+
+```python
+s.push()
+s.add(x > 5)
+s.check()
+s.pop()  # Restore previous state
+```
+
+#### `pop(num=1)`
+Restore a previously saved state.
+
+**Parameters:**
+- `num`: Number of scopes to pop (default: 1)
+
+#### `reset()`
+Remove all assertions from the solver.
+
+```python
+s.reset()
+```
+
+#### `assert_and_track(constraint, label)`
+Add a constraint with a tracking label (for unsat cores).
+
+```python
+s.assert_and_track(x > 0, 'positive')
+```
+
+#### `unsat_core()`
+Get the unsatisfiable core after an unsat result.
+
+```python
+if s.check() == unsat:
+    core = s.unsat_core()
+    print(core)
+```
+
+#### `set(param, value)`
+Set a solver parameter.
+
+```python
+s.set('timeout', 5000)  # 5 second timeout
+s.set('random_seed', 42)
+```
+
+#### `statistics()`
+Get solver statistics from the last check.
+
+```python
+s.check()
+stats = s.statistics()
+print(stats)
+```
+
+---
+
+## Variable Creation Functions
+
+### Integer and Real Variables
+
+#### `Int(name, ctx=None)`
+Create an integer constant.
+
+```python
+x = Int('x')
+```
+
+#### `Ints(names, ctx=None)`
+Create multiple integer constants.
+
+```python
+x, y, z = Ints('x y z')
+```
+
+#### `Real(name, ctx=None)`
+Create a real constant.
+
+```python
+a = Real('a')
+```
+
+#### `Reals(names, ctx=None)`
+Create multiple real constants.
+
+```python
+a, b, c = Reals('a b c')
+```
+
+#### `IntVal(val, ctx=None)`
+Create an integer value.
+
+```python
+five = IntVal(5)
+```
+
+#### `RealVal(val, ctx=None)`
+Create a real value.
+
+```python
+pi = RealVal("3.14159")
+half = RealVal(1, 2)  # Fraction: 1/2
+```
+
+### Boolean Variables
+
+#### `Bool(name, ctx=None)`
+Create a Boolean constant.
+
+```python
+p = Bool('p')
+```
+
+#### `Bools(names, ctx=None)`
+Create multiple Boolean constants.
+
+```python
+p, q, r = Bools('p q r')
+```
+
+#### `BoolVal(val, ctx=None)`
+Create a Boolean value.
+
+```python
+t = BoolVal(True)
+f = BoolVal(False)
+```
+
+### Bitvector Variables
+
+#### `BitVec(name, size, ctx=None)`
+Create a bitvector constant.
+
+**Parameters:**
+- `name`: Variable name
+- `size`: Bit width (e.g., 8, 16, 32, 64)
+
+```python
+x = BitVec('x', 32)  # 32-bit bitvector
+```
+
+#### `BitVecs(names, size, ctx=None)`
+Create multiple bitvector constants.
+
+```python
+x, y, z = BitVecs('x y z', 32)
+```
+
+#### `BitVecVal(val, size, ctx=None)`
+Create a bitvector value.
+
+```python
+val = BitVecVal(42, 32)
+hex_val = BitVecVal(0xFF, 8)
+```
+
+### String Variables
+
+#### `String(name, ctx=None)`
+Create a string constant.
+
+```python
+s = String('s')
+```
+
+#### `StringVal(val, ctx=None)`
+Create a string value.
+
+```python
+hello = StringVal("hello")
+```
+
+---
+
+## Expression Classes
+
+### ArithRef
+
+Base class for arithmetic expressions (Int and Real).
+
+**Supported Operations:**
+```python
+x, y = Ints('x y')
+
+# Arithmetic
+z = x + y
+z = x - y
+z = x * y
+z = x / y  # Integer division for Int
+z = x % y  # Modulo
+z = -x     # Negation
+
+# Comparison
+c = x > y
+c = x >= y
+c = x < y
+c = x <= y
+c = x == y
+c = x != y
+```
+
+### BoolRef
+
+Base class for Boolean expressions.
+
+**Supported Operations:**
+```python
+p, q = Bools('p q')
+
+# Logical operators
+r = And(p, q)
+r = Or(p, q)
+r = Not(p)
+r = Implies(p, q)
+r = Xor(p, q)
+```
+
+### BitVecRef
+
+Base class for bitvector expressions.
+
+**Supported Operations:**
+```python
+x, y = BitVecs('x y', 32)
+
+# Arithmetic
+z = x + y
+z = x - y
+z = x * y
+z = x / y   # Unsigned division
+z = x % y   # Unsigned modulo
+
+# Bitwise
+z = x & y   # AND
+z = x | y   # OR
+z = x ^ y   # XOR
+z = ~x      # NOT
+z = x << 2  # Left shift
+z = x >> 2  # Logical right shift
+
+# Comparison
+c = ULT(x, y)  # Unsigned less than
+c = UGT(x, y)  # Unsigned greater than
+```
+
+---
+
+## Logical Operators
+
+### `And(*args)`
+Logical conjunction.
+
+```python
+result = And(p, q, r)
+result = And([p, q, r])  # Can also take a list
+```
+
+### `Or(*args)`
+Logical disjunction.
+
+```python
+result = Or(p, q, r)
+```
+
+### `Not(expr)`
+Logical negation.
+
+```python
+result = Not(p)
+```
+
+### `Implies(p, q)`
+Logical implication (p → q).
+
+```python
+result = Implies(p, q)
+```
+
+### `Xor(p, q)`
+Exclusive OR.
+
+```python
+result = Xor(p, q)
+```
+
+---
+
+## Quantifiers
+
+### `ForAll(vars, body)`
+Universal quantification.
+
+**Parameters:**
+- `vars`: List of bound variables
+- `body`: Formula body
+
+```python
+x = Int('x')
+y = Int('y')
+formula = ForAll([x], x + 0 == x)
+```
+
+### `Exists(vars, body)`
+Existential quantification.
+
+```python
+x = Int('x')
+formula = Exists([x], And(x > 0, x < 10))
+```
+
+---
+
+## Array Operations
+
+### `Array(name, domain, range)`
+Create an array.
+
+```python
+A = Array('A', IntSort(), IntSort())
+```
+
+### `Select(array, index)`
+Array read operation (can also use `array[index]`).
+
+```python
+value = Select(A, 5)
+value = A[5]  # Equivalent
+```
+
+### `Store(array, index, value)`
+Array write operation.
+
+```python
+A2 = Store(A, 5, 10)  # A2 is A with index 5 set to 10
+```
+
+---
+
+## String Operations
+
+### `Concat(*strings)`
+String concatenation.
+
+```python
+s1 = String('s1')
+s2 = String('s2')
+result = Concat(s1, s2)
+```
+
+### `Length(string)`
+String length.
+
+```python
+len_s = Length(s1)
+```
+
+### `SubString(string, offset, length)`
+Extract substring.
+
+```python
+sub = SubString(s1, 0, 5)
+```
+
+### `PrefixOf(prefix, string)`
+Check if string starts with prefix.
+
+```python
+constraint = PrefixOf(StringVal("hello"), s1)
+```
+
+### `SuffixOf(suffix, string)`
+Check if string ends with suffix.
+
+```python
+constraint = SuffixOf(StringVal(".txt"), s1)
+```
+
+### `Contains(string, substring)`
+Check if string contains substring.
+
+```python
+constraint = Contains(s1, StringVal("world"))
+```
+
+---
+
+## Utility Functions
+
+### `simplify(expr, *args, **kwargs)`
+Simplify an expression.
+
+```python
+x = Bool('x')
+expr = And(x, Or(x, False))
+simplified = simplify(expr)  # Returns: x
+```
+
+### `substitute(expr, *substitutions)`
+Substitute variables in an expression.
+
+```python
+x, y = Ints('x y')
+expr = x + y
+new_expr = substitute(expr, (x, IntVal(5)))
+```
+
+### `solve(*constraints, show=False)`
+Quick solver for simple constraints.
+
+```python
+x = Int('x')
+solve(x > 0, x < 10)
+# Prints a satisfying assignment
+```
+
+### `prove(claim, show=False)`
+Attempt to prove a claim.
+
+```python
+x = Int('x')
+prove(x + 0 == x)  # Attempt to prove this is always true
+```
+
+---
+
+## Sort Functions
+
+### `IntSort(ctx=None)`
+Return the integer sort.
+
+```python
+int_sort = IntSort()
+```
+
+### `RealSort(ctx=None)`
+Return the real sort.
+
+```python
+real_sort = RealSort()
+```
+
+### `BoolSort(ctx=None)`
+Return the Boolean sort.
+
+```python
+bool_sort = BoolSort()
+```
+
+### `BitVecSort(size, ctx=None)`
+Return a bitvector sort.
+
+```python
+bv32_sort = BitVecSort(32)
+```
+
+### `StringSort(ctx=None)`
+Return the string sort.
+
+```python
+string_sort = StringSort()
+```
+
+### `ArraySort(domain, range)`
+Return an array sort.
+
+```python
+array_sort = ArraySort(IntSort(), IntSort())
+```
+
+### `DeclareSort(name, ctx=None)`
+Declare an uninterpreted sort.
+
+```python
+Object = DeclareSort('Object')
+```
+
+---
+
+## Function Declarations
+
+### `Function(name, *sig)`
+Declare an uninterpreted function.
+
+**Parameters:**
+- `name`: Function name
+- `*sig`: Argument sorts followed by return sort
+
+```python
+# f: Int × Int → Int
+f = Function('f', IntSort(), IntSort(), IntSort())
+
+# Application
+x, y = Ints('x y')
+result = f(x, y)
+```
+
+### `RecFunction(name, *sig)`
+Declare a recursive function.
+
+```python
+fac = RecFunction('fac', IntSort(), IntSort())
+x = Int('x')
+RecAddDefinition(fac, [x], If(x == 0, 1, x * fac(x - 1)))
+```
+
+---
+
+## Model Class
+
+### `Model`
+
+Represents a satisfying assignment.
+
+**Methods:**
+
+#### `__getitem__(var)`
+Get value of a variable.
+
+```python
+m = s.model()
+val = m[x]
+```
+
+#### `eval(expr, model_completion=False)`
+Evaluate an expression in the model.
+
+```python
+result = m.eval(x + y)
+```
+
+#### `decls()`
+Get all declarations in the model.
+
+```python
+for d in m.decls():
+    print(f"{d.name()} = {m[d]}")
+```
+
+---
+
+## Version Information
+
+### `get_version()`
+Get Z3 version as a tuple.
+
+```python
+major, minor, build, rev = get_version()
+```
+
+### `get_version_string()`
+Get Z3 version as a string.
+
+```python
+version = get_version_string()  # e.g., "4.12.2"
+```
+
+### `get_full_version()`
+Get full Z3 version string with build info.
+
+```python
+full_version = get_full_version()
+```
+
+---
+
+## Configuration
+
+### `set_param(*args, **kwargs)`
+Set global Z3 parameters.
+
+```python
+set_param('timeout', 5000)
+set_param('verbose', 2)
+```
+
+### Common Parameters
+
+- `timeout`: Timeout in milliseconds
+- `random_seed`: Random seed for reproducibility
+- `verbose`: Verbosity level (0-10)
+- `proof`: Enable proof generation
+- `unsat_core`: Enable unsat core generation
+
+---
+
+## Type Checking Functions
+
+```python
+is_int(expr)       # Check if integer expression
+is_real(expr)      # Check if real expression
+is_bool(expr)      # Check if Boolean expression
+is_bv(expr)        # Check if bitvector expression
+is_string(expr)    # Check if string expression
+is_array(expr)     # Check if array expression
+is_const(expr)     # Check if constant
+is_expr(expr)      # Check if expression
+is_sort(s)         # Check if sort
+```
+
+---
+
+## Additional Resources
+
+- [Z3 API Documentation](https://z3prover.github.io/api/html/namespacez3py.html)
+- [Z3 Guide](https://microsoft.github.io/z3guide/)
+- [GitHub Repository](https://github.com/Z3Prover/z3)
+- [Examples](https://github.com/Z3Prover/z3/tree/master/examples/python)

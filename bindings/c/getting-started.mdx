@@ -1,0 +1,369 @@
+---
+title: 'C API Getting Started'
+description: 'Learn the basics of using Z3 from C'
+---
+
+This guide introduces the fundamental concepts and patterns for using the Z3 Theorem Prover from C.
+
+## Basic Workflow
+
+A typical Z3 C program follows this pattern:
+
+1. Create a configuration and context
+2. Declare variables and constraints
+3. Create a solver and add assertions
+4. Check satisfiability
+5. Extract results (models, proofs, etc.)
+6. Clean up resources
+
+## Hello Z3
+
+Let's start with a simple example:
+
+```c
+#include <stdio.h>
+#include <z3.h>
+
+int main() {
+    Z3_config cfg = Z3_mk_config();
+    Z3_context ctx = Z3_mk_context(cfg);
+    Z3_del_config(cfg);  // Config no longer needed after context creation
+    
+    printf("Z3 context created successfully\n");
+    
+    Z3_del_context(ctx);
+    return 0;
+}
+```
+
+<Note>
+  Always delete the config after creating the context, and delete the context when done to prevent memory leaks.
+</Note>
+
+## Configuration and Context
+
+The **context** manages all Z3 objects. The **configuration** sets parameters before creating the context.
+
+```c
+Z3_config cfg = Z3_mk_config();
+// Set parameters
+Z3_set_param_value(cfg, "model", "true");     // Enable model generation
+Z3_set_param_value(cfg, "proof", "false");    // Disable proof generation
+
+Z3_context ctx = Z3_mk_context(cfg);
+Z3_del_config(cfg);
+```
+
+### Error Handling
+
+```c
+void error_handler(Z3_context c, Z3_error_code e) {
+    fprintf(stderr, "Error code: %d\n", e);
+    fprintf(stderr, "Error: %s\n", Z3_get_error_msg(c, e));
+    exit(1);
+}
+
+Z3_context ctx = Z3_mk_context(cfg);
+Z3_set_error_handler(ctx, error_handler);
+```
+
+## Creating Variables and Expressions
+
+### Boolean Variables
+
+```c
+Z3_sort bool_sort = Z3_mk_bool_sort(ctx);
+Z3_symbol x_sym = Z3_mk_string_symbol(ctx, "x");
+Z3_ast x = Z3_mk_const(ctx, x_sym, bool_sort);
+```
+
+Helper function for convenience:
+
+```c
+Z3_ast mk_bool_var(Z3_context ctx, const char *name) {
+    Z3_sort ty = Z3_mk_bool_sort(ctx);
+    Z3_symbol s = Z3_mk_string_symbol(ctx, name);
+    return Z3_mk_const(ctx, s, ty);
+}
+```
+
+### Integer Variables
+
+```c
+Z3_ast mk_int_var(Z3_context ctx, const char *name) {
+    Z3_sort ty = Z3_mk_int_sort(ctx);
+    Z3_symbol s = Z3_mk_string_symbol(ctx, name);
+    return Z3_mk_const(ctx, s, ty);
+}
+
+Z3_ast x = mk_int_var(ctx, "x");
+Z3_ast y = mk_int_var(ctx, "y");
+```
+
+### Integer Constants
+
+```c
+Z3_ast mk_int(Z3_context ctx, int v) {
+    Z3_sort ty = Z3_mk_int_sort(ctx);
+    return Z3_mk_int(ctx, v, ty);
+}
+
+Z3_ast five = mk_int(ctx, 5);
+Z3_ast ten = mk_int(ctx, 10);
+```
+
+## Building Formulas
+
+### Logical Operations
+
+```c
+Z3_ast x = mk_bool_var(ctx, "x");
+Z3_ast y = mk_bool_var(ctx, "y");
+
+// x AND y
+Z3_ast args[2] = {x, y};
+Z3_ast x_and_y = Z3_mk_and(ctx, 2, args);
+
+// x OR y
+Z3_ast x_or_y = Z3_mk_or(ctx, 2, args);
+
+// NOT x
+Z3_ast not_x = Z3_mk_not(ctx, x);
+
+// x IFF y (equivalence)
+Z3_ast x_iff_y = Z3_mk_iff(ctx, x, y);
+```
+
+### Arithmetic Operations
+
+```c
+Z3_ast x = mk_int_var(ctx, "x");
+Z3_ast y = mk_int_var(ctx, "y");
+Z3_ast five = mk_int(ctx, 5);
+
+// x + y
+Z3_ast args[2] = {x, y};
+Z3_ast x_plus_y = Z3_mk_add(ctx, 2, args);
+
+// x * 5
+Z3_ast args2[2] = {x, five};
+Z3_ast x_times_5 = Z3_mk_mul(ctx, 2, args2);
+
+// x > y
+Z3_ast x_gt_y = Z3_mk_gt(ctx, x, y);
+
+// x >= 0
+Z3_ast zero = mk_int(ctx, 0);
+Z3_ast x_ge_0 = Z3_mk_ge(ctx, x, zero);
+```
+
+## Using Solvers
+
+### Creating and Using a Solver
+
+```c
+// Create solver
+Z3_solver solver = Z3_mk_solver(ctx);
+Z3_solver_inc_ref(ctx, solver);  // Increment reference count
+
+// Add constraints
+Z3_solver_assert(ctx, solver, constraint1);
+Z3_solver_assert(ctx, solver, constraint2);
+
+// Check satisfiability
+Z3_lbool result = Z3_solver_check(ctx, solver);
+
+switch (result) {
+    case Z3_L_TRUE:
+        printf("SAT\n");
+        break;
+    case Z3_L_FALSE:
+        printf("UNSAT\n");
+        break;
+    case Z3_L_UNDEF:
+        printf("UNKNOWN\n");
+        break;
+}
+
+// Clean up
+Z3_solver_dec_ref(ctx, solver);
+```
+
+## Complete Example: De Morgan's Law
+
+This example proves De Morgan's law: `¬(x ∧ y) ⟺ (¬x ∨ ¬y)`
+
+```c
+#include <stdio.h>
+#include <z3.h>
+
+void prove_demorgan() {
+    Z3_config cfg = Z3_mk_config();
+    Z3_context ctx = Z3_mk_context(cfg);
+    Z3_del_config(cfg);
+    
+    // Create boolean variables
+    Z3_sort bool_sort = Z3_mk_bool_sort(ctx);
+    Z3_ast x = Z3_mk_const(ctx, Z3_mk_string_symbol(ctx, "x"), bool_sort);
+    Z3_ast y = Z3_mk_const(ctx, Z3_mk_string_symbol(ctx, "y"), bool_sort);
+    
+    // Build formula: ¬(x ∧ y) ⟺ (¬x ∨ ¬y)
+    Z3_ast not_x = Z3_mk_not(ctx, x);
+    Z3_ast not_y = Z3_mk_not(ctx, y);
+    
+    Z3_ast and_args[2] = {x, y};
+    Z3_ast x_and_y = Z3_mk_and(ctx, 2, and_args);
+    Z3_ast left_side = Z3_mk_not(ctx, x_and_y);
+    
+    Z3_ast or_args[2] = {not_x, not_y};
+    Z3_ast right_side = Z3_mk_or(ctx, 2, or_args);
+    
+    Z3_ast conjecture = Z3_mk_iff(ctx, left_side, right_side);
+    
+    // To prove, we show the negation is unsatisfiable
+    Z3_ast negated = Z3_mk_not(ctx, conjecture);
+    
+    // Create solver and check
+    Z3_solver solver = Z3_mk_solver(ctx);
+    Z3_solver_inc_ref(ctx, solver);
+    Z3_solver_assert(ctx, solver, negated);
+    
+    Z3_lbool result = Z3_solver_check(ctx, solver);
+    
+    if (result == Z3_L_FALSE) {
+        printf("De Morgan's law is valid!\n");
+    } else {
+        printf("De Morgan's law is not valid (unexpected)\n");
+    }
+    
+    Z3_solver_dec_ref(ctx, solver);
+    Z3_del_context(ctx);
+}
+
+int main() {
+    prove_demorgan();
+    return 0;
+}
+```
+
+## Complete Example: Finding a Model
+
+Find values for x and y such that `x + y > 5` and `x - y < 2`:
+
+```c
+#include <stdio.h>
+#include <z3.h>
+
+void find_model() {
+    Z3_config cfg = Z3_mk_config();
+    Z3_set_param_value(cfg, "model", "true");
+    Z3_context ctx = Z3_mk_context(cfg);
+    Z3_del_config(cfg);
+    
+    // Create integer variables
+    Z3_sort int_sort = Z3_mk_int_sort(ctx);
+    Z3_ast x = Z3_mk_const(ctx, Z3_mk_string_symbol(ctx, "x"), int_sort);
+    Z3_ast y = Z3_mk_const(ctx, Z3_mk_string_symbol(ctx, "y"), int_sort);
+    
+    // Create constraint: x + y > 5
+    Z3_ast add_args[2] = {x, y};
+    Z3_ast x_plus_y = Z3_mk_add(ctx, 2, add_args);
+    Z3_ast five = Z3_mk_int(ctx, 5, int_sort);
+    Z3_ast constraint1 = Z3_mk_gt(ctx, x_plus_y, five);
+    
+    // Create constraint: x - y < 2
+    Z3_ast sub_args[2] = {x, y};
+    Z3_ast x_minus_y = Z3_mk_sub(ctx, 2, sub_args);
+    Z3_ast two = Z3_mk_int(ctx, 2, int_sort);
+    Z3_ast constraint2 = Z3_mk_lt(ctx, x_minus_y, two);
+    
+    // Solve
+    Z3_solver solver = Z3_mk_solver(ctx);
+    Z3_solver_inc_ref(ctx, solver);
+    Z3_solver_assert(ctx, solver, constraint1);
+    Z3_solver_assert(ctx, solver, constraint2);
+    
+    if (Z3_solver_check(ctx, solver) == Z3_L_TRUE) {
+        printf("SAT\n");
+        Z3_model model = Z3_solver_get_model(ctx, solver);
+        Z3_model_inc_ref(ctx, model);
+        printf("Model:\n%s\n", Z3_model_to_string(ctx, model));
+        Z3_model_dec_ref(ctx, model);
+    } else {
+        printf("UNSAT\n");
+    }
+    
+    Z3_solver_dec_ref(ctx, solver);
+    Z3_del_context(ctx);
+}
+
+int main() {
+    find_model();
+    return 0;
+}
+```
+
+## Memory Management
+
+<Warning>
+  Z3 uses reference counting. Always increment references for long-lived objects and decrement when done.
+</Warning>
+
+### Reference Counting
+
+```c
+// Solver reference counting
+Z3_solver s = Z3_mk_solver(ctx);
+Z3_solver_inc_ref(ctx, s);  // Increment
+// ... use solver ...
+Z3_solver_dec_ref(ctx, s);  // Decrement when done
+
+// Model reference counting
+Z3_model m = Z3_solver_get_model(ctx, s);
+Z3_model_inc_ref(ctx, m);
+// ... use model ...
+Z3_model_dec_ref(ctx, m);
+```
+
+### AST Reference Counting
+
+Most AST nodes are automatically managed by the context, but if you need to keep them across multiple solver calls:
+
+```c
+Z3_ast ast = /* some expression */;
+Z3_inc_ref(ctx, ast);
+// ... use ast ...
+Z3_dec_ref(ctx, ast);
+```
+
+## Printing and Debugging
+
+```c
+// Print AST as S-expression
+printf("Formula: %s\n", Z3_ast_to_string(ctx, formula));
+
+// Print solver state
+printf("Solver: %s\n", Z3_solver_to_string(ctx, solver));
+
+// Print model
+printf("Model: %s\n", Z3_model_to_string(ctx, model));
+```
+
+## Best Practices
+
+1. **Always create a fresh context** for each independent solving task
+2. **Enable model generation** in the config if you need to extract solutions
+3. **Use reference counting** properly to avoid memory leaks
+4. **Check error codes** or set up error handlers for production code
+5. **Clean up resources** in reverse order of creation
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="API Reference" icon="book" href="/bindings/c/api-reference">
+    Explore the complete C API
+  </Card>
+  <Card title="Examples" icon="code" href="https://github.com/Z3Prover/z3/tree/master/examples/c">
+    View more C examples on GitHub
+  </Card>
+</CardGroup>

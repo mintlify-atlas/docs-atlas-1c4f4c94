@@ -1,0 +1,329 @@
+---
+title: 'Java API Installation'
+description: 'Install and configure Z3 for Java'
+---
+
+The Z3 Java API provides a high-level, object-oriented interface to Z3 for Java applications.
+
+## Prerequisites
+
+- Java Development Kit (JDK) 8 or later
+- Java IDE (Eclipse, IntelliJ IDEA, or VS Code) - optional but recommended
+
+## Installation Options
+
+### Option 1: Pre-built Binaries (Recommended)
+
+Download the latest Z3 release for your platform from the [GitHub Releases page](https://github.com/Z3Prover/z3/releases).
+
+<Steps>
+  <Step title="Download Z3">
+    Download the appropriate package:
+    - **Windows**: `z3-x.x.x-x64-win.zip`
+    - **Linux**: `z3-x.x.x-x64-glibc-x.x.zip`
+    - **macOS**: `z3-x.x.x-x64-osx-x.x.zip`
+  </Step>
+  
+  <Step title="Extract Archive">
+    Extract to a location on your system (e.g., `C:\z3` on Windows or `/opt/z3` on Linux/macOS).
+  </Step>
+  
+  <Step title="Locate Files">
+    The `bin` directory contains:
+    - `com.microsoft.z3.jar` - Java API library
+    - `libz3.dll` / `libz3.so` / `libz3.dylib` - Native Z3 library
+    - `libz3java.dll` / `libz3java.so` / `libz3java.dylib` - Java JNI bridge
+  </Step>
+</Steps>
+
+### Option 2: Build from Source
+
+Build Z3 with Java bindings enabled:
+
+<CodeGroup>
+```bash Linux/macOS
+git clone https://github.com/Z3Prover/z3.git
+cd z3
+python scripts/mk_make.py --java
+cd build
+make
+```
+
+```powershell Windows
+git clone https://github.com/Z3Prover/z3.git
+cd z3
+python scripts/mk_make.py --java
+cd build
+nmake
+```
+</CodeGroup>
+
+The Java bindings will be in the `build` directory:
+- `com.microsoft.z3.jar`
+- Native libraries (`libz3java.*` and `libz3.*`)
+
+## IDE Setup
+
+### Eclipse
+
+<Steps>
+  <Step title="Add Z3 JAR to Build Path">
+    1. Right-click project → **Build Path** → **Configure Build Path**
+    2. **Libraries** tab → **Add External JARs**
+    3. Select `com.microsoft.z3.jar`
+    4. Click **Apply and Close**
+  </Step>
+  
+  <Step title="Configure Native Library Path">
+    **Method 1: Native Library Location**
+    1. Expand **Referenced Libraries** → `com.microsoft.z3.jar`
+    2. Right-click **Native Library Location** → **Edit**
+    3. Select the Z3 `bin` folder
+    
+    **Method 2: VM Arguments**
+    1. **Run** → **Run Configurations**
+    2. **Arguments** tab
+    3. Add VM argument:
+    ```
+    -Djava.library.path=/path/to/z3/bin
+    ```
+  </Step>
+</Steps>
+
+### IntelliJ IDEA
+
+<Steps>
+  <Step title="Add Z3 JAR to Project">
+    1. **File** → **Project Structure** (Ctrl+Alt+Shift+S)
+    2. **Modules** → **Dependencies**
+    3. Click **+** → **JARs or directories**
+    4. Select `com.microsoft.z3.jar`
+  </Step>
+  
+  <Step title="Configure Native Library Path">
+    1. **Run** → **Edit Configurations**
+    2. In **VM options**, add:
+    ```
+    -Djava.library.path=/path/to/z3/bin
+    ```
+  </Step>
+</Steps>
+
+### Visual Studio Code
+
+<Steps>
+  <Step title="Install Java Extension Pack">
+    Install the **Extension Pack for Java** from the marketplace.
+  </Step>
+  
+  <Step title="Configure Classpath">
+    Create or edit `.vscode/settings.json`:
+    ```json
+    {
+        "java.project.referencedLibraries": [
+            "/path/to/z3/bin/com.microsoft.z3.jar"
+        ]
+    }
+    ```
+  </Step>
+  
+  <Step title="Configure Native Library Path">
+    Create or edit `.vscode/launch.json`:
+    ```json
+    {
+        "version": "0.2.0",
+        "configurations": [
+            {
+                "type": "java",
+                "name": "Launch with Z3",
+                "request": "launch",
+                "mainClass": "YourMainClass",
+                "vmArgs": "-Djava.library.path=/path/to/z3/bin"
+            }
+        ]
+    }
+    ```
+  </Step>
+</Steps>
+
+## Command-Line Setup
+
+### Compiling
+
+<CodeGroup>
+```bash Linux/macOS
+javac -cp "/path/to/z3/bin/com.microsoft.z3.jar:." YourProgram.java
+```
+
+```powershell Windows
+javac -cp "C:\z3\bin\com.microsoft.z3.jar;." YourProgram.java
+```
+</CodeGroup>
+
+### Running
+
+<CodeGroup>
+```bash Linux
+java -cp "/path/to/z3/bin/com.microsoft.z3.jar:." \
+     -Djava.library.path=/path/to/z3/bin \
+     YourProgram
+
+# Or set LD_LIBRARY_PATH
+export LD_LIBRARY_PATH=/path/to/z3/bin:$LD_LIBRARY_PATH
+java -cp "/path/to/z3/bin/com.microsoft.z3.jar:." YourProgram
+```
+
+```bash macOS
+java -cp "/path/to/z3/bin/com.microsoft.z3.jar:." \
+     -Djava.library.path=/path/to/z3/bin \
+     YourProgram
+
+# Or set DYLD_LIBRARY_PATH
+export DYLD_LIBRARY_PATH=/path/to/z3/bin:$DYLD_LIBRARY_PATH
+java -cp "/path/to/z3/bin/com.microsoft.z3.jar:." YourProgram
+```
+
+```powershell Windows
+java -cp "C:\z3\bin\com.microsoft.z3.jar;." ^
+     -Djava.library.path=C:\z3\bin ^
+     YourProgram
+```
+</CodeGroup>
+
+## Verify Installation
+
+Create a test file `TestZ3.java`:
+
+```java TestZ3.java
+import com.microsoft.z3.*;
+
+public class TestZ3 {
+    public static void main(String[] args) {
+        System.out.println("Creating Z3 context...");
+        
+        try (Context ctx = new Context()) {
+            System.out.println("Z3 version: " + Version.getFullVersion());
+            
+            // Simple test: x > 0
+            IntExpr x = ctx.mkIntConst("x");
+            Solver solver = ctx.mkSolver();
+            solver.add(ctx.mkGt(x, ctx.mkInt(0)));
+            
+            if (solver.check() == Status.SATISFIABLE) {
+                System.out.println("SAT");
+                System.out.println("Model: " + solver.getModel());
+            }
+            
+            System.out.println("Success!");
+        }
+    }
+}
+```
+
+Compile and run:
+
+<CodeGroup>
+```bash Linux/macOS
+javac -cp "/path/to/z3/bin/com.microsoft.z3.jar:." TestZ3.java
+java -cp "/path/to/z3/bin/com.microsoft.z3.jar:." -Djava.library.path=/path/to/z3/bin TestZ3
+```
+
+```powershell Windows
+javac -cp "C:\z3\bin\com.microsoft.z3.jar;." TestZ3.java
+java -cp "C:\z3\bin\com.microsoft.z3.jar;." -Djava.library.path=C:\z3\bin TestZ3
+```
+</CodeGroup>
+
+Expected output:
+```
+Creating Z3 context...
+Z3 version: 4.x.x.x
+SAT
+Model: x -> 1
+Success!
+```
+
+## Maven/Gradle Setup
+
+### Maven
+
+Add Z3 as a system dependency in `pom.xml`:
+
+```xml pom.xml
+<dependency>
+    <groupId>com.microsoft</groupId>
+    <artifactId>z3</artifactId>
+    <version>4.x.x</version>
+    <scope>system</scope>
+    <systemPath>${project.basedir}/lib/com.microsoft.z3.jar</systemPath>
+</dependency>
+```
+
+Place `com.microsoft.z3.jar` in your project's `lib` directory, and configure the native library path in your IDE or command line.
+
+### Gradle
+
+Add to `build.gradle`:
+
+```gradle build.gradle
+dependencies {
+    implementation files('lib/com.microsoft.z3.jar')
+}
+```
+
+## Troubleshooting
+
+### ClassNotFoundException
+
+```
+Exception in thread "main" java.lang.ClassNotFoundException: com.microsoft.z3.Context
+```
+
+**Solution:**
+- Verify `com.microsoft.z3.jar` is in your classpath
+- Check IDE configuration (Project Properties → Java Build Path)
+- Ensure proper classpath separator (`:` on Unix, `;` on Windows)
+
+### UnsatisfiedLinkError
+
+```
+Exception in thread "main" java.lang.UnsatisfiedLinkError: no z3java in java.library.path
+```
+
+**Solution:**
+- Set `java.library.path` VM argument to Z3 `bin` directory
+- On Linux: Set `LD_LIBRARY_PATH`
+- On macOS: Set `DYLD_LIBRARY_PATH`
+- On Windows: Add Z3 `bin` to PATH or use `-Djava.library.path`
+- Verify both `libz3java.*` and `libz3.*` files are present
+
+### ExceptionInInitializerError
+
+```
+Exception in thread "main" java.lang.ExceptionInInitializerError
+```
+
+**Solution:**
+- Ensure all Z3 files are from the same version
+- Verify compatible Java version (JDK 8+)
+- Check native library architecture matches JVM (32-bit vs 64-bit)
+
+### Platform-Specific Library Names
+
+- **Windows**: `libz3.dll` and `libz3java.dll`
+- **Linux**: `libz3.so` and `libz3java.so`
+- **macOS**: `libz3.dylib` and `libz3java.dylib`
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Getting Started" icon="rocket" href="/bindings/java/getting-started">
+    Learn the basics of the Z3 Java API
+  </Card>
+  <Card title="API Reference" icon="book" href="/bindings/java/api-reference">
+    Explore the complete Java API documentation
+  </Card>
+  <Card title="IDE Setup Guide" icon="laptop-code" href="https://github.com/Z3Prover/z3/blob/master/doc/JAVA_IDE_SETUP.md">
+    Detailed IDE configuration instructions
+  </Card>
+</CardGroup>

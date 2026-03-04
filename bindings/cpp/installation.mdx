@@ -1,0 +1,205 @@
+---
+title: 'C++ API Installation'
+description: 'Building and linking Z3 with C++ projects'
+---
+
+# Installing Z3 C++ API
+
+The Z3 C++ API provides a thin object-oriented layer on top of the Z3 C API. This page covers how to build Z3 from source and link it with your C++ projects.
+
+## Prerequisites
+
+- C++20 or later compiler
+- CMake 3.16 or later
+- Git (for cloning the repository)
+
+## Building Z3 from Source
+
+### Clone the Repository
+
+```bash
+git clone https://github.com/Z3Prover/z3.git
+cd z3
+```
+
+### Build with CMake
+
+```bash
+mkdir build
+cd build
+cmake ..
+cmake --build .
+```
+
+### Install (Optional)
+
+```bash
+sudo cmake --install .
+```
+
+This will install:
+- Headers to `/usr/local/include/` (including `z3++.h`)
+- Libraries to `/usr/local/lib/`
+- CMake config files for easy integration
+
+## Integrating Z3 into Your C++ Project
+
+### Using CMake (Recommended)
+
+Create a `CMakeLists.txt` file for your project:
+
+```cmake
+cmake_minimum_required(VERSION 3.16)
+project(MyZ3Project CXX)
+
+# Require C++20
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# Find Z3 package
+find_package(Z3 REQUIRED CONFIG)
+
+message(STATUS "Z3_FOUND: ${Z3_FOUND}")
+message(STATUS "Found Z3 ${Z3_VERSION_STRING}")
+
+# Create executable
+add_executable(myapp main.cpp)
+
+# Link Z3 C++ API
+target_include_directories(myapp PRIVATE ${Z3_CXX_INCLUDE_DIRS})
+target_link_libraries(myapp PRIVATE ${Z3_LIBRARIES})
+```
+
+Build your project:
+
+```bash
+mkdir build
+cd build
+cmake ..
+cmake --build .
+```
+
+### Manual Compilation
+
+If you're not using CMake, compile with:
+
+```bash
+g++ -std=c++20 -o myapp main.cpp -I/usr/local/include -L/usr/local/lib -lz3
+```
+
+## Include the Header
+
+In your C++ source files:
+
+```cpp
+#include <z3++.h>
+
+using namespace z3;
+```
+
+## Verifying Installation
+
+Create a simple test program:
+
+```cpp test.cpp
+#include <iostream>
+#include <z3++.h>
+
+int main() {
+    z3::context c;
+    
+    unsigned major, minor, build, revision;
+    z3::get_version(major, minor, build, revision);
+    
+    std::cout << "Z3 version: " 
+              << major << "."
+              << minor << "."
+              << build << "." 
+              << revision << std::endl;
+    
+    return 0;
+}
+```
+
+Compile and run:
+
+```bash
+g++ -std=c++20 -o test test.cpp -lz3
+./test
+```
+
+Expected output:
+```
+Z3 version: 4.13.0.0
+```
+
+## Build Options
+
+### Static vs Shared Library
+
+By default, Z3 builds as a shared library. To build a static library:
+
+```bash
+cmake -DZ3_BUILD_LIBZ3_SHARED=OFF ..
+```
+
+### Debug Build
+
+For debugging with symbols:
+
+```bash
+cmake -DCMAKE_BUILD_TYPE=Debug ..
+```
+
+### Release Build with Optimizations
+
+```bash
+cmake -DCMAKE_BUILD_TYPE=Release ..
+```
+
+## Troubleshooting
+
+### Library Not Found
+
+If you get linker errors:
+
+1. Verify installation path:
+   ```bash
+   find /usr/local -name "libz3*"
+   ```
+
+2. Add library path to `LD_LIBRARY_PATH`:
+   ```bash
+   export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
+   ```
+
+### Header Not Found
+
+If `z3++.h` is not found:
+
+```bash
+# Locate the header
+find /usr/local -name "z3++.h"
+
+# Add to compiler include path
+g++ -I/path/to/z3/include ...
+```
+
+### Windows-Specific
+
+On Windows, copy the Z3 DLL to your executable directory:
+
+```cmake
+if (WIN32)
+  add_custom_command(TARGET myapp POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+    $<TARGET_FILE:libz3>
+    $<TARGET_FILE_DIR:myapp>
+  )
+endif()
+```
+
+## Next Steps
+
+- [Getting Started Guide](/bindings/cpp/getting-started) - Write your first Z3 program
+- [API Reference](/bindings/cpp/api-reference) - Explore available classes and methods

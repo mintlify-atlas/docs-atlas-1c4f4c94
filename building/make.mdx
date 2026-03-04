@@ -1,0 +1,386 @@
+---
+title: Building with Make
+description: Build Z3 using Make and the Python configuration script
+---
+
+The Make-based build system uses a Python script (`mk_make.py`) to generate Makefiles, which are then used to compile Z3. This approach is simple and works well for Unix-like systems.
+
+<Info>
+For building OCaml bindings, the Make-based system is required. For other use cases, [CMake](/building/cmake) is recommended.
+</Info>
+
+## Prerequisites
+
+- Python (for running `mk_make.py`)
+- GCC or Clang compiler
+- Make
+- Git (optional)
+
+## Basic Build
+
+<Steps>
+  <Step title="Generate Makefiles">
+    Run the Python configuration script:
+    
+    ```bash
+    python scripts/mk_make.py
+    ```
+  </Step>
+  
+  <Step title="Build Z3">
+    Navigate to the build directory and compile:
+    
+    ```bash
+    cd build
+    make
+    ```
+  </Step>
+  
+  <Step title="Install (optional)">
+    Install Z3 system-wide:
+    
+    ```bash
+    sudo make install
+    ```
+  </Step>
+</Steps>
+
+## Compiler Selection
+
+By default, `g++` is used if available. To use Clang:
+
+```bash
+CXX=clang++ CC=clang python scripts/mk_make.py
+```
+
+<Warning>
+Clang versions older than 3.7 do not support OpenMP and may have limited parallel processing capabilities.
+</Warning>
+
+## Cross-Platform Builds
+
+### Windows with Cygwin and MinGW
+
+You can build Z3 for Windows using Cygwin and the MinGW-w64 cross-compiler:
+
+```bash
+CXX=x86_64-w64-mingw32-g++ CC=x86_64-w64-mingw32-gcc AR=x86_64-w64-mingw32-ar python scripts/mk_make.py
+```
+
+<Info>
+Make sure to use Cygwin's own Python, not a Windows installation of Python.
+</Info>
+
+## Installation Prefix
+
+The default installation prefix varies by platform:
+- **Linux**: `/usr`
+- **FreeBSD/macOS**: `/usr/local`
+
+To change the installation prefix:
+
+```bash
+python scripts/mk_make.py --prefix=/home/username
+cd build
+make
+make install
+```
+
+Z3 will be installed to:
+- Binaries: `PREFIX/bin`
+- Libraries: `PREFIX/lib`
+- Headers: `PREFIX/include`
+
+## Build Configuration Options
+
+### Language Bindings
+
+Enable specific language bindings:
+
+```bash
+# Python bindings
+python scripts/mk_make.py --python
+
+# Java bindings
+python scripts/mk_make.py --java
+
+# .NET bindings
+python scripts/mk_make.py --dotnet
+
+# OCaml bindings (requires Make build system)
+python scripts/mk_make.py --ml
+
+# Go bindings (requires Go 1.20+)
+python scripts/mk_make.py --go
+
+# Multiple bindings
+python scripts/mk_make.py --python --java --dotnet
+```
+
+### Python Package Directory
+
+For non-standard installation prefixes, specify the Python package directory:
+
+```bash
+python scripts/mk_make.py --prefix=/home/leo \
+                          --python \
+                          --pypkgdir=/home/leo/lib/python-2.7/site-packages
+```
+
+<Info>
+A better approach for non-standard prefixes is to use a Python virtual environment.
+</Info>
+
+### Using Virtual Environments
+
+Install Z3 in a Python virtual environment:
+
+```bash
+virtualenv venv
+source venv/bin/activate
+python scripts/mk_make.py --python
+cd build
+make
+make install
+
+# Test installation
+venv/bin/z3 -h
+python -c 'import z3; print(z3.get_version_string())'
+```
+
+## Architecture-Specific Builds
+
+### 32-bit vs 64-bit
+
+The build system automatically detects your system architecture. For Windows builds using the Visual Studio Command Prompt, you can explicitly specify:
+
+32-bit build:
+```bash
+python scripts/mk_make.py
+```
+
+64-bit build:
+```bash
+python scripts/mk_make.py -x
+```
+
+See the [Visual Studio build guide](/building/visual-studio) for Windows-specific instructions.
+
+## Managing Builds
+
+### Cleaning
+
+To clean the build, delete the build directory and regenerate:
+
+```bash
+rm -rf build
+python scripts/mk_make.py
+cd build
+make
+```
+
+### Uninstalling
+
+```bash
+cd build
+sudo make uninstall
+```
+
+## Dependencies
+
+Z3 has minimal dependencies:
+
+- **C++ runtime libraries** - including pthreads for multi-threading
+- **Python** - required for build configuration
+- **GMP** (optional) - for multi-precision integers (Z3 has built-in alternative)
+
+### Using GMP
+
+To use the GNU Multiple Precision library instead of Z3's built-in implementation:
+
+```bash
+python scripts/mk_make.py --gmp
+```
+
+Note: When using CMake, this option is: `-DZ3_USE_LIB_GMP=ON`
+
+## Platform-Specific Notes
+
+### Linux
+
+Standard build works out of the box:
+
+```bash
+python scripts/mk_make.py
+cd build
+make
+sudo make install
+```
+
+### macOS
+
+Installs to `/usr/local` by default:
+
+```bash
+python scripts/mk_make.py
+cd build
+make
+sudo make install
+```
+
+### FreeBSD
+
+Similar to macOS, installs to `/usr/local`:
+
+```bash
+python scripts/mk_make.py
+cd build
+make
+sudo make install
+```
+
+### Cygwin
+
+For 64-bit builds from Cygwin64:
+
+```bash
+CXX=x86_64-w64-mingw32-g++ \
+CC=x86_64-w64-mingw32-gcc \
+AR=x86_64-w64-mingw32-ar \
+python scripts/mk_make.py
+cd build
+make
+```
+
+## Building Specific Components
+
+### OCaml Bindings
+
+The Make build system is required for OCaml bindings:
+
+```bash
+python scripts/mk_make.py --ml
+cd build
+make
+```
+
+<Warning>
+OCaml bindings cannot be built with the CMake build system. Use the Make-based build.
+</Warning>
+
+### Go Bindings
+
+Go bindings use CGO and require Go 1.20 or later:
+
+```bash
+python scripts/mk_make.py --go
+cd build
+make
+```
+
+The Go bindings require the Z3 C API and will work with both the Make and CMake build systems.
+
+## Common Use Cases
+
+### Development Build
+
+Quick build for development:
+
+```bash
+python scripts/mk_make.py
+cd build
+make -j$(nproc)  # Use all CPU cores
+```
+
+### Production Build with Python
+
+Optimized build with Python bindings:
+
+```bash
+python scripts/mk_make.py --python --prefix=/opt/z3
+cd build
+make -j$(nproc)
+sudo make install
+```
+
+### All Bindings
+
+Build with all available bindings:
+
+```bash
+python scripts/mk_make.py --python --java --dotnet --ml --go
+cd build
+make -j$(nproc)
+```
+
+## Compiler Flags
+
+The `mk_make.py` script handles most compiler flag configuration automatically. For custom flags, you can set environment variables:
+
+```bash
+CXXFLAGS="-O3 -march=native" python scripts/mk_make.py
+```
+
+## Comparison with CMake
+
+| Feature | Make Build | CMake Build |
+|---------|------------|-------------|
+| Configuration | Python script | CMake configuration |
+| Ease of use | Very simple | More complex |
+| OCaml bindings | ✓ Supported | ✗ Not supported |
+| Multi-config | ✗ No | ✓ Yes (Visual Studio) |
+| IDE integration | Limited | Excellent |
+| Recommended for | OCaml, simple builds | Most use cases |
+
+## Troubleshooting
+
+### Python Not Found
+
+Ensure Python is in your PATH:
+
+```bash
+which python
+python --version
+```
+
+### Compiler Not Found
+
+Verify your compiler is installed and accessible:
+
+```bash
+which g++
+g++ --version
+```
+
+### Permission Denied During Install
+
+Use `sudo` for system-wide installation:
+
+```bash
+sudo make install
+```
+
+Or install to a user directory:
+
+```bash
+python scripts/mk_make.py --prefix=$HOME/.local
+cd build
+make install  # No sudo needed
+```
+
+### Build Failures
+
+Clean and rebuild:
+
+```bash
+rm -rf build
+python scripts/mk_make.py
+cd build
+make
+```
+
+## Next Steps
+
+- Learn about [CMake builds](/building/cmake) for advanced configuration
+- See [Visual Studio builds](/building/visual-studio) for Windows development
+- Explore [Bazel builds](/building/bazel) for large-scale projects

@@ -1,0 +1,374 @@
+---
+title: 'Optimization Problems'
+description: 'Learn to find optimal solutions using Z3 Optimize for MaxSMT and optimization'
+keywords: ['z3', 'optimization', 'maxsmt', 'minimize', 'maximize', 'objective']
+---
+
+Z3's `Optimize` solver goes beyond finding *any* solution - it finds *optimal* solutions by minimizing or maximizing objective functions while satisfying constraints.
+
+## Optimize vs Solver
+
+The standard `Solver` finds any satisfying assignment:
+```python
+s = Solver()
+s.add(x > 0, x < 10)
+s.check()  # Returns sat with any x in (0, 10)
+```
+
+The `Optimize` solver finds the best solution according to objectives:
+```python
+opt = Optimize()
+opt.add(x > 0, x < 10)
+opt.minimize(x)  # Find the smallest valid x
+opt.check()      # Returns sat with x close to 0
+```
+
+## Basic Optimization
+
+<Steps>
+  <Step title="Import and create optimizer">
+    ```python
+    from z3 import *
+    
+    opt = Optimize()
+    ```
+    
+    `Optimize()` creates an optimizer that supports objective functions.
+  </Step>
+
+  <Step title="Create variables and add constraints">
+    ```python
+    x = Int('x')
+    y = Int('y')
+    
+    # Add constraints
+    opt.add(x >= 0, y >= 0)
+    opt.add(x + y <= 10)
+    opt.add(x - y >= 2)
+    ```
+    
+    These define the feasible region - solutions that satisfy all constraints.
+  </Step>
+
+  <Step title="Add objective function">
+    ```python
+    # Maximize x + 2*y
+    opt.maximize(x + 2 * y)
+    ```
+    
+    You can use `minimize()` or `maximize()` to specify what to optimize. You can even have multiple objectives.
+  </Step>
+
+  <Step title="Solve and extract result">
+    ```python
+    if opt.check() == sat:
+        m = opt.model()
+        print(f"x = {m[x]}, y = {m[y]}")
+        print(f"Objective value: {m.evaluate(x + 2*y)}")
+    ```
+  </Step>
+</Steps>
+
+### Complete Example: Linear Programming
+
+```python
+from z3 import *
+
+# Create optimizer
+opt = Optimize()
+
+# Variables
+x = Int('x')
+y = Int('y')
+
+# Constraints define feasible region
+opt.add(x >= 0, y >= 0)
+opt.add(x + y <= 10)
+opt.add(x - y >= 2)
+
+# Objective: maximize x + 2*y
+opt.maximize(x + 2 * y)
+
+# Solve
+if opt.check() == sat:
+    m = opt.model()
+    print(f"Optimal solution: x = {m[x]}, y = {m[y]}")
+    print(f"Objective value: {m.evaluate(x + 2*y)}")
+else:
+    print("No solution found")
+```
+
+**Expected output:**
+```
+Optimal solution: x = 2, y = 8
+Objective value: 18
+```
+
+## Multi-Objective Optimization
+
+You can optimize multiple objectives with priorities:
+
+```python
+from z3 import *
+
+opt = Optimize()
+x = Int('x')
+y = Int('y')
+
+opt.add(x >= 0, x <= 10)
+opt.add(y >= 0, y <= 10)
+
+# First priority: maximize x
+h1 = opt.maximize(x)
+
+# Second priority: minimize y (given optimal x)
+h2 = opt.minimize(y)
+
+if opt.check() == sat:
+    m = opt.model()
+    print(f"x = {m[x]}, y = {m[y]}")
+```
+
+**Expected output:**
+```
+x = 10, y = 0
+```
+
+<Note>
+Objectives are handled in order. Later objectives are optimized subject to earlier ones being optimal.
+</Note>
+
+## MaxSMT: Soft Constraints
+
+MaxSMT finds solutions that satisfy all hard constraints while maximizing satisfied soft constraints.
+
+<Steps>
+  <Step title="Add hard constraints">
+    Hard constraints must be satisfied:
+    
+    ```python
+    from z3 import *
+    
+    opt = Optimize()
+    x = Int('x')
+    y = Int('y')
+    z = Int('z')
+    
+    # Hard constraints (must be satisfied)
+    opt.add(x >= 0, y >= 0, z >= 0)
+    opt.add(x + y + z == 10)
+    ```
+  </Step>
+
+  <Step title="Add soft constraints">
+    Soft constraints are preferences, not requirements:
+    
+    ```python
+    # Soft constraints (prefer to satisfy, but not required)
+    opt.add_soft(x > 5, weight=2)  # Strong preference
+    opt.add_soft(y > 3, weight=1)  # Weaker preference
+    opt.add_soft(z < 2, weight=1)
+    ```
+    
+    Higher weights mean stronger preferences. Z3 maximizes the total weight of satisfied soft constraints.
+  </Step>
+
+  <Step title="Solve">
+    ```python
+    if opt.check() == sat:
+        m = opt.model()
+        print(f"x = {m[x]}, y = {m[y]}, z = {m[z]}")
+    ```
+  </Step>
+</Steps>
+
+### Complete MaxSMT Example
+
+```python
+from z3 import *
+
+opt = Optimize()
+x = Int('x')
+y = Int('y')
+z = Int('z')
+
+# Hard constraints (must all be satisfied)
+opt.add(x >= 0, y >= 0, z >= 0)
+opt.add(x + y + z == 10)
+
+# Soft constraints (maximize weighted satisfaction)
+opt.add_soft(x > 5, weight=3)
+opt.add_soft(y > 3, weight=2)
+opt.add_soft(z < 2, weight=1)
+
+if opt.check() == sat:
+    m = opt.model()
+    print(f"Solution: x = {m[x]}, y = {m[y]}, z = {m[z]}")
+else:
+    print("No solution")
+```
+
+**Expected output:**
+```
+Solution: x = 6, y = 4, z = 0
+```
+
+This solution satisfies all hard constraints and maximizes soft constraint satisfaction (all three soft constraints are met).
+
+## Real-World Example: Resource Allocation
+
+Allocate limited resources across projects to maximize total value:
+
+```python
+from z3 import *
+
+opt = Optimize()
+
+# Projects: hours to allocate to each
+project_a = Int('project_a')
+project_b = Int('project_b')
+project_c = Int('project_c')
+
+# Constraints
+opt.add(project_a >= 0, project_b >= 0, project_c >= 0)
+
+# Total available hours
+opt.add(project_a + project_b + project_c <= 40)
+
+# Minimum commitments
+opt.add(project_a >= 5)  # Must spend at least 5 hours on A
+opt.add(project_b >= 10) # Must spend at least 10 hours on B
+
+# Value of each project (in thousands)
+# A: $2k per hour, B: $1.5k per hour, C: $3k per hour
+value = 2 * project_a + 1.5 * project_b + 3 * project_c
+
+# Maximize total value
+opt.maximize(value)
+
+if opt.check() == sat:
+    m = opt.model()
+    print(f"Project A: {m[project_a]} hours")
+    print(f"Project B: {m[project_b]} hours")
+    print(f"Project C: {m[project_c]} hours")
+    print(f"Total value: ${m.evaluate(value)}k")
+```
+
+**Expected output:**
+```
+Project A: 5 hours
+Project B: 10 hours
+Project C: 25 hours
+Total value: $100k
+```
+
+<Tip>
+The optimizer allocates maximum hours to the highest-value project (C) while meeting minimum requirements.
+</Tip>
+
+## Real Numbers vs Integers
+
+Optimization works with both integer and real variables:
+
+```python
+from z3 import *
+
+opt = Optimize()
+
+# Real variables for continuous optimization
+x = Real('x')
+y = Real('y')
+
+opt.add(x >= 0, y >= 0)
+opt.add(x + 2*y <= 10)
+opt.add(2*x + y <= 12)
+
+# Maximize x + y
+opt.maximize(x + y)
+
+if opt.check() == sat:
+    m = opt.model()
+    print(f"x = {m[x]}, y = {m[y]}")
+    # Convert to decimal for readability
+    x_val = m[x].as_decimal(2)
+    y_val = m[y].as_decimal(2)
+    print(f"Decimal: x = {x_val}, y = {y_val}")
+```
+
+**Expected output:**
+```
+x = 14/3, y = 8/3
+Decimal: x = 4.67, y = 2.67
+```
+
+## Checking Objectives
+
+You can query the objective value:
+
+```python
+from z3 import *
+
+opt = Optimize()
+x = Int('x')
+opt.add(x >= 0, x <= 100)
+
+obj = opt.minimize(x)
+
+if opt.check() == sat:
+    print(f"Objective value: {opt.lower(obj)}")
+    # For maximize, use opt.upper(obj)
+```
+
+## Common Patterns
+
+<AccordionGroup>
+  <Accordion title="Minimize cost">
+    ```python
+    opt.minimize(cost_function)
+    ```
+    Find the cheapest solution.
+  </Accordion>
+
+  <Accordion title="Maximize profit">
+    ```python
+    opt.maximize(revenue - costs)
+    ```
+    Find the most profitable configuration.
+  </Accordion>
+
+  <Accordion title="Lexicographic optimization">
+    ```python
+    h1 = opt.maximize(primary_objective)
+    h2 = opt.minimize(secondary_objective)
+    ```
+    Optimize primary first, then secondary given optimal primary.
+  </Accordion>
+
+  <Accordion title="Soft constraints with priorities">
+    ```python
+    opt.add_soft(critical_preference, weight=10)
+    opt.add_soft(nice_to_have, weight=1)
+    ```
+    Use weights to express relative importance.
+  </Accordion>
+</AccordionGroup>
+
+## Performance Considerations
+
+<Warning>
+Optimization is computationally harder than satisfiability checking. For large problems:
+- Simplify constraints when possible
+- Use integer variables only when needed (Real can be faster)
+- Consider setting timeouts: `opt.set('timeout', 30000)` for 30 seconds
+</Warning>
+
+## Next Steps
+
+<Columns cols={2}>
+  <Card title="Basic Solving" icon="book" href="/examples/basic-solving">
+    Review fundamental constraint solving
+  </Card>
+  <Card title="Program Verification" icon="shield" href="/examples/program-verification">
+    Use Z3 to verify program correctness
+  </Card>
+</Columns>

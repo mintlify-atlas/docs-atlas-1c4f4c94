@@ -1,0 +1,413 @@
+---
+title: Building with Visual Studio
+description: Build Z3 on Windows using Visual Studio and MSVC
+---
+
+Z3 can be built on Windows using Visual Studio's command-line tools (nmake) or the Visual Studio IDE with CMake integration.
+
+## Prerequisites
+
+- **Visual Studio 2019 or later** (recommended for C++20 support)
+- **Python** (for build configuration with mk_make.py)
+- **CMake 3.16+** (for CMake-based builds)
+
+<Info>
+Z3 uses C++20, so Visual Studio 2019 or later is recommended for full language support.
+</Info>
+
+## Quick Start with Command Line
+
+<Steps>
+  <Step title="Open Developer Command Prompt">
+    Launch the "Developer Command Prompt for Visual Studio" or "x64 Native Tools Command Prompt" from the Start menu.
+  </Step>
+  
+  <Step title="Configure the build">
+    For a 32-bit build:
+    ```bash
+    python scripts/mk_make.py
+    ```
+    
+    For a 64-bit build:
+    ```bash
+    python scripts/mk_make.py -x
+    ```
+  </Step>
+  
+  <Step title="Build with nmake">
+    ```bash
+    cd build
+    nmake
+    ```
+  </Step>
+</Steps>
+
+## Using Visual Studio IDE with CMake
+
+### Visual Studio 2019+
+
+Visual Studio 2019 and later have integrated CMake support:
+
+<Steps>
+  <Step title="Open the Z3 folder">
+    In Visual Studio, select **File → Open → Folder** and navigate to the Z3 repository root directory.
+  </Step>
+  
+  <Step title="Configure CMake">
+    Visual Studio will automatically detect `CMakeLists.txt` and begin configuration. You can customize CMake options in `CMakeSettings.json`.
+  </Step>
+  
+  <Step title="Select build configuration">
+    Choose your build configuration (Debug, Release, etc.) from the dropdown in the toolbar.
+  </Step>
+  
+  <Step title="Build the project">
+    Select **Build → Build All** or press `Ctrl+Shift+B`.
+  </Step>
+</Steps>
+
+### Legacy Visual Studio Versions
+
+For older Visual Studio versions, use CMake GUI:
+
+<Steps>
+  <Step title="Create build directory">
+    Create an empty directory for build outputs.
+  </Step>
+  
+  <Step title="Launch CMake GUI">
+    Start the `cmake-gui` application.
+  </Step>
+  
+  <Step title="Configure paths">
+    - Set "Where is the source code" to the Z3 repository root
+    - Set "Where to build the binaries" to your empty build directory
+  </Step>
+  
+  <Step title="Configure the project">
+    1. Click **Configure**
+    2. Select your Visual Studio version as the generator
+    3. Choose platform (Win32 for 32-bit, x64 for 64-bit)
+    4. Click **Finish**
+  </Step>
+  
+  <Step title="Adjust options">
+    Modify any CMake options as needed. Click **Configure** again after changes.
+  </Step>
+  
+  <Step title="Generate solution">
+    Click **Generate** to create the Visual Studio solution file.
+  </Step>
+  
+  <Step title="Build in Visual Studio">
+    1. Open the generated `Z3.sln` file in the build directory
+    2. Select your build type (Debug/Release) in Visual Studio
+    3. Build the solution with **Build → Build Solution**
+  </Step>
+</Steps>
+
+## Security Features (MSVC)
+
+When building with MSVC, Z3 enables several security features by default to protect against exploitation:
+
+### Control Flow Guard (CFG)
+
+**Enabled by default** - Control Flow Guard protects against control flow hijacking attacks:
+
+- **Compiler flag**: `/guard:cf`
+- **Linker flag**: `/GUARD:CF`
+- **Purpose**: Validates indirect call targets at runtime to prevent attackers from redirecting control flow
+
+#### With Python Build System
+
+Disable if needed:
+```bash
+python scripts/mk_make.py --no-guardcf
+```
+
+#### With CMake
+
+Disable if needed:
+```bash
+cmake -DZ3_ENABLE_CFG=OFF ../
+```
+
+<Info>
+Control Flow Guard is enabled by default on MSVC builds and provides important security hardening.
+</Info>
+
+### Address Space Layout Randomization (ASLR)
+
+**Automatically enabled** with Control Flow Guard:
+
+- **Linker flag**: `/DYNAMICBASE`
+- **Purpose**: Randomizes memory addresses to make exploitation more difficult
+- **Note**: Required for Control Flow Guard to function
+
+### Incompatibilities
+
+Control Flow Guard is incompatible with:
+
+- **`/ZI`** - Edit and Continue debug information format
+- **`/clr`** - Common Language Runtime compilation
+
+When these options are detected, CFG is automatically disabled with a warning.
+
+<Warning>
+Control Flow Guard is incompatible with Edit and Continue (`/ZI`). Use `/Zi` for debug builds instead.
+</Warning>
+
+## Build Configurations
+
+### With Python Script (nmake)
+
+```bash
+# 64-bit Release build
+python scripts/mk_make.py -x
+cd build
+nmake
+
+# 32-bit Debug build
+python scripts/mk_make.py
+cd build
+nmake
+
+# With Python bindings
+python scripts/mk_make.py -x --python
+cd build
+nmake
+```
+
+### With CMake and NMake
+
+<Info>
+[Ninja](/building/cmake#ninja) is recommended over NMake for significantly faster builds.
+</Info>
+
+```bash
+mkdir build
+cd build
+cmake -G "NMake Makefiles" -DCMAKE_BUILD_TYPE=Release ../
+nmake
+```
+
+### With CMake and Ninja
+
+Ninja is much faster than NMake:
+
+```bash
+mkdir build
+cd build
+cmake -G "Ninja" -DCMAKE_BUILD_TYPE=Release ../
+ninja
+```
+
+## Language Bindings
+
+### .NET Bindings
+
+Build with .NET support:
+
+```bash
+# Using Python script
+python scripts/mk_make.py --dotnet
+cd build
+nmake
+
+# Using CMake
+cmake -DZ3_BUILD_DOTNET_BINDINGS=ON ../
+```
+
+<Info>
+Z3 also provides a NuGet package at [nuget.org/packages/Microsoft.Z3](https://www.nuget.org/packages/Microsoft.Z3/).
+</Info>
+
+### Python Bindings
+
+Build inside the Visual C++ native command prompt:
+
+```bash
+python scripts/mk_make.py -x --python
+cd build
+nmake
+```
+
+<Warning>
+The `build/python/z3` directory must be accessible from where Python runs, and `libz3.dll` must be in the PATH.
+</Warning>
+
+### Java Bindings
+
+```bash
+# Using Python script
+python scripts/mk_make.py --java
+cd build
+nmake
+
+# Using CMake
+cmake -DZ3_BUILD_JAVA_BINDINGS=ON ../
+```
+
+For IDE setup and troubleshooting, see the [Java IDE Setup Guide](https://github.com/Z3Prover/z3/blob/master/doc/JAVA_IDE_SETUP.md).
+
+## Static vs Shared Library
+
+### Static Library (default)
+
+```bash
+cmake -DZ3_BUILD_LIBZ3_SHARED=OFF ../
+```
+
+### Shared Library (DLL)
+
+```bash
+cmake -DZ3_BUILD_LIBZ3_SHARED=ON ../
+```
+
+## Visual Studio Generator Selection
+
+When using CMake GUI, select the appropriate generator:
+
+| Generator | Architecture | Visual Studio Version |
+|-----------|--------------|----------------------|
+| Visual Studio 17 2022 | x64 | VS 2022 (64-bit) |
+| Visual Studio 17 2022 | Win32 | VS 2022 (32-bit) |
+| Visual Studio 16 2019 | x64 | VS 2019 (64-bit) |
+| Visual Studio 16 2019 | Win32 | VS 2019 (32-bit) |
+| Visual Studio 15 2017 Win64 | x64 | VS 2017 (64-bit) |
+| Visual Studio 15 2017 | Win32 | VS 2017 (32-bit) |
+
+<Info>
+Generators with "Win64" in the name indicate 64-bit builds. Without it, they're 32-bit builds.
+</Info>
+
+## CMake Configuration Options
+
+Common options for Visual Studio builds:
+
+```bash
+# Release build with Python bindings
+cmake -DCMAKE_BUILD_TYPE=Release \
+      -DZ3_BUILD_PYTHON_BINDINGS=ON \
+      -DZ3_BUILD_LIBZ3_SHARED=ON ../
+
+# Debug build without Control Flow Guard
+cmake -DCMAKE_BUILD_TYPE=Debug \
+      -DZ3_ENABLE_CFG=OFF ../
+
+# Link-time optimization enabled
+cmake -DCMAKE_BUILD_TYPE=Release \
+      -DZ3_LINK_TIME_OPTIMIZATION=ON ../
+```
+
+See the [CMake build guide](/building/cmake) for a complete list of options.
+
+## Multi-Configuration Builds
+
+Visual Studio is a multi-configuration generator - you don't set the build type when running CMake:
+
+```bash
+# Configure once
+cmake -G "Visual Studio 17 2022" -A x64 ../
+
+# Then select Debug or Release in Visual Studio IDE
+```
+
+With command-line tools:
+
+```bash
+# Build Debug configuration
+cmake --build . --config Debug
+
+# Build Release configuration
+cmake --build . --config Release
+```
+
+## Installation
+
+Install to a specific location:
+
+```bash
+cmake -DCMAKE_INSTALL_PREFIX="C:/Program Files/Z3" ../
+cmake --build . --config Release
+cmake --install . --config Release
+```
+
+## Troubleshooting
+
+### C++20 Errors
+
+Ensure you're using Visual Studio 2019 or later:
+
+```bash
+# Check Visual Studio version
+where cl
+cl /?
+```
+
+### Python Not Found
+
+Add Python to your PATH or specify the full path:
+
+```bash
+C:\Python39\python.exe scripts/mk_make.py
+```
+
+### Missing DLL at Runtime
+
+Ensure `libz3.dll` is in your PATH or in the same directory as the executable:
+
+```bash
+set PATH=%PATH%;C:\path\to\z3\build
+```
+
+### Control Flow Guard Warnings
+
+If you see CFG incompatibility warnings, either:
+
+1. Disable Edit and Continue (use `/Zi` instead of `/ZI`)
+2. Disable Control Flow Guard: `-DZ3_ENABLE_CFG=OFF`
+
+### CMake Can't Find Visual Studio
+
+Run CMake from the Developer Command Prompt, or specify the generator explicitly:
+
+```bash
+cmake -G "Visual Studio 17 2022" ../
+```
+
+## Build Performance
+
+### Parallel Builds
+
+With nmake (single-threaded), consider using Ninja instead:
+
+```bash
+cmake -G "Ninja" ../
+ninja -j8  # Use 8 parallel jobs
+```
+
+With MSBuild (Visual Studio):
+
+```bash
+cmake --build . --config Release -- /m:8
+```
+
+### Incremental Builds
+
+Ninja provides much faster incremental builds than NMake:
+
+```bash
+# Install Ninja via Chocolatey
+choco install ninja
+
+# Use Ninja generator
+cmake -G "Ninja" ../
+ninja
+```
+
+## Next Steps
+
+- Learn about [CMake builds](/building/cmake) for cross-platform development
+- See [Make builds](/building/make) for Unix-like systems
+- Explore [Bazel builds](/building/bazel) for advanced scenarios

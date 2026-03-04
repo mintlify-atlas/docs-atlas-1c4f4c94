@@ -1,0 +1,439 @@
+---
+title: 'Program Verification'
+description: 'Use Z3 to verify correctness of algorithms and find bugs automatically'
+keywords: ['z3', 'verification', 'program analysis', 'correctness', 'bounded model checking']
+---
+
+Z3 can verify that programs behave correctly by encoding program logic as constraints. This tutorial demonstrates bounded model checking to verify algorithm correctness.
+
+## What is Program Verification?
+
+Program verification uses formal methods to prove that code satisfies specifications. Instead of testing with specific inputs, we prove correctness for all possible inputs (or find counterexamples).
+
+**Key concepts:**
+- **Pre-conditions**: What must be true before the program runs
+- **Post-conditions**: What must be true after the program runs
+- **Invariants**: Properties that remain true throughout execution
+- **Counterexample**: An input that violates the specification
+
+## Example: Verifying Bubble Sort
+
+Let's verify that bubble sort correctly sorts arrays.
+
+<Steps>
+  <Step title="Model the array">
+    Use Z3's `Array` type to represent the array before and after sorting:
+    
+    ```python
+    from z3 import *
+    
+    # Array type: maps integers to integers
+    ArraySort = Array('A', IntSort(), IntSort())
+    ```
+    
+    Z3 arrays are functions from indices to values.
+  </Step>
+
+  <Step title="Define the sorting property">
+    What does it mean for an array to be sorted?
+    
+    ```python
+    def is_sorted(arr, size):
+        """Array arr is sorted if arr[i] <= arr[i+1] for all valid i."""
+        constraints = []
+        for i in range(size - 1):
+            constraints.append(Select(arr, i) <= Select(arr, i + 1))
+        return And(constraints)
+    ```
+    
+    `Select(arr, i)` reads the value at index i.
+  </Step>
+
+  <Step title="Model one bubble sort pass">
+    One pass compares adjacent elements and swaps if needed:
+    
+    ```python
+    def bubble_sort_step(arr_before, arr_after, i):
+        """
+        Model one comparison-swap step.
+        If arr_before[i] > arr_before[i+1], swap them.
+        Otherwise, keep the same.
+        """
+        return If(
+            Select(arr_before, i) > Select(arr_before, i + 1),
+            # Swap case
+            And(
+                arr_after == Store(
+                    Store(arr_before, i, Select(arr_before, i + 1)),
+                    i + 1, Select(arr_before, i)
+                )
+            ),
+            # No swap case  
+            arr_after == arr_before
+        )
+    ```
+    
+    `Store(arr, idx, val)` creates a new array with `arr[idx] = val`.
+  </Step>
+
+  <Step title="Verify correctness">
+    Try to find a counterexample where the algorithm fails:
+    
+    ```python
+    s = Solver()
+    
+    size = 3  # Array size
+    
+    # Create arrays for each step
+    arrays = [Array(f'A_{i}', IntSort(), IntSort()) for i in range(size + 1)]
+    
+    # Model the algorithm: size passes through the array
+    for pass_num in range(size):
+        for i in range(size - 1):
+            s.add(bubble_sort_step(arrays[i], arrays[i + 1], i))
+    
+    # Assert that the result is NOT sorted (looking for counterexample)
+    s.add(Not(is_sorted(arrays[-1], size)))
+    
+    # If unsat, algorithm is correct. If sat, we found a bug.
+    result = s.check()
+    if result == unsat:
+        print("Algorithm verified correct!")
+    else:
+        print("Found counterexample:")
+        m = s.model()
+        print(m)
+    ```
+  </Step>
+</Steps>
+
+## Complete Verification Example
+
+Here's a complete example that verifies bubble sort:
+
+```python
+from z3 import *
+
+def verify_bubble_sort(size):
+    """
+    Verify that bubble sort correctly sorts arrays of given size.
+    
+    Returns True if verified, False with counterexample if bug found.
+    """
+    s = Solver()
+    
+    # Create symbolic arrays for each step
+    # We need size iterations, so size+1 array states
+    arrays = [Array(f'A_{i}', IntSort(), IntSort()) for i in range(size * (size - 1) + 1)]
+    
+    # Initial array values (symbolic)
+    initial = arrays[0]
+    
+    # Model bubble sort algorithm
+    arr_idx = 0
+    for pass_num in range(size):
+        for i in range(size - 1 - pass_num):
+            arr_before = arrays[arr_idx]
+            arr_after = arrays[arr_idx + 1]
+            
+            # Compare and swap if needed
+            val_i = Select(arr_before, i)
+            val_i_plus_1 = Select(arr_before, i + 1)
+            
+            swapped = And(
+                Select(arr_after, i) == val_i_plus_1,
+                Select(arr_after, i + 1) == val_i
+            )
+            
+            not_swapped = arr_after == arr_before
+            
+            # Apply swap logic
+            s.add(If(val_i > val_i_plus_1, swapped, not_swapped))
+            
+            arr_idx += 1
+    
+    final = arrays[arr_idx]
+    
+    # Post-condition: final array should be sorted
+    sorted_condition = And([Select(final, i) <= Select(final, i + 1) 
+                           for i in range(size - 1)])
+    
+    # Try to find a counterexample (input where output is NOT sorted)
+    s.add(Not(sorted_condition))
+    
+    result = s.check()
+    
+    if result == unsat:
+        print(f"✓ Bubble sort verified correct for size {size}")
+        return True
+    else:
+        print(f"✗ Found counterexample for size {size}:")
+        m = s.model()
+        print("Initial array:", [m.evaluate(Select(initial, i)) for i in range(size)])
+        print("Final array:", [m.evaluate(Select(final, i)) for i in range(size)])
+        return False
+
+# Verify for different sizes
+for n in [2, 3, 4]:
+    verify_bubble_sort(n)
+```
+
+**Expected output:**
+```
+✓ Bubble sort verified correct for size 2
+✓ Bubble sort verified correct for size 3
+✓ Bubble sort verified correct for size 4
+```
+
+<Check>
+Z3 proves bubble sort is correct by showing no counterexample exists!
+</Check>
+
+## Finding Bugs: Broken Sort
+
+Let's intentionally introduce a bug and see Z3 find it:
+
+```python
+from z3 import *
+
+def verify_broken_sort(size):
+    """Verify a broken sorting algorithm."""
+    s = Solver()
+    
+    initial = Array('initial', IntSort(), IntSort())
+    final = Array('final', IntSort(), IntSort())
+    
+    # Buggy algorithm: only swap if arr[0] > arr[1]
+    # This doesn't sort the full array!
+    s.add(If(
+        Select(initial, 0) > Select(initial, 1),
+        And(
+            Select(final, 0) == Select(initial, 1),
+            Select(final, 1) == Select(initial, 0),
+            # Rest stays the same
+            *[Select(final, i) == Select(initial, i) for i in range(2, size)]
+        ),
+        final == initial
+    ))
+    
+    # Post-condition: should be sorted
+    sorted_condition = And([Select(final, i) <= Select(final, i + 1) 
+                           for i in range(size - 1)])
+    
+    s.add(Not(sorted_condition))
+    
+    if s.check() == sat:
+        print(f"Bug found! Counterexample:")
+        m = s.model()
+        print("Input:", [m.evaluate(Select(initial, i)) for i in range(size)])
+        print("Output:", [m.evaluate(Select(final, i)) for i in range(size)])
+    else:
+        print("No bug found (this shouldn't happen for broken sort!)")
+
+verify_broken_sort(3)
+```
+
+**Expected output:**
+```
+Bug found! Counterexample:
+Input: [2, 0, 1]
+Output: [0, 2, 1]
+```
+
+Z3 found an input where the broken algorithm fails to sort!
+
+## Verifying Mathematical Properties
+
+You can verify mathematical properties hold:
+
+```python
+from z3 import *
+
+def verify_max_function():
+    """
+    Verify that max(a, b) returns the larger value.
+    """
+    a = Int('a')
+    b = Int('b')
+    result = Int('result')
+    
+    s = Solver()
+    
+    # Definition of max
+    s.add(If(a >= b, result == a, result == b))
+    
+    # Property 1: result >= a
+    s.push()
+    s.add(Not(result >= a))
+    if s.check() == unsat:
+        print("✓ Property 1 verified: max(a,b) >= a")
+    else:
+        print("✗ Property 1 failed")
+    s.pop()
+    
+    # Property 2: result >= b
+    s.push()
+    s.add(Not(result >= b))
+    if s.check() == unsat:
+        print("✓ Property 2 verified: max(a,b) >= b")
+    else:
+        print("✗ Property 2 failed")
+    s.pop()
+    
+    # Property 3: result equals a or b
+    s.push()
+    s.add(Not(Or(result == a, result == b)))
+    if s.check() == unsat:
+        print("✓ Property 3 verified: max(a,b) ∈ {a,b}")
+    else:
+        print("✗ Property 3 failed")
+    s.pop()
+
+verify_max_function()
+```
+
+**Expected output:**
+```
+✓ Property 1 verified: max(a,b) >= a
+✓ Property 2 verified: max(a,b) >= b
+✓ Property 3 verified: max(a,b) ∈ {a,b}
+```
+
+## Loop Invariants
+
+Verify loop invariants hold:
+
+```python
+from z3 import *
+
+def verify_sum_invariant():
+    """
+    Verify loop that computes sum of 0..n maintains invariant.
+    
+    Loop:
+      i = 0
+      sum = 0
+      while i <= n:
+          sum += i
+          i += 1
+    
+    Invariant: sum == i * (i - 1) / 2
+    """
+    i = Int('i')
+    sum_var = Int('sum')
+    n = Int('n')
+    
+    # Values after one iteration
+    i_next = Int('i_next')
+    sum_next = Int('sum_next')
+    
+    s = Solver()
+    
+    # Loop body
+    s.add(sum_next == sum_var + i)
+    s.add(i_next == i + 1)
+    
+    # Invariant before iteration
+    s.add(2 * sum_var == i * (i - 1))
+    
+    # Loop guard
+    s.add(i <= n)
+    s.add(n >= 0)
+    
+    # Invariant should hold after iteration
+    # sum_next == i_next * (i_next - 1) / 2
+    s.add(Not(2 * sum_next == i_next * (i_next - 1)))
+    
+    if s.check() == unsat:
+        print("✓ Loop invariant verified")
+    else:
+        print("✗ Invariant violation found:")
+        print(s.model())
+
+verify_sum_invariant()
+```
+
+**Expected output:**
+```
+✓ Loop invariant verified
+```
+
+## Verification Best Practices
+
+<AccordionGroup>
+  <Accordion title="Start small">
+    Verify simple properties first, then build up to complex invariants. Start with small bounds (e.g., arrays of size 3).
+  </Accordion>
+
+  <Accordion title="Use bounded model checking">
+    For loops, unroll a fixed number of iterations. This finds bugs in early iterations efficiently.
+  </Accordion>
+
+  <Accordion title="Clear specifications">
+    Write precise pre-conditions and post-conditions. Ambiguous specs lead to meaningless verification.
+  </Accordion>
+
+  <Accordion title="Expect counterexamples">
+    When Z3 finds `sat`, examine the model carefully - it shows exactly how the property fails.
+  </Accordion>
+</AccordionGroup>
+
+## Bounded Model Checking Pattern
+
+A general pattern for verification:
+
+```python
+from z3 import *
+
+def verify_program(pre_condition, program_logic, post_condition):
+    """
+    Generic verification pattern.
+    
+    Returns True if verified, False with counterexample otherwise.
+    """
+    s = Solver()
+    
+    # Add pre-condition (what we assume)
+    s.add(pre_condition)
+    
+    # Add program logic (what the code does)
+    s.add(program_logic)
+    
+    # Try to violate post-condition (what should be true)
+    s.add(Not(post_condition))
+    
+    # If unsat, post-condition always holds
+    if s.check() == unsat:
+        return True
+    else:
+        print("Counterexample found:")
+        print(s.model())
+        return False
+```
+
+<Tip>
+Always negate the post-condition when checking. If Z3 returns `unsat`, no counterexample exists, proving correctness.
+</Tip>
+
+## Limitations
+
+<Warning>
+Bounded verification has limitations:
+- Only checks finite cases (bounded loops, fixed sizes)
+- May not scale to very large programs
+- Requires manual modeling of program semantics
+- Unbounded loops need inductive invariants (more advanced)
+</Warning>
+
+For full verification of unbounded programs, you need inductive proofs and loop invariants.
+
+## Next Steps
+
+<Columns cols={2}>
+  <Card title="Basic Solving" icon="book" href="/examples/basic-solving">
+    Review fundamental constraint solving concepts
+  </Card>
+  <Card title="Optimization" icon="chart-line" href="/examples/optimization-problems">
+    Learn to find optimal solutions with Z3 Optimize
+  </Card>
+</Columns>

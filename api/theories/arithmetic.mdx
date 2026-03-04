@@ -1,0 +1,328 @@
+---
+title: Arithmetic Theory
+description: Integer and real arithmetic operations in Z3
+---
+
+The arithmetic theory in Z3 supports both integer (`Int`) and real (`Real`) numbers, providing a comprehensive set of operations for linear and non-linear arithmetic reasoning.
+
+## Sorts
+
+### Integer Sort
+
+Create the integer sort:
+
+```python
+Int = IntSort()
+x = Int('x')
+y = Int('y')
+```
+
+**C API**: `Z3_mk_int_sort` (api_arith.cpp:33)
+
+### Real Sort
+
+Create the real (rational) sort:
+
+```python
+Real = RealSort()
+a = Real('a')
+b = Real('b')
+```
+
+**C API**: `Z3_mk_real_sort` (api_arith.cpp:42)
+
+## Numeric Literals
+
+### Integer Literals
+
+```python
+from z3 import *
+
+x = Int('x')
+s = Solver()
+s.add(x == 42)
+print(s.check())  # sat
+print(s.model())  # [x = 42]
+```
+
+### Rational Literals
+
+Create rational numbers:
+
+```python
+from z3 import *
+
+x = Real('x')
+s = Solver()
+s.add(x == RealVal("3/2"))
+s.add(x == Q(3, 2))  # Alternative syntax
+print(s.check())  # sat
+```
+
+**C API**: `Z3_mk_real` creates rationals with numerator and denominator (api_arith.cpp:65)
+
+## Arithmetic Operations
+
+### Addition
+
+```python
+x, y, z = Ints('x y z')
+solve(x + y == 10, x > 5)
+# [y = 4, x = 6]
+```
+
+**C API**: `Z3_mk_add` (api_arith.cpp:79)
+
+### Subtraction
+
+```python
+x, y = Ints('x y')
+solve(x - y == 3, x < 10, y > 0)
+# [y = 1, x = 4]
+```
+
+**C API**: `Z3_mk_sub` handles multiple arguments (api_arith.cpp:131)
+
+### Multiplication
+
+```python
+x, y = Ints('x y')
+solve(x * y == 12, x > 1, y > 1, x < y)
+# [x = 2, y = 6]
+```
+
+**C API**: `Z3_mk_mul` (api_arith.cpp:80)
+
+### Division
+
+Z3 distinguishes between integer and real division:
+
+```python
+x = Real('x')
+y = Real('y')
+solve(x / y == 2, y == 3)
+# [x = 6, y = 3]
+
+a = Int('a')
+b = Int('b')
+solve(a / b == 2, b == 3, a >= 6, a <= 7)
+# Integer division: [a = 6, b = 3]
+```
+
+**C API**: `Z3_mk_div` automatically selects `OP_DIV` for reals or `OP_IDIV` for integers (api_arith.cpp:85)
+
+### Modulo and Remainder
+
+```python
+x = Int('x')
+solve(x % 5 == 2, x >= 0, x < 20)
+# [x = 2] (could also be 7, 12, 17)
+
+# Remainder operation
+solve(x - (x / 5) * 5 == 2)
+```
+
+**C API**:
+- `Z3_mk_mod` - modulo operation (api_arith.cpp:82)
+- `Z3_mk_rem` - remainder operation (api_arith.cpp:83)
+
+### Power
+
+```python
+x = Real('x')
+solve(x ** 2 == 16, x > 0)
+# [x = 4]
+```
+
+**C API**: `Z3_mk_power` (api_arith.cpp:81)
+
+### Unary Minus
+
+```python
+x = Int('x')
+solve(-x == 5)
+# [x = -5]
+```
+
+**C API**: `Z3_mk_unary_minus` (api_arith.cpp:150)
+
+### Absolute Value
+
+```python
+x = Int('x')
+solve(abs(x) == 5, x < 0)
+# [x = -5]
+```
+
+**C API**: `Z3_mk_abs` (api_arith.cpp:126)
+
+## Comparison Predicates
+
+### Less Than / Less Than or Equal
+
+```python
+x, y = Ints('x y')
+solve(x < y, x + y == 10, x >= 0)
+# [x = 4, y = 6]
+
+solve(x <= y, x + y == 10, x >= 5)
+# [x = 5, y = 5]
+```
+
+**C API**:
+- `Z3_mk_lt` (api_arith.cpp:103)
+- `Z3_mk_le` (api_arith.cpp:105)
+
+### Greater Than / Greater Than or Equal
+
+```python
+x, y = Ints('x y')
+solve(x > y, x + y == 10)
+# [y = 4, x = 6]
+
+solve(x >= y, x + y == 10)
+# [x = 5, y = 5]
+```
+
+**C API**:
+- `Z3_mk_gt` (api_arith.cpp:104)
+- `Z3_mk_ge` (api_arith.cpp:106)
+
+## Type Conversion
+
+### Integer to Real
+
+```python
+x = Int('x')
+y = Real('y')
+solve(ToReal(x) == y, x == 5)
+# [x = 5, y = 5]
+```
+
+**C API**: `Z3_mk_int2real` (api_arith.cpp:127)
+
+### Real to Integer
+
+```python
+x = Real('x')
+y = Int('y')
+solve(ToInt(x) == y, x == RealVal("5.7"))
+# [x = 5.7, y = 5]  # Truncates toward zero
+```
+
+**C API**: `Z3_mk_real2int` (api_arith.cpp:128)
+
+### Is Integer
+
+Test if a real value is an integer:
+
+```python
+x = Real('x')
+solve(IsInt(x), x > 2.5, x < 4.5)
+# [x = 3]
+```
+
+**C API**: `Z3_mk_is_int` (api_arith.cpp:129)
+
+## Advanced Features
+
+### Divisibility Constraint
+
+Express that one integer divides another:
+
+```python
+from z3 import *
+
+x = Int('x')
+# Create a divisibility constraint: 3 divides x
+s = Solver()
+k = Int('k')
+s.add(x == 3 * k)
+s.add(x > 10, x < 20)
+print(s.check())
+print(s.model())
+# [k = 4, x = 12]
+```
+
+**C API**: `Z3_mk_divides(c, n, arg)` - creates constraint that constant `n` divides `arg` (api_arith.cpp:108)
+
+### Algebraic Numbers
+
+Z3 supports irrational algebraic numbers (roots of polynomials):
+
+```python
+from z3 import *
+
+x = Real('x')
+solve(x * x == 2, x > 0)
+# Z3 can represent sqrt(2) exactly
+```
+
+**C API Functions** (api_arith.cpp:158-204):
+- `Z3_is_algebraic_number` - check if expression is algebraic
+- `Z3_get_algebraic_number_lower` - get lower bound approximation
+- `Z3_get_algebraic_number_upper` - get upper bound approximation
+
+### Rational Number Components
+
+Extract numerator and denominator from rationals:
+
+```python
+from z3 import *
+
+val = RealVal("22/7")
+s = Solver()
+x = Real('x')
+y = Real('y')
+s.add(x == 22, y == 7)
+print(s.check())
+# Numerator is 22, denominator is 7
+```
+
+**C API**:
+- `Z3_get_numerator` (api_arith.cpp:206)
+- `Z3_get_denominator` (api_arith.cpp:222)
+
+## Complete Example
+
+```python
+from z3 import *
+
+# Solve a system of linear equations
+x, y, z = Reals('x y z')
+
+s = Solver()
+s.add(2*x + 3*y - z == 8)
+s.add(x - y + 2*z == 5)
+s.add(3*x + 2*y + z == 11)
+
+if s.check() == sat:
+    m = s.model()
+    print(f"x = {m[x]}")
+    print(f"y = {m[y]}")
+    print(f"z = {m[z]}")
+    # x = 1, y = 2, z = 2
+
+# Non-linear constraint
+a, b = Reals('a b')
+solve(a**2 + b**2 == 25, a > 0, b > 0, a == b)
+# [a = 5/√2, b = 5/√2]
+
+# Integer constraint with modulo
+n = Int('n')
+solve(n % 7 == 3, n > 50, n < 60)
+# [n = 52]
+```
+
+## Implementation Notes
+
+- Linear arithmetic uses efficient simplex-based decision procedures
+- Non-linear arithmetic uses cylindrical algebraic decomposition (CAD) and other techniques
+- Mixed integer-real problems are supported
+- The theory handles both decidable fragments (linear) and semi-decidable fragments (non-linear)
+
+## References
+
+- Implementation: `src/api/api_arith.cpp`
+- Theory plugin: `src/ast/arith_decl_plugin.h`
+- Solver: `src/smt/theory_arith.h`

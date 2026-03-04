@@ -1,0 +1,412 @@
+---
+title: Building with CMake
+description: Build Z3 using CMake for cross-platform development
+---
+
+CMake is the recommended build system for Z3 on most platforms. It's a "meta build system" that generates platform-specific build files from `CMakeLists.txt` configuration files.
+
+<Info>
+CMake is recommended for most build tasks, except for building OCaml bindings which should use the Make-based system.
+</Info>
+
+## Prerequisites
+
+- CMake 3.16 or later
+- C++20 compatible compiler (GCC, Clang, or MSVC)
+- Python (required for build configuration)
+- Git (optional, for version information)
+
+## Quick Start
+
+<Steps>
+  <Step title="Create build directory">
+    Create a separate build directory outside the source tree:
+    
+    ```bash
+    mkdir build
+    cd build
+    ```
+    
+    <Info>
+    CMake enforces out-of-source builds. You cannot build directly in the source directory.
+    </Info>
+  </Step>
+  
+  <Step title="Configure the build">
+    Run CMake to configure the project:
+    
+    ```bash
+    cmake -G "Unix Makefiles" ../
+    ```
+    
+    For a Release build:
+    
+    ```bash
+    cmake -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release ../
+    ```
+  </Step>
+  
+  <Step title="Build Z3">
+    Build the project using make:
+    
+    ```bash
+    make -j4  # Replace 4 with number of CPU cores
+    ```
+  </Step>
+  
+  <Step title="Install (optional)">
+    Install Z3 system-wide:
+    
+    ```bash
+    sudo make install
+    ```
+  </Step>
+</Steps>
+
+## Build Generators
+
+CMake supports multiple generators. Choose based on your platform and preference:
+
+### Unix Makefiles
+
+Default on most Linux/Unix systems:
+
+```bash
+cmake -G "Unix Makefiles" ../
+make -j4
+```
+
+<Info>
+This is a single-configuration generator - you set the build type (Debug/Release) when running cmake.
+</Info>
+
+### Ninja
+
+[Ninja](https://ninja-build.org/) is significantly faster than Make due to non-recursive builds:
+
+```bash
+cmake -G "Ninja" ../
+ninja
+```
+
+<Info>
+Ninja runs in parallel by default. Use the `-j` flag to control parallelism.
+</Info>
+
+Ninja also works on Windows - just run cmake in the Visual Studio Developer Command Prompt.
+
+### Visual Studio
+
+See the [Visual Studio build guide](/building/visual-studio) for detailed instructions.
+
+## Build Types
+
+CMake supports several build types:
+
+- **Release** - Optimized build with no debug symbols
+- **Debug** - Debug build with symbols, tracing enabled
+- **RelWithDebInfo** - Optimized build with debug symbols
+- **MinSizeRel** - Optimized for size
+
+For single-configuration generators (Unix Makefiles, Ninja):
+
+```bash
+cmake -DCMAKE_BUILD_TYPE=Release ../
+```
+
+For multi-configuration generators (Visual Studio), select the build type in the IDE.
+
+## Compiler Selection
+
+Set the compiler using environment variables **on the first cmake invocation**:
+
+```bash
+CC=clang CXX=clang++ cmake ../
+```
+
+<Warning>
+Once configured, the compiler is fixed. To change compilers, create a new build directory or delete the contents of the current one.
+</Warning>
+
+### Cross-compilation
+
+For 32-bit builds on 64-bit systems with multilib GCC:
+
+```bash
+CFLAGS="-m32" CXXFLAGS="-m32" CC=gcc CXX=g++ cmake ../
+```
+
+## CMake Configuration Options
+
+### Core Build Options
+
+```bash
+# Build shared library instead of static
+cmake -DZ3_BUILD_LIBZ3_SHARED=ON ../
+
+# Set installation prefix
+cmake -DCMAKE_INSTALL_PREFIX=/usr/local ../
+
+# Use GNU Multiple Precision library
+cmake -DZ3_USE_LIB_GMP=ON ../
+
+# Enable link-time optimization
+cmake -DZ3_LINK_TIME_OPTIMIZATION=ON ../
+```
+
+### Language Bindings
+
+Enable various language bindings:
+
+```bash
+# Python bindings
+cmake -DZ3_BUILD_PYTHON_BINDINGS=ON ../
+
+# Java bindings
+cmake -DZ3_BUILD_JAVA_BINDINGS=ON ../
+
+# .NET bindings
+cmake -DZ3_BUILD_DOTNET_BINDINGS=ON ../
+
+# Go bindings (requires Go 1.20+ and shared library)
+cmake -DZ3_BUILD_GO_BINDINGS=ON -DZ3_BUILD_LIBZ3_SHARED=ON ../
+```
+
+### Security Features (MSVC)
+
+When building with Visual Studio/MSVC, Control Flow Guard is enabled by default:
+
+```bash
+# Disable Control Flow Guard if needed
+cmake -DZ3_ENABLE_CFG=OFF ../
+```
+
+See [Visual Studio build guide](/building/visual-studio) for details on security features.
+
+### Advanced Options
+
+```bash
+# Enable tracing in non-debug builds
+cmake -DZ3_ENABLE_TRACING_FOR_NON_DEBUG=ON ../
+
+# Include git hash in version
+cmake -DZ3_INCLUDE_GIT_HASH=ON ../
+
+# Build with address sanitizer
+cmake -DZ3_ADDRESS_SANITIZE=ON ../
+
+# Single-threaded build
+cmake -DZ3_SINGLE_THREADED=ON ../
+```
+
+## Installation
+
+### Standard Installation
+
+```bash
+make install
+```
+
+By default, Z3 installs to:
+- Binaries: `${CMAKE_INSTALL_PREFIX}/bin`
+- Libraries: `${CMAKE_INSTALL_PREFIX}/lib`
+- Headers: `${CMAKE_INSTALL_PREFIX}/include`
+
+### Custom Installation Paths
+
+```bash
+cmake -DCMAKE_INSTALL_PREFIX=/opt/z3 \
+      -DCMAKE_INSTALL_BINDIR=bin \
+      -DCMAKE_INSTALL_LIBDIR=lib \
+      -DCMAKE_INSTALL_INCLUDEDIR=include ../
+```
+
+### Staged Installation
+
+For packaging, use DESTDIR:
+
+```bash
+make install DESTDIR=/path/to/staging
+```
+
+### Uninstall
+
+```bash
+make uninstall
+```
+
+## Using Z3 in CMake Projects
+
+### With FetchContent
+
+Fetch Z3 directly from the repository:
+
+```cmake
+include(FetchContent)
+FetchContent_Declare(Z3
+    GIT_REPOSITORY https://github.com/Z3Prover/z3
+    GIT_TAG        z3-4.15.3
+)
+FetchContent_MakeAvailable(Z3)
+
+# Add C++ API include directory
+if(TARGET libz3)
+    target_include_directories(libz3 INTERFACE
+        $<BUILD_INTERFACE:${z3_SOURCE_DIR}/src/api/c++>
+    )
+endif()
+
+target_link_libraries(yourTarget PRIVATE libz3)
+```
+
+### With find_package
+
+Use system-installed Z3:
+
+```cmake
+find_package(Z3 4.15.3 REQUIRED CONFIG)
+target_link_libraries(yourTarget PRIVATE z3::libz3)
+```
+
+### With Fallback
+
+Try system installation first, fall back to FetchContent:
+
+```cmake
+set(Z3_MIN_VERSION "4.15.3")
+find_package(Z3 ${Z3_MIN_VERSION} CONFIG QUIET)
+
+if(Z3_FOUND)
+    message(STATUS "Found system Z3 version ${Z3_VERSION_STRING}")
+else()
+    message(STATUS "Fetching Z3 ${Z3_MIN_VERSION}")
+    include(FetchContent)
+    FetchContent_Declare(Z3
+        GIT_REPOSITORY https://github.com/Z3Prover/z3
+        GIT_TAG        z3-${Z3_MIN_VERSION}
+    )
+    FetchContent_MakeAvailable(Z3)
+    
+    if(TARGET libz3)
+        target_include_directories(libz3 INTERFACE
+            $<BUILD_INTERFACE:${z3_SOURCE_DIR}/src/api/c++>
+        )
+    endif()
+    
+    if(NOT TARGET z3::libz3)
+        add_library(z3::libz3 ALIAS libz3)
+    endif()
+endif()
+
+target_link_libraries(yourTarget PRIVATE z3::libz3)
+```
+
+## Building Python Bindings
+
+### With libz3
+
+Build both library and bindings:
+
+```bash
+cmake -DZ3_BUILD_PYTHON_BINDINGS=ON -DZ3_BUILD_LIBZ3_SHARED=ON ../
+make
+make install
+```
+
+### Python-only (using pre-installed libz3)
+
+For package managers building for multiple Python versions:
+
+```bash
+# Build libz3 once
+mkdir build-libz3
+cd build-libz3
+cmake -DZ3_BUILD_LIBZ3_SHARED=ON -DCMAKE_INSTALL_PREFIX=/usr/local ../
+make install
+
+# Build Python bindings for each version
+cd ..
+mkdir build-py310
+cd build-py310
+cmake -DZ3_BUILD_LIBZ3_CORE=OFF \
+      -DZ3_BUILD_PYTHON_BINDINGS=ON \
+      -DPython3_EXECUTABLE=/usr/bin/python3.10 ../
+make install
+```
+
+## Cleaning Source Tree
+
+If you've previously used the Python build system, clean generated files:
+
+```bash
+# Preview files to be removed
+git clean -nx src
+
+# Remove generated files
+git clean -fx src
+```
+
+<Warning>
+Be careful with `git clean -fx` - it permanently deletes untracked files.
+</Warning>
+
+## Developer Tools
+
+### Verbose Build Output
+
+With Unix Makefiles:
+
+```bash
+make VERBOSE=1
+```
+
+With Ninja:
+
+```bash
+ninja -v
+```
+
+### List Available Targets
+
+```bash
+make help
+```
+
+### Special Targets
+
+- `clean` - Remove built files
+- `edit_cache` - Edit CMake configuration
+- `rebuild_cache` - Re-run CMake
+- `api_docs` - Build API documentation (if `Z3_BUILD_DOCUMENTATION=ON`)
+
+## Common Issues
+
+### Polluted Source Tree
+
+If CMake reports a polluted source tree, you have generated files from the Python build system:
+
+```bash
+git clean -fx src
+```
+
+### Changing Compiler
+
+To change compilers, either:
+1. Create a new build directory, or
+2. Delete contents of current build directory
+
+Then run cmake with new compiler environment variables.
+
+### Java Bindings Not Found
+
+Set `JAVA_HOME` when configuring:
+
+```bash
+JAVA_HOME=/usr/lib/jvm/default cmake -DZ3_BUILD_JAVA_BINDINGS=ON ../
+```
+
+## Next Steps
+
+- Learn about [building with Make](/building/make) for simple Unix/Linux builds
+- See [Visual Studio builds](/building/visual-studio) for Windows development
+- Explore [Bazel builds](/building/bazel) for advanced build orchestration

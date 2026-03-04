@@ -1,0 +1,675 @@
+---
+title: Sort API
+description: Type system and sort constructors in Z3
+---
+
+## Overview
+
+The Sort API provides functions for creating and manipulating Z3 sorts (types). Sorts are used to define the domains of constants, variables, and functions.
+
+## Types
+
+### Z3_sort
+
+A kind of AST used to represent types/sorts in Z3.
+
+### Z3_sort_kind
+
+Enumeration of different sort kinds:
+
+<ParamField name="Z3_UNINTERPRETED_SORT" type="enum">
+  Uninterpreted/free sort
+</ParamField>
+
+<ParamField name="Z3_BOOL_SORT" type="enum">
+  Boolean sort
+</ParamField>
+
+<ParamField name="Z3_INT_SORT" type="enum">
+  Integer sort
+</ParamField>
+
+<ParamField name="Z3_REAL_SORT" type="enum">
+  Real number sort
+</ParamField>
+
+<ParamField name="Z3_BV_SORT" type="enum">
+  Bit-vector sort
+</ParamField>
+
+<ParamField name="Z3_ARRAY_SORT" type="enum">
+  Array sort
+</ParamField>
+
+<ParamField name="Z3_DATATYPE_SORT" type="enum">
+  Datatype sort
+</ParamField>
+
+<ParamField name="Z3_FLOATING_POINT_SORT" type="enum">
+  Floating-point sort
+</ParamField>
+
+<ParamField name="Z3_SEQ_SORT" type="enum">
+  Sequence sort
+</ParamField>
+
+<ParamField name="Z3_RE_SORT" type="enum">
+  Regular expression sort
+</ParamField>
+
+## Built-in Sorts
+
+### Z3_mk_bool_sort
+
+```c
+Z3_sort Z3_API Z3_mk_bool_sort(Z3_context c);
+```
+
+Create the Boolean type.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ResponseField name="return" type="Z3_sort">
+  Boolean sort
+</ResponseField>
+
+**Description:**
+
+This type is used to create propositional variables and predicates.
+
+**Example:**
+
+```c
+Z3_sort bool_sort = Z3_mk_bool_sort(ctx);
+Z3_ast p = Z3_mk_const(ctx, Z3_mk_string_symbol(ctx, "p"), bool_sort);
+```
+
+### Z3_mk_int_sort
+
+```c
+Z3_sort Z3_API Z3_mk_int_sort(Z3_context c);
+```
+
+Create the integer type.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ResponseField name="return" type="Z3_sort">
+  Integer sort
+</ResponseField>
+
+**Description:**
+
+This is mathematical integers (unbounded), not machine integers. For machine integers, use bit-vectors.
+
+**Example:**
+
+```c
+Z3_sort int_sort = Z3_mk_int_sort(ctx);
+Z3_ast x = Z3_mk_const(ctx, Z3_mk_string_symbol(ctx, "x"), int_sort);
+```
+
+### Z3_mk_real_sort
+
+```c
+Z3_sort Z3_API Z3_mk_real_sort(Z3_context c);
+```
+
+Create the real number type.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ResponseField name="return" type="Z3_sort">
+  Real sort
+</ResponseField>
+
+**Description:**
+
+This is mathematical reals, not floating-point numbers.
+
+**Example:**
+
+```c
+Z3_sort real_sort = Z3_mk_real_sort(ctx);
+Z3_ast y = Z3_mk_const(ctx, Z3_mk_string_symbol(ctx, "y"), real_sort);
+```
+
+### Z3_mk_bv_sort
+
+```c
+Z3_sort Z3_API Z3_mk_bv_sort(Z3_context c, unsigned sz);
+```
+
+Create a bit-vector type of given size.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="sz" type="unsigned">
+  Size in bits (must be > 0)
+</ParamField>
+
+<ResponseField name="return" type="Z3_sort">
+  Bit-vector sort
+</ResponseField>
+
+**Description:**
+
+Bit-vectors can be used to model machine integers and perform bit-level operations.
+
+**Example:**
+
+```c
+Z3_sort bv8 = Z3_mk_bv_sort(ctx, 8);   // 8-bit vector
+Z3_sort bv32 = Z3_mk_bv_sort(ctx, 32); // 32-bit vector
+Z3_ast x = Z3_mk_const(ctx, Z3_mk_string_symbol(ctx, "x"), bv32);
+```
+
+### Z3_mk_finite_domain_sort
+
+```c
+Z3_sort Z3_API Z3_mk_finite_domain_sort(Z3_context c, Z3_symbol name, uint64_t size);
+```
+
+Create a named finite domain sort.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="name" type="Z3_symbol">
+  Name of the sort
+</ParamField>
+
+<ParamField name="size" type="uint64_t">
+  Size of the domain
+</ParamField>
+
+<ResponseField name="return" type="Z3_sort">
+  Finite domain sort
+</ResponseField>
+
+**Description:**
+
+To create constants in this domain, use numeric constants from 0 to size-1.
+
+## Uninterpreted Sorts
+
+### Z3_mk_uninterpreted_sort
+
+```c
+Z3_sort Z3_API Z3_mk_uninterpreted_sort(Z3_context c, Z3_symbol s);
+```
+
+Create a free (uninterpreted) type using the given name.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="s" type="Z3_symbol">
+  Name of the sort
+</ParamField>
+
+<ResponseField name="return" type="Z3_sort">
+  Uninterpreted sort
+</ResponseField>
+
+**Description:**
+
+Two free types are considered the same if and only if they have the same name.
+
+**Example:**
+
+```c
+Z3_sort Color = Z3_mk_uninterpreted_sort(ctx, Z3_mk_string_symbol(ctx, "Color"));
+Z3_ast red = Z3_mk_const(ctx, Z3_mk_string_symbol(ctx, "red"), Color);
+Z3_ast blue = Z3_mk_const(ctx, Z3_mk_string_symbol(ctx, "blue"), Color);
+```
+
+### Z3_mk_type_variable
+
+```c
+Z3_sort Z3_API Z3_mk_type_variable(Z3_context c, Z3_symbol s);
+```
+
+Create a type variable.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="s" type="Z3_symbol">
+  Name of the type variable
+</ParamField>
+
+<ResponseField name="return" type="Z3_sort">
+  Type variable
+</ResponseField>
+
+**Description:**
+
+Functions using type variables can be applied to instantiations that match the signature.
+
+## Composite Sorts
+
+### Z3_mk_array_sort
+
+```c
+Z3_sort Z3_API Z3_mk_array_sort(Z3_context c, Z3_sort domain, Z3_sort range);
+```
+
+Create an array type [domain -> range].
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="domain" type="Z3_sort">
+  Index sort
+</ParamField>
+
+<ParamField name="range" type="Z3_sort">
+  Element sort
+</ParamField>
+
+<ResponseField name="return" type="Z3_sort">
+  Array sort
+</ResponseField>
+
+**Description:**
+
+Arrays are commonly used to model heap/memory in software verification.
+
+**Example:**
+
+```c
+Z3_sort int_sort = Z3_mk_int_sort(ctx);
+Z3_sort array_sort = Z3_mk_array_sort(ctx, int_sort, int_sort);
+Z3_ast arr = Z3_mk_const(ctx, Z3_mk_string_symbol(ctx, "arr"), array_sort);
+```
+
+### Z3_mk_tuple_sort
+
+```c
+Z3_sort Z3_API Z3_mk_tuple_sort(
+    Z3_context c,
+    Z3_symbol mk_tuple_name,
+    unsigned num_fields,
+    Z3_symbol const field_names[],
+    Z3_sort const field_sorts[],
+    Z3_func_decl* mk_tuple_decl,
+    Z3_func_decl proj_decl[]
+);
+```
+
+Create a tuple sort.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="mk_tuple_name" type="Z3_symbol">
+  Name of tuple constructor
+</ParamField>
+
+<ParamField name="num_fields" type="unsigned">
+  Number of fields
+</ParamField>
+
+<ParamField name="field_names" type="Z3_symbol const[]">
+  Field names
+</ParamField>
+
+<ParamField name="field_sorts" type="Z3_sort const[]">
+  Field sorts
+</ParamField>
+
+<ParamField name="mk_tuple_decl" type="Z3_func_decl*">
+  Output: tuple constructor
+</ParamField>
+
+<ParamField name="proj_decl" type="Z3_func_decl[]">
+  Output: field projectors
+</ParamField>
+
+<ResponseField name="return" type="Z3_sort">
+  Tuple sort
+</ResponseField>
+
+**Example:**
+
+```c
+Z3_symbol field_names[2] = {
+    Z3_mk_string_symbol(ctx, "x"),
+    Z3_mk_string_symbol(ctx, "y")
+};
+Z3_sort field_sorts[2] = {
+    Z3_mk_int_sort(ctx),
+    Z3_mk_int_sort(ctx)
+};
+Z3_func_decl mk_tuple;
+Z3_func_decl proj[2];
+
+Z3_sort point = Z3_mk_tuple_sort(
+    ctx,
+    Z3_mk_string_symbol(ctx, "mk_point"),
+    2,
+    field_names,
+    field_sorts,
+    &mk_tuple,
+    proj
+);
+```
+
+### Z3_mk_seq_sort
+
+```c
+Z3_sort Z3_API Z3_mk_seq_sort(Z3_context c, Z3_sort s);
+```
+
+Create a sequence sort.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="s" type="Z3_sort">
+  Element sort
+</ParamField>
+
+<ResponseField name="return" type="Z3_sort">
+  Sequence sort
+</ResponseField>
+
+**Example:**
+
+```c
+Z3_sort int_sort = Z3_mk_int_sort(ctx);
+Z3_sort int_seq = Z3_mk_seq_sort(ctx, int_sort);
+```
+
+### Z3_mk_re_sort
+
+```c
+Z3_sort Z3_API Z3_mk_re_sort(Z3_context c, Z3_sort seq);
+```
+
+Create a regular expression sort.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="seq" type="Z3_sort">
+  Sequence sort
+</ParamField>
+
+<ResponseField name="return" type="Z3_sort">
+  Regular expression sort
+</ResponseField>
+
+## Floating-Point Sorts
+
+### Z3_mk_fpa_sort
+
+```c
+Z3_sort Z3_API Z3_mk_fpa_sort(Z3_context c, unsigned ebits, unsigned sbits);
+```
+
+Create a floating-point sort.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="ebits" type="unsigned">
+  Number of exponent bits
+</ParamField>
+
+<ParamField name="sbits" type="unsigned">
+  Number of significand bits
+</ParamField>
+
+<ResponseField name="return" type="Z3_sort">
+  Floating-point sort
+</ResponseField>
+
+**Example:**
+
+```c
+Z3_sort float32 = Z3_mk_fpa_sort(ctx, 8, 24);  // IEEE 754 single precision
+Z3_sort float64 = Z3_mk_fpa_sort(ctx, 11, 53); // IEEE 754 double precision
+```
+
+### Z3_mk_fpa_sort_16
+
+```c
+Z3_sort Z3_API Z3_mk_fpa_sort_16(Z3_context c);
+```
+
+Create the half-precision (16-bit) floating-point sort.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ResponseField name="return" type="Z3_sort">
+  16-bit float sort
+</ResponseField>
+
+### Z3_mk_fpa_sort_32
+
+```c
+Z3_sort Z3_API Z3_mk_fpa_sort_32(Z3_context c);
+```
+
+Create the single-precision (32-bit) floating-point sort.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ResponseField name="return" type="Z3_sort">
+  32-bit float sort
+</ResponseField>
+
+### Z3_mk_fpa_sort_64
+
+```c
+Z3_sort Z3_API Z3_mk_fpa_sort_64(Z3_context c);
+```
+
+Create the double-precision (64-bit) floating-point sort.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ResponseField name="return" type="Z3_sort">
+  64-bit float sort
+</ResponseField>
+
+### Z3_mk_fpa_sort_128
+
+```c
+Z3_sort Z3_API Z3_mk_fpa_sort_128(Z3_context c);
+```
+
+Create the quadruple-precision (128-bit) floating-point sort.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ResponseField name="return" type="Z3_sort">
+  128-bit float sort
+</ResponseField>
+
+## Sort Inspection
+
+### Z3_get_sort_kind
+
+```c
+Z3_sort_kind Z3_API Z3_get_sort_kind(Z3_context c, Z3_sort t);
+```
+
+Return the sort kind.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="t" type="Z3_sort">
+  Sort
+</ParamField>
+
+<ResponseField name="return" type="Z3_sort_kind">
+  Sort kind
+</ResponseField>
+
+### Z3_get_sort
+
+```c
+Z3_sort Z3_API Z3_get_sort(Z3_context c, Z3_ast a);
+```
+
+Return the sort of an AST node.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="a" type="Z3_ast">
+  AST node
+</ParamField>
+
+<ResponseField name="return" type="Z3_sort">
+  Sort of the expression
+</ResponseField>
+
+### Z3_get_bv_sort_size
+
+```c
+unsigned Z3_API Z3_get_bv_sort_size(Z3_context c, Z3_sort t);
+```
+
+Return the size of the given bit-vector sort.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="t" type="Z3_sort">
+  Bit-vector sort
+</ParamField>
+
+<ResponseField name="return" type="unsigned">
+  Size in bits
+</ResponseField>
+
+### Z3_get_array_sort_domain
+
+```c
+Z3_sort Z3_API Z3_get_array_sort_domain(Z3_context c, Z3_sort t);
+```
+
+Return the domain sort of an array sort.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="t" type="Z3_sort">
+  Array sort
+</ParamField>
+
+<ResponseField name="return" type="Z3_sort">
+  Domain sort
+</ResponseField>
+
+### Z3_get_array_sort_range
+
+```c
+Z3_sort Z3_API Z3_get_array_sort_range(Z3_context c, Z3_sort t);
+```
+
+Return the range sort of an array sort.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="t" type="Z3_sort">
+  Array sort
+</ParamField>
+
+<ResponseField name="return" type="Z3_sort">
+  Range sort
+</ResponseField>
+
+## Sort Conversion
+
+### Z3_sort_to_ast
+
+```c
+Z3_ast Z3_API Z3_sort_to_ast(Z3_context c, Z3_sort s);
+```
+
+Convert a sort into an AST node.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="s" type="Z3_sort">
+  Sort
+</ParamField>
+
+<ResponseField name="return" type="Z3_ast">
+  AST representation of sort
+</ResponseField>
+
+**Description:**
+
+Allows using sorts in places that expect AST nodes (e.g., for reference counting).
+
+## Complete Example
+
+```c
+#include <z3.h>
+#include <stdio.h>
+
+int main() {
+    Z3_config cfg = Z3_mk_config();
+    Z3_context ctx = Z3_mk_context(cfg);
+    Z3_del_config(cfg);
+    
+    // Create basic sorts
+    Z3_sort bool_sort = Z3_mk_bool_sort(ctx);
+    Z3_sort int_sort = Z3_mk_int_sort(ctx);
+    Z3_sort bv32_sort = Z3_mk_bv_sort(ctx, 32);
+    
+    // Create array sort: Int -> Int
+    Z3_sort array_sort = Z3_mk_array_sort(ctx, int_sort, int_sort);
+    
+    // Create uninterpreted sort
+    Z3_sort person_sort = Z3_mk_uninterpreted_sort(
+        ctx, 
+        Z3_mk_string_symbol(ctx, "Person")
+    );
+    
+    // Inspect sorts
+    printf("BV size: %u\n", Z3_get_bv_sort_size(ctx, bv32_sort));
+    
+    Z3_del_context(ctx);
+    return 0;
+}
+```

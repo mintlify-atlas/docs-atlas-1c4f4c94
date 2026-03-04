@@ -1,0 +1,640 @@
+---
+title: API Reference
+description: Complete reference for Z3 JavaScript/TypeScript bindings
+icon: book
+---
+
+Z3's JavaScript bindings provide two APIs:
+
+1. **High-Level API**: Z3Py-like object-oriented interface (recommended)
+2. **Low-Level API**: Direct C API bindings
+
+This reference covers the high-level API. For the low-level API, see the [C API documentation](https://z3prover.github.io/api/html/z3__api_8h.html).
+
+## Initialization
+
+### init()
+
+Initializes the Z3 WebAssembly module.
+
+```typescript
+function init(): Promise<{ 
+  Context: ContextCtor, 
+  em: EmscriptenModule,
+  Z3: Z3LowLevel 
+}>
+```
+
+**Returns**: Promise resolving to:
+- `Context`: High-level API context constructor
+- `em`: Emscripten module for advanced control
+- `Z3`: Low-level C-like API
+
+**Example**:
+```javascript
+const { Context, em, Z3 } = await init();
+```
+
+## Context
+
+Creates an isolated Z3 context. All operations must use objects from the same context.
+
+### Context(name)
+
+```typescript
+function Context<Name extends string>(name: Name): Z3Context<Name>
+```
+
+**Parameters**:
+- `name`: String identifier for type safety (TypeScript only)
+
+**Returns**: Object containing all Z3 operations and types
+
+**Example**:
+```javascript
+const { Int, Real, Bool, Solver, Tactic } = new Context('main');
+```
+
+## Sorts (Types)
+
+Z3 sorts represent the types of expressions.
+
+### Integer and Real
+
+<ParamField path="Int" type="Sort">
+  Integer arithmetic sort
+</ParamField>
+
+<ParamField path="Real" type="Sort">
+  Real arithmetic sort
+</ParamField>
+
+**Methods**:
+- `Int.const(name: string)`: Create integer variable
+- `Int.val(value: number | bigint)`: Create integer constant
+- `Real.const(name: string)`: Create real variable  
+- `Real.val(numerator: number, denominator?: number)`: Create rational constant
+
+### Boolean
+
+<ParamField path="Bool" type="Sort">
+  Boolean sort for true/false values
+</ParamField>
+
+**Methods**:
+- `Bool.const(name: string)`: Create boolean variable
+- `Bool.val(value: boolean)`: Create boolean constant
+
+### Bit-Vectors
+
+<ParamField path="BitVec" type="Sort">
+  Fixed-width bit-vector sort
+</ParamField>
+
+**Methods**:
+- `BitVec.const(name: string, bits: number)`: Create bit-vector variable
+- `BitVec.val(value: number | bigint, bits: number)`: Create bit-vector constant
+
+**Example**:
+```javascript
+const x = BitVec.const('x', 8);  // 8-bit vector
+const ff = BitVec.val(255, 8);   // value 255 as 8-bit
+```
+
+### Arrays
+
+<ParamField path="Array" type="Sort">
+  Array sort with index and value types
+</ParamField>
+
+**Methods**:
+- `Array.sort(indexSort: Sort, valueSort: Sort)`: Create array sort
+- `Array.const(name: string, indexSort: Sort, valueSort: Sort)`: Create array variable
+- `Array.K(domain: Sort, value: Expr)`: Create constant array
+
+**Example**:
+```javascript
+const arr = Array.const('arr', Int.sort(), Int.sort());
+const constantArr = Array.K(Int.sort(), Int.val(42));
+```
+
+## Expressions
+
+All Z3 values and formulas are expressions.
+
+### Arithmetic Operations
+
+<ResponseField name="add" type="method">
+  Addition: `a.add(b, c, ...)`
+  
+  Supports multiple arguments for efficiency.
+</ResponseField>
+
+<ResponseField name="sub" type="method">
+  Subtraction: `a.sub(b)`
+</ResponseField>
+
+<ResponseField name="mul" type="method">
+  Multiplication: `a.mul(b, c, ...)`
+</ResponseField>
+
+<ResponseField name="div" type="method">
+  Division: `a.div(b)`
+  
+  Integer division for Int, real division for Real.
+</ResponseField>
+
+<ResponseField name="mod" type="method">
+  Modulo: `a.mod(b)`
+  
+  Integer expressions only.
+</ResponseField>
+
+<ResponseField name="pow" type="method">
+  Power: `a.pow(b)`
+</ResponseField>
+
+**Example**:
+```javascript
+const x = Int.const('x');
+const y = Int.const('y');
+const expr = x.mul(2).add(y).sub(5); // 2*x + y - 5
+```
+
+### Comparison Operations
+
+<ResponseField name="eq" type="method">
+  Equality: `a.eq(b)`
+  
+  Returns boolean expression.
+</ResponseField>
+
+<ResponseField name="neq" type="method">
+  Inequality: `a.neq(b)` 
+  
+  Equivalent to `Not(a.eq(b))`.
+</ResponseField>
+
+<ResponseField name="lt" type="method">
+  Less than: `a.lt(b)`
+</ResponseField>
+
+<ResponseField name="le" type="method">
+  Less than or equal: `a.le(b)`
+</ResponseField>
+
+<ResponseField name="gt" type="method">
+  Greater than: `a.gt(b)`
+</ResponseField>
+
+<ResponseField name="ge" type="method">
+  Greater than or equal: `a.ge(b)`
+</ResponseField>
+
+### Boolean Operations
+
+These are provided as both methods and standalone functions:
+
+<ResponseField name="And" type="function">
+  Conjunction: `And(a, b, c, ...)`
+  
+  Returns true if all arguments are true.
+</ResponseField>
+
+<ResponseField name="Or" type="function">
+  Disjunction: `Or(a, b, c, ...)`
+  
+  Returns true if any argument is true.
+</ResponseField>
+
+<ResponseField name="Not" type="function">
+  Negation: `Not(a)`
+</ResponseField>
+
+<ResponseField name="Implies" type="function">
+  Implication: `Implies(a, b)`
+  
+  Equivalent to `Or(Not(a), b)`.
+</ResponseField>
+
+<ResponseField name="Iff" type="function">
+  If-and-only-if: `Iff(a, b)`
+  
+  True when both have same truth value.
+</ResponseField>
+
+<ResponseField name="Xor" type="function">
+  Exclusive or: `Xor(a, b)`
+</ResponseField>
+
+**Example**:
+```javascript
+const p = Bool.const('p');
+const q = Bool.const('q');
+const formula = And(
+  Or(p, q),
+  Not(And(p, q))
+); // (p ∨ q) ∧ ¬(p ∧ q)
+```
+
+### Bit-Vector Operations
+
+<ResponseField name="bvadd" type="method">
+  Bit-vector addition: `a.add(b)`
+</ResponseField>
+
+<ResponseField name="bvsub" type="method">
+  Bit-vector subtraction: `a.sub(b)`
+</ResponseField>
+
+<ResponseField name="bvmul" type="method">
+  Bit-vector multiplication: `a.mul(b)`
+</ResponseField>
+
+<ResponseField name="bvudiv" type="method">
+  Unsigned division: `a.udiv(b)`
+</ResponseField>
+
+<ResponseField name="bvsdiv" type="method">
+  Signed division: `a.sdiv(b)`
+</ResponseField>
+
+<ResponseField name="bvurem" type="method">
+  Unsigned remainder: `a.urem(b)`
+</ResponseField>
+
+<ResponseField name="bvand" type="method">
+  Bitwise AND: `a.and(b)`
+</ResponseField>
+
+<ResponseField name="bvor" type="method">
+  Bitwise OR: `a.or(b)`
+</ResponseField>
+
+<ResponseField name="bvxor" type="method">
+  Bitwise XOR: `a.xor(b)`
+</ResponseField>
+
+<ResponseField name="bvnot" type="method">
+  Bitwise NOT: `a.not()`
+</ResponseField>
+
+<ResponseField name="bvshl" type="method">
+  Shift left: `a.shl(b)`
+</ResponseField>
+
+<ResponseField name="bvlshr" type="method">
+  Logical shift right: `a.lshr(b)`
+</ResponseField>
+
+<ResponseField name="bvashr" type="method">
+  Arithmetic shift right: `a.ashr(b)`
+</ResponseField>
+
+### Array Operations
+
+<ResponseField name="select" type="method">
+  Array read: `arr.select(index)`
+  
+  Returns value at index.
+</ResponseField>
+
+<ResponseField name="store" type="method">
+  Array write: `arr.store(index, value)`
+  
+  Returns new array with updated value.
+</ResponseField>
+
+**Example**:
+```javascript
+const arr = Array.const('arr', Int.sort(), Int.sort());
+const i = Int.const('i');
+const v = arr.select(i);  // arr[i]
+const arr2 = arr.store(i, Int.val(42)); // arr[i := 42]
+```
+
+## Solver
+
+The solver checks satisfiability of constraints.
+
+### new Solver()
+
+Creates a new solver instance.
+
+```typescript
+class Solver<Name extends string> {
+  add(...constraints: Bool<Name>[]): void;
+  check(...assumptions: Bool<Name>[]): Promise<'sat' | 'unsat' | 'unknown'>;
+  model(): Model<Name>;
+  reset(): void;
+  push(): void;
+  pop(num?: number): void;
+  toString(): string;
+}
+```
+
+### Methods
+
+<ResponseField name="add" type="method">
+  ```typescript
+  add(...constraints: Bool[]): void
+  ```
+  
+  Add constraints to the solver.
+  
+  **Example**:
+  ```javascript
+  solver.add(x.gt(0), y.lt(10));
+  ```
+</ResponseField>
+
+<ResponseField name="check" type="method">
+  ```typescript
+  check(...assumptions: Bool[]): Promise<'sat' | 'unsat' | 'unknown'>
+  ```
+  
+  Check satisfiability with optional assumptions.
+  
+  **Returns**:
+  - `'sat'`: Satisfiable (solution exists)
+  - `'unsat'`: Unsatisfiable (no solution)
+  - `'unknown'`: Solver could not determine
+  
+  **Example**:
+  ```javascript
+  const result = await solver.check();
+  if (result === 'sat') {
+    const model = solver.model();
+  }
+  ```
+</ResponseField>
+
+<ResponseField name="model" type="method">
+  ```typescript
+  model(): Model
+  ```
+  
+  Get the model (variable assignments) after a `sat` result.
+  
+  **Throws**: Error if called before `check()` or if result is not `sat`.
+</ResponseField>
+
+<ResponseField name="reset" type="method">
+  ```typescript
+  reset(): void
+  ```
+  
+  Remove all constraints from the solver.
+</ResponseField>
+
+<ResponseField name="push" type="method">
+  ```typescript
+  push(): void
+  ```
+  
+  Create a backtracking point.
+</ResponseField>
+
+<ResponseField name="pop" type="method">
+  ```typescript
+  pop(num?: number): void
+  ```
+  
+  Backtrack to previous state.
+  
+  **Parameters**:
+  - `num`: Number of scopes to pop (default: 1)
+  
+  **Example**:
+  ```javascript
+  solver.add(x.gt(0));
+  solver.push();
+  solver.add(y.lt(10));
+  await solver.check(); // checks both constraints
+  solver.pop(); // removes y < 10
+  await solver.check(); // only checks x > 0
+  ```
+</ResponseField>
+
+## Model
+
+Represents a solution (variable assignments).
+
+### Methods
+
+<ResponseField name="eval" type="method">
+  ```typescript
+  eval(expr: Expr, modelCompletion?: boolean): Expr
+  ```
+  
+  Evaluate expression in the model.
+  
+  **Parameters**:
+  - `expr`: Expression to evaluate
+  - `modelCompletion`: If true, assign default values to unbound variables (default: false)
+  
+  **Example**:
+  ```javascript
+  const model = solver.model();
+  const xVal = model.eval(x);
+  console.log('x =', xVal.toString());
+  ```
+</ResponseField>
+
+<ResponseField name="sexpr" type="method">
+  ```typescript
+  sexpr(): string
+  ```
+  
+  Get S-expression representation of the model.
+  
+  **Returns**: SMT-LIB2 format string
+</ResponseField>
+
+<ResponseField name="toString" type="method">
+  ```typescript
+  toString(): string  
+  ```
+  
+  Get human-readable model representation.
+</ResponseField>
+
+## Simplifier
+
+Simplifiers preprocess expressions before solving.
+
+### new Simplifier(name)
+
+```typescript
+class Simplifier<Name extends string> {
+  constructor(name: string);
+  andThen(other: Simplifier<Name>): Simplifier<Name>;
+  usingParams(params: Params<Name>): Simplifier<Name>;
+  help(): string;
+  paramDescrs(): ParamDescrs<Name>;
+}
+```
+
+**Example**:
+```javascript
+const s1 = new Simplifier('solve-eqs');
+const s2 = new Simplifier('simplify');
+const composed = s1.andThen(s2);
+
+solver.addSimplifier(composed);
+```
+
+## Params
+
+Parameter sets for configuring solvers and tactics.
+
+### new Params()
+
+```typescript
+class Params<Name extends string> {
+  set(key: string, value: boolean | number | string): void;
+  toString(): string;
+}
+```
+
+**Example**:
+```javascript
+const params = new Params();
+params.set('timeout', 5000);
+params.set('max_steps', 1000);
+params.set('elim_and', true);
+```
+
+## Tactic
+
+Tactics are solvers with specific strategies.
+
+### new Tactic(name)
+
+```typescript
+class Tactic<Name extends string> {
+  constructor(name: string);
+  apply(goal: Goal<Name>): Promise<ApplyResult<Name>>;
+  usingParams(params: Params<Name>): Tactic<Name>;
+  andThen(other: Tactic<Name>): Tactic<Name>;
+  orElse(other: Tactic<Name>): Tactic<Name>;
+}
+```
+
+**Common tactics**:
+- `'simplify'`: Simplify expressions
+- `'solve-eqs'`: Solve equations
+- `'qe'`: Quantifier elimination
+- `'sat'`: SAT solver
+- `'smt'`: SMT solver
+
+## Low-Level API
+
+The low-level API provides direct access to Z3's C API.
+
+### Differences from C API
+
+<AccordionGroup>
+  <Accordion title="Out Parameters">
+    C functions with out parameters return objects:
+    
+    ```typescript
+    // C: void Z3_rcf_get_numerator_denominator(ctx, a, &n, &d)
+    // JS:
+    const { n, d } = Z3.rcf_get_numerator_denominator(ctx, a);
+    ```
+  </Accordion>
+
+  <Accordion title="Arrays">
+    Array lengths are inferred:
+    
+    ```typescript
+    // C: Z3_rcf_mk_roots(ctx, n, a, roots)
+    // JS:
+    const { rv, roots } = Z3.rcf_mk_roots(ctx, a);
+    ```
+  </Accordion>
+
+  <Accordion title="Integers">
+    - JavaScript `number` for `int`, `unsigned`, `float`, `double`
+    - JavaScript `BigInt` for `int64_t`, `uint64_t`
+  </Accordion>
+
+  <Accordion title="Null Pointers">
+    Types ending in `_opt` accept/return `null`:
+    
+    ```typescript
+    function model_get_const_interp(
+      c: Z3_context, 
+      m: Z3_model, 
+      a: Z3_func_decl
+    ): Z3_ast | null
+    ```
+  </Accordion>
+
+  <Accordion title="Async Functions">
+    Long-running operations are async:
+    - `Z3_simplify`
+    - `Z3_solver_check`
+    - `Z3_tactic_apply`
+    - And others (see installation page)
+  </Accordion>
+</AccordionGroup>
+
+### Example
+
+```javascript
+const { Z3 } = await init();
+
+const cfg = Z3.mk_config();
+const ctx = Z3.mk_context(cfg);
+Z3.del_config(cfg);
+
+const intSort = Z3.mk_int_sort(ctx);
+const x = Z3.mk_const(ctx, Z3.mk_string_symbol(ctx, 'x'), intSort);
+const zero = Z3.mk_int(ctx, 0, intSort);
+const constraint = Z3.mk_gt(ctx, x, zero);
+
+const solver = Z3.mk_solver(ctx);
+Z3.solver_assert(ctx, solver, constraint);
+
+const result = await Z3.solver_check(ctx, solver);
+console.log(result); // Z3_L_TRUE (1)
+```
+
+## Type Definitions
+
+Full TypeScript definitions are included:
+
+```typescript
+import type {
+  Context,
+  Solver,
+  Model,
+  Expr,
+  Arith,
+  Bool,
+  BitVec,
+  Tactic,
+  Simplifier,
+  Params,
+  Sort,
+} from 'z3-solver';
+```
+
+## Further Reading
+
+<CardGroup cols={2}>
+  <Card title="Getting Started" icon="rocket" href="/bindings/javascript/getting-started">
+    Practical examples and tutorials
+  </Card>
+  <Card title="C API Docs" icon="file-code" href="https://z3prover.github.io/api/html/z3__api_8h.html">
+    Low-level C API reference
+  </Card>
+  <Card title="TypeDoc" icon="code" href="https://z3prover.github.io/api/html/js/index.html">
+    Auto-generated API documentation
+  </Card>
+  <Card title="GitHub Examples" icon="github" href="https://github.com/Z3Prover/z3/tree/master/src/api/js/examples">
+    More code examples
+  </Card>
+</CardGroup>

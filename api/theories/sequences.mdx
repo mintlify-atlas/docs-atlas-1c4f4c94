@@ -1,0 +1,699 @@
+---
+title: Sequences and Strings
+description: String and sequence operations including regular expressions
+---
+
+Z3's sequence theory provides comprehensive support for reasoning about strings, sequences of arbitrary elements, and regular expressions. This includes string operations, pattern matching, and conversions.
+
+## Sorts
+
+### String Sort
+
+The built-in string sort:
+
+```python
+from z3 import *
+
+s = String('s')
+t = String('t')
+
+solve(s == "hello", t == "world")
+# [s = "hello", t = "world"]
+```
+
+**C API**: `Z3_mk_string_sort(c)` (api_seq.cpp:92)
+
+### Character Sort
+
+Individual Unicode characters:
+
+```python
+ch = Char('ch')
+solve(ch == 'A')
+# Character value
+```
+
+**C API**: `Z3_mk_char_sort(c)` (api_seq.cpp:102)
+
+### Sequence Sort
+
+Sequences of arbitrary element types:
+
+```python
+# Sequence of integers
+IntSeq = SeqSort(IntSort())
+seq = Const('seq', IntSeq)
+
+# Sequence of bit-vectors
+BVSeq = SeqSort(BitVecSort(8))
+```
+
+**C API**: `Z3_mk_seq_sort(c, domain)` (api_seq.cpp:27)
+
+## String Literals
+
+### Create Strings
+
+```python
+from z3 import *
+
+# ASCII string
+s1 = StringVal("hello")
+
+# Unicode string
+s2 = StringVal("hello\u0020world")
+
+# Empty string
+empty = StringVal("")
+```
+
+**C API**:
+- `Z3_mk_string(c, str)` - from null-terminated string (api_seq.cpp:47)
+- `Z3_mk_lstring(c, sz, str)` - from length-prefixed string (api_seq.cpp:58)
+- `Z3_mk_u32string(c, sz, chars)` - from Unicode code points (api_seq.cpp:71)
+
+### Character Literals
+
+```python
+ch = Char('ch')
+solve(ch == CharVal('A'))
+```
+
+**C API**: `Z3_mk_char(c, ch)` - create character from code point (api_seq.cpp:82)
+
+## String Operations
+
+### Concatenation
+
+```python
+s = String('s')
+t = String('t')
+
+solve(s + t == "helloworld", s == "hello")
+# [s = "hello", t = "world"]
+```
+
+**C API**: `Z3_mk_seq_concat` (api_seq.cpp:285)
+
+### Length
+
+```python
+s = String('s')
+solve(Length(s) == 5, s == "hello")
+# [s = "hello"]
+```
+
+**C API**: `Z3_mk_seq_length` (api_seq.cpp:301)
+
+### Substring (Extract)
+
+```python
+s = String('s')
+
+# Extract substring starting at index 0, length 5
+substr = SubString(s, 0, 5)
+
+solve(s == "hello world", substr == "hello")
+# [s = "hello world"]
+```
+
+**C API**: `Z3_mk_seq_extract(c, s, offset, length)` (api_seq.cpp:294)
+
+### Character At
+
+Get character at position:
+
+```python
+s = String('s')
+ch = CharAt(s, 0)
+
+solve(s == "hello", ch == 'h')
+```
+
+**C API**: `Z3_mk_seq_at` (api_seq.cpp:299)
+
+### Index Of
+
+Find first occurrence of substring:
+
+```python
+s = String('s')
+pattern = String('pattern')
+pos = Int('pos')
+
+solve(
+    s == "hello world",
+    pattern == "world",
+    pos == IndexOf(s, pattern, 0)
+)
+# [pos = 6]
+```
+
+**C API**: `Z3_mk_seq_index(c, s, substr, offset)` (api_seq.cpp:302)
+
+### Last Index Of
+
+Find last occurrence:
+
+```python
+pos = LastIndexOf(s, pattern)
+```
+
+**C API**: `Z3_mk_seq_last_index` (api_seq.cpp:303)
+
+### Replace
+
+Replace first occurrence:
+
+```python
+s = String('s')
+result = Replace(s, "world", "universe")
+
+solve(s == "hello world", result == "hello universe")
+```
+
+**C API**: `Z3_mk_seq_replace(c, s, src, dst)` (api_seq.cpp:295)
+
+### Replace All
+
+Replace all occurrences:
+
+```python
+s = String('s')
+result = Replace(s, "o", "0")
+
+solve(s == "hello", result == "hell0")
+
+# Replace all
+result_all = ReplaceAll(s, "l", "1")
+solve(s == "hello", result_all == "he11o")
+```
+
+**C API**: `Z3_mk_seq_replace_all` (api_seq.cpp:296)
+
+### Prefix and Suffix
+
+```python
+s = String('s')
+prefix = String('prefix')
+suffix = String('suffix')
+
+# Check if s starts with prefix
+solve(PrefixOf(prefix, s), s == "hello", prefix == "hel")
+# sat
+
+# Check if s ends with suffix
+solve(SuffixOf(suffix, s), s == "world", suffix == "rld")
+# sat
+```
+
+**C API**: `Z3_mk_seq_prefix`, `Z3_mk_seq_suffix` (api_seq.cpp:286-287)
+
+### Contains
+
+```python
+s = String('s')
+substr = String('substr')
+
+solve(Contains(s, substr), s == "hello world", substr == "world")
+# sat
+```
+
+**C API**: `Z3_mk_seq_contains` (api_seq.cpp:288)
+
+## String Predicates
+
+### Lexicographic Comparison
+
+```python
+s = String('s')
+t = String('t')
+
+# Less than
+solve(StrLT(s, t), s == "abc", t == "xyz")
+# sat
+
+# Less than or equal
+solve(StrLE(s, t))
+```
+
+**C API**: `Z3_mk_str_lt`, `Z3_mk_str_le` (api_seq.cpp:289-290)
+
+## Conversion Operations
+
+### String to/from Integer
+
+```python
+s = String('s')
+n = Int('n')
+
+# String to integer
+solve(StrToInt(s) == n, s == "42")
+# [s = "42", n = 42]
+
+# Integer to string
+solve(IntToStr(n) == s, n == 42)
+# [n = 42, s = "42"]
+```
+
+**C API**: `Z3_mk_str_to_int`, `Z3_mk_int_to_str` (api_seq.cpp:307-308)
+
+### String to/from Code
+
+Convert between strings and Unicode code points:
+
+```python
+ch = String('ch')
+code = Int('code')
+
+# Get Unicode code point of first character
+solve(StrToCode(ch) == code, ch == "A")
+# [ch = "A", code = 65]
+
+# Create string from code point
+solve(StrFromCode(code) == ch, code == 65)
+# [code = 65, ch = "A"]
+```
+
+**C API**: `Z3_mk_string_to_code`, `Z3_mk_string_from_code` (api_seq.cpp:291-292)
+
+### Character to/from Integer
+
+```python
+ch = Char('ch')
+n = Int('n')
+
+# Character to integer (Unicode code point)
+solve(CharToInt(ch) == n, ch == CharVal('A'))
+# [ch = 'A', n = 65]
+```
+
+**C API**: `Z3_mk_char_to_int` (api_seq.cpp:349)
+
+### Character to/from Bit-Vector
+
+```python
+ch = Char('ch')
+bv = BitVec('bv', 32)
+
+# Character to bit-vector
+solve(CharToBV(ch) == bv)
+
+# Bit-vector to character
+solve(CharFromBV(bv) == ch)
+```
+
+**C API**: `Z3_mk_char_to_bv`, `Z3_mk_char_from_bv` (api_seq.cpp:350-351)
+
+### Bit-Vector to String
+
+```python
+bv = BitVec('bv', 32)
+s = String('s')
+
+# Unsigned bit-vector to string
+solve(BVToStr(bv) == s, bv == 42)
+# [bv = 42, s = "42"]
+
+# Signed bit-vector to string
+solve(SBVToStr(bv) == s)
+```
+
+**C API**: `Z3_mk_ubv_to_str`, `Z3_mk_sbv_to_str` (api_seq.cpp:309-310)
+
+## Regular Expressions
+
+### Regular Expression Sort
+
+```python
+# Regex over strings
+StrRegex = ReSort(StringSort())
+re = Const('re', StrRegex)
+```
+
+**C API**: `Z3_mk_re_sort(c, domain)` (api_seq.cpp:37)
+
+### Basic Regex Constructors
+
+```python
+from z3 import *
+
+# Empty regex (matches nothing)
+empty_re = Empty(StringSort())
+
+# Full regex (matches any string)
+full_re = Full(StringSort())
+
+# String to regex (matches exactly that string)
+re_hello = Re("hello")
+
+# All single characters
+all_char = AllChar(StringSort())
+```
+
+**C API**: `Z3_mk_re_empty`, `Z3_mk_re_full`, `Z3_mk_re_allchar` (api_seq.cpp:345-346, 344)
+
+### Regex Operations
+
+```python
+# Concatenation
+re_ab = Concat(Re("a"), Re("b"))  # Matches "ab"
+
+# Union (alternation)
+re_or = Union(Re("a"), Re("b"))  # Matches "a" or "b"
+
+# Intersection
+re_and = Intersect(re1, re2)
+
+# Complement
+re_not = Complement(re1)
+
+# Kleene star (zero or more)
+re_star = Star(Re("a"))  # Matches "", "a", "aa", "aaa", ...
+
+# Plus (one or more)
+re_plus = Plus(Re("a"))  # Matches "a", "aa", "aaa", ...
+
+# Optional
+re_opt = Option(Re("a"))  # Matches "" or "a"
+
+# Range
+re_digit = Range("0", "9")  # Matches any digit
+
+# Loop (bounded repetition)
+re_loop = Loop(Re("a"), 2, 4)  # Matches "aa", "aaa", or "aaaa"
+```
+
+**C API**:
+- `Z3_mk_re_concat` (api_seq.cpp:341)
+- `Z3_mk_re_union` (api_seq.cpp:339)
+- `Z3_mk_re_intersect` (api_seq.cpp:340)
+- `Z3_mk_re_complement` (api_seq.cpp:337)
+- `Z3_mk_re_star` (api_seq.cpp:335)
+- `Z3_mk_re_plus` (api_seq.cpp:334)
+- `Z3_mk_re_option` (api_seq.cpp:336)
+- `Z3_mk_re_range` (api_seq.cpp:342)
+- `Z3_mk_re_loop` (api_seq.cpp:313)
+- `Z3_mk_re_power` (api_seq.cpp:323)
+
+### String Matching
+
+Test if string matches regex:
+
+```python
+s = String('s')
+
+# Email pattern (simplified)
+email_re = Concat(
+    Plus(Range("a", "z")),
+    Re("@"),
+    Plus(Range("a", "z")),
+    Re("."),
+    Plus(Range("a", "z"))
+)
+
+solve(InRe(s, email_re), Length(s) > 5)
+# Finds string matching email pattern
+```
+
+**C API**: `Z3_mk_seq_in_re(c, s, re)` (api_seq.cpp:305)
+
+### Replace with Regex
+
+```python
+s = String('s')
+pattern = Re("[0-9]+")  # One or more digits
+replacement = "NUM"
+
+# Replace first match
+result = ReplaceRe(s, pattern, replacement)
+
+# Replace all matches  
+result_all = ReplaceReAll(s, pattern, replacement)
+
+solve(
+    s == "abc123def456",
+    result_all == "abcNUMdefNUM"
+)
+```
+
+**C API**: `Z3_mk_seq_replace_re`, `Z3_mk_seq_replace_re_all` (api_seq.cpp:297-298)
+
+## Sequence Operations
+
+All string operations also work on sequences:
+
+```python
+# Sequence of integers
+IntSeq = SeqSort(IntSort())
+seq = Const('seq', IntSeq)
+
+# Empty sequence
+empty_seq = Empty(IntSeq)
+
+# Unit sequence (single element)
+unit = Unit(IntVal(42))
+
+# Concatenation
+seq2 = Concat(seq, unit)
+
+# Length
+len_seq = Length(seq)
+
+# Extract element
+elem = SeqAt(seq, 0)
+
+# N-th element
+nth = SeqNth(seq, 0)
+```
+
+**C API**: `Z3_mk_seq_empty`, `Z3_mk_seq_unit`, `Z3_mk_seq_nth` (api_seq.cpp:282, 284, 300)
+
+## Advanced Operations
+
+### Map Over Sequence
+
+Apply function to each element:
+
+```python
+f = Function('f', IntSort(), IntSort())
+seq = Const('seq', SeqSort(IntSort()))
+
+# Map f over sequence
+mapped = SeqMap(f, seq)
+```
+
+**C API**: `Z3_mk_seq_map` (api_seq.cpp:354)
+
+### Map with Index
+
+Apply function with index:
+
+```python
+f = Function('f', IntSort(), IntSort(), IntSort())
+seq = Const('seq', SeqSort(IntSort()))
+offset = Int('offset')
+
+# Map f(i, elem) over sequence starting at offset
+mapped = SeqMapI(f, offset, seq)
+```
+
+**C API**: `Z3_mk_seq_mapi` (api_seq.cpp:355)
+
+### Fold (Reduce)
+
+Fold function over sequence:
+
+```python
+f = Function('f', IntSort(), IntSort(), IntSort())
+seq = Const('seq', SeqSort(IntSort()))
+init = Int('init')
+
+# Fold left: f(f(f(init, seq[0]), seq[1]), ...)
+result = SeqFoldl(f, init, seq)
+```
+
+**C API**: `Z3_mk_seq_foldl` (api_seq.cpp:356)
+
+### Fold with Index
+
+```python
+f = Function('f', IntSort(), IntSort(), IntSort(), IntSort())
+
+# Fold with index
+result = SeqFoldli(f, offset, init, seq)
+```
+
+**C API**: `Z3_mk_seq_foldli` (api_seq.cpp:357)
+
+## Complete Examples
+
+### Example 1: Email Validation
+
+```python
+from z3 import *
+
+email = String('email')
+
+# Simple email regex: [a-z]+@[a-z]+\.[a-z]+
+localpart = Plus(Range("a", "z"))
+at_sign = Re("@")
+domain = Plus(Range("a", "z"))
+dot = Re(".")
+tld = Plus(Range("a", "z"))
+
+email_regex = Concat(localpart, at_sign, domain, dot, tld)
+
+solve(
+    InRe(email, email_regex),
+    Length(email) >= 7,
+    Contains(email, "example")
+)
+# Finds valid email containing "example"
+```
+
+### Example 2: SQL Injection Detection
+
+```python
+from z3 import *
+
+user_input = String('user_input')
+query = String('query')
+
+# Check if user input contains SQL injection patterns
+sql_keywords = Union(
+    Re("SELECT"),
+    Re("DELETE"),
+    Re("DROP"),
+    Re("UNION")
+)
+
+s = Solver()
+s.add(query == Concat("SELECT * FROM users WHERE name = '", user_input, "'"))
+s.add(InRe(query, Concat(Star(AllChar(StringSort())), sql_keywords, Star(AllChar(StringSort())))))
+
+if s.check() == sat:
+    m = s.model()
+    print(f"Potential SQL injection: {m[user_input]}")
+```
+
+### Example 3: Password Strength
+
+```python
+from z3 import *
+
+password = String('password')
+
+# Password must contain:
+# - At least one lowercase letter
+# - At least one uppercase letter
+# - At least one digit
+# - Length >= 8
+
+lower = Range("a", "z")
+upper = Range("A", "Z")
+digit = Range("0", "9")
+any_char = Union(lower, upper, digit)
+
+# Pattern: any* lowercase any* uppercase any* digit any*
+strong_password = Concat(
+    Star(any_char),
+    lower,
+    Star(any_char),
+    upper,
+    Star(any_char),
+    digit,
+    Star(any_char)
+)
+
+solve(
+    InRe(password, strong_password),
+    Length(password) >= 8
+)
+```
+
+### Example 4: Path Traversal Detection
+
+```python
+from z3 import *
+
+file_path = String('file_path')
+
+# Check for "../" pattern
+traversal_pattern = Union(
+    Re("../"),
+    Re("..\\")
+)
+
+s = Solver()
+s.add(Contains(file_path, "../"))
+s.add(PrefixOf("/safe/directory/", file_path))
+
+if s.check() == sat:
+    m = s.model()
+    print(f"Path traversal detected: {m[file_path]}")
+else:
+    print("No path traversal possible")
+```
+
+### Example 5: String Parsing
+
+```python
+from z3 import *
+
+input_str = String('input')
+num1 = Int('num1')
+num2 = Int('num2')
+
+# Parse "num1+num2" format
+plus_pos = Int('plus_pos')
+
+s = Solver()
+s.add(plus_pos == IndexOf(input_str, "+", 0))
+s.add(plus_pos > 0)
+s.add(StrToInt(SubString(input_str, 0, plus_pos)) == num1)
+s.add(StrToInt(SubString(input_str, plus_pos + 1, Length(input_str) - plus_pos - 1)) == num2)
+s.add(input_str == "42+17")
+
+if s.check() == sat:
+    m = s.model()
+    print(f"Parsed: {m[num1]} + {m[num2]}")
+    # Parsed: 42 + 17
+```
+
+## Character Predicates
+
+### Check if Digit
+
+```python
+ch = Char('ch')
+solve(CharIsDigit(ch))
+# [ch = '0'..'9']
+```
+
+**C API**: `Z3_mk_char_is_digit` (api_seq.cpp:352)
+
+### Character Comparison
+
+```python
+ch1 = Char('ch1')
+ch2 = Char('ch2')
+
+solve(CharLE(ch1, ch2), ch1 == CharVal('A'), ch2 == CharVal('Z'))
+# sat
+```
+
+**C API**: `Z3_mk_char_le` (api_seq.cpp:348)
+
+## Implementation Notes
+
+- Strings are sequences of Unicode code points
+- Efficient decision procedures for linear constraints
+- Regular expressions compiled to automata
+- Sequence theory is parametric (works with any element type)
+
+## References
+
+- Implementation: `src/api/api_seq.cpp`
+- Theory plugin: `src/ast/seq_decl_plugin.h`
+- Solver: `src/smt/theory_seq.h`

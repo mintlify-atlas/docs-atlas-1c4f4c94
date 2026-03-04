@@ -1,0 +1,484 @@
+---
+title: Solvers
+description: Using Z3's incremental solver interface
+---
+
+## Overview
+
+The Z3 solver is the main interface for checking satisfiability of formulas. It supports **incremental solving**, allowing you to add constraints progressively and check satisfiability multiple times.
+
+## Creating a Solver
+
+<CodeGroup>
+```python Python
+from z3 import *
+
+# Create default solver
+s = Solver()
+
+# Create solver for specific logic
+s_lia = Solver(logics="LIA")  # Linear Integer Arithmetic
+
+# Create solver from tactic
+t = Then('simplify', 'solve-eqs', 'smt')
+s_tactic = t.solver()
+```
+
+```cpp C++
+#include <z3++.h>
+using namespace z3;
+
+context c;
+
+// Create default solver
+solver s(c);
+
+// Create solver for specific logic  
+solver s_lia(c, "QF_LIA");
+
+// Create solver from tactic
+tactic t = tactic(c, "smt");
+solver s_tactic = t.mk_solver();
+```
+
+```java Java
+import com.microsoft.z3.*;
+
+Context ctx = new Context();
+
+// Create default solver
+Solver s = ctx.mkSolver();
+
+// Create solver for specific logic
+Solver sLia = ctx.mkSolver("QF_LIA");
+```
+</CodeGroup>
+
+## Basic Workflow
+
+The typical solver workflow involves:
+
+1. **Add constraints** using `add()`
+2. **Check satisfiability** using `check()`
+3. **Extract model** if satisfiable using `model()`
+4. **Optionally push/pop** to manage assertion stack
+
+```python
+from z3 import *
+
+x, y = Ints('x y')
+s = Solver()
+
+# Step 1: Add constraints
+s.add(x > 0)
+s.add(y > x)
+s.add(x + y < 10)
+
+# Step 2: Check satisfiability
+result = s.check()
+print(result)  # sat, unsat, or unknown
+
+# Step 3: Get model if satisfiable
+if result == sat:
+    m = s.model()
+    print(f"x = {m[x]}, y = {m[y]}")
+```
+
+## Incremental Solving
+
+From `examples/c++/example.cpp:862`:
+
+<CodeGroup>
+```python Python
+from z3 import *
+
+x = Int('x')
+s = Solver()
+
+# Add first constraint
+s.add(x > 0)
+print(s.check())  # sat
+
+# Add conflicting constraint  
+s.add(x < 0)
+print(s.check())  # unsat
+
+# Solver state persists - still has both constraints
+```
+
+```cpp C++
+#include <z3++.h>
+using namespace z3;
+
+context c;
+expr x = c.int_const("x");
+solver s(c);
+
+// Add first constraint
+s.add(x > 0);
+std::cout << s.check() << std::endl;  // sat
+
+// Add conflicting constraint
+s.add(x < 0);
+std::cout << s.check() << std::endl;  // unsat
+```
+</CodeGroup>
+
+## Push and Pop
+
+The solver maintains a **stack of assertion scopes**. Use `push()` to create checkpoints and `pop()` to backtrack.
+
+From `examples/c++/example.cpp:875`:
+
+```python
+from z3 import *
+
+x = Int('x')
+s = Solver()
+
+s.add(x > 0)
+print(s.check())  # sat
+
+# Create checkpoint
+s.push()
+
+# Add temporary constraint
+s.add(x < 0)
+print(s.check())  # unsat
+
+# Backtrack - removes x < 0
+s.pop()
+
+# Back to satisfiable state
+print(s.check())  # sat
+print(s)  # Only contains: x > 0
+```
+
+### Nested Push/Pop
+
+```python
+from z3 import *
+
+x, y, z = Ints('x y z')
+s = Solver()
+
+s.add(x > 0)        # Level 0
+
+s.push()            # Level 1
+s.add(y > x)
+
+s.push()            # Level 2  
+s.add(z > y)
+print(s.check())    # Check at level 2
+
+s.pop()             # Back to level 1
+s.pop()             # Back to level 0
+
+print(s)            # Only: x > 0
+```
+
+## Assumptions
+
+Check satisfiability under **temporary assumptions** without modifying the solver state.
+
+From `examples/c++/example.cpp:898`:
+
+```python
+from z3 import *
+
+x = Int('x')
+s = Solver()
+
+s.add(x > 0)
+print(s.check())  # sat
+
+# Create assumption variable
+b = Bool('b')
+s.add(Implies(b, x < 0))
+
+# Check with assumption b = True
+print(s.check(b))      # unsat (x > 0 && x < 0)
+
+# Check with assumption b = False (or no assumption)
+print(s.check(Not(b))) # sat
+print(s.check())       # sat
+```
+
+### Multiple Assumptions
+
+```python
+from z3 import *
+
+x, y = Ints('x y')
+a1, a2, a3 = Bools('a1 a2 a3')
+
+s = Solver()
+s.add(Implies(a1, x > 10))
+s.add(Implies(a2, y > x))
+s.add(Implies(a3, y < 5))
+
+# Check under multiple assumptions
+result = s.check(a1, a2, a3)
+print(result)  # unsat
+
+# Try subset of assumptions
+result = s.check(a1, a2)
+print(result)  # sat
+```
+
+## Solver State and Reset
+
+```python
+from z3 import *
+
+x = Int('x')
+s = Solver()
+
+s.add(x > 0)
+s.add(x < 10)
+
+# View current assertions
+print(s.assertions())
+
+# Reset solver (clears all assertions)
+s.reset()
+print(s.assertions())  # Empty
+```
+
+## Checking with Timeout
+
+```python
+from z3 import *
+
+x, y = Ints('x y')
+s = Solver()
+
+# Set timeout (in milliseconds)
+s.set("timeout", 5000)  # 5 second timeout
+
+# Add expensive constraints
+s.add(x * y == 1000)
+s.add(x * x + y * y == 500)
+
+result = s.check()
+if result == unknown:
+    print("Timeout or unknown:", s.reason_unknown())
+```
+
+## Solver Parameters
+
+From `src/api/api_solver.cpp:39`:
+
+```python
+from z3 import *
+
+s = Solver()
+
+# View available parameters
+print(s.param_descrs())
+
+# Set parameters
+s.set("timeout", 10000)           # Timeout in ms
+s.set("random_seed", 42)          # Random seed
+s.set("auto_config", False)        # Disable auto-config
+s.set("mbqi", True)                # Model-based quantifier instantiation
+
+# For specific theory parameters
+s.set("smt.arith.solver", 2)      # Arithmetic solver version
+```
+
+## Solver Statistics
+
+```python
+from z3 import *
+
+x, y = Ints('x y')
+s = Solver()
+
+s.add(x + y == 10)
+s.add(x > 0)
+s.add(y > 0)
+
+result = s.check()
+
+# Get solving statistics
+stats = s.statistics()
+print(stats)
+print(f"Time: {stats.get_key_value('time')}")
+print(f"Conflicts: {stats.get_key_value('conflicts')}")
+```
+
+## Unsat Cores
+
+When a formula is unsatisfiable, extract a **minimal unsatisfiable subset**:
+
+```python
+from z3 import *
+
+x, y = Ints('x y')
+s = Solver()
+s.set(unsat_core=True)
+
+# Add tracked assertions with labels
+s.add(x > 10, "c1")
+s.add(y > x, "c2")  
+s.add(y < 5, "c3")
+s.add(y > 0, "c4")
+
+result = s.check()
+if result == unsat:
+    core = s.unsat_core()
+    print("Unsatisfiable core:", core)
+    # Output: [c1, c2, c3]
+```
+
+## Solver Assertions
+
+```python
+from z3 import *
+
+x, y = Ints('x y')
+s = Solver()
+
+s.add(x > 0)
+s.add(y > x)
+s.add(x + y < 10)
+
+# Get all assertions
+assertions = s.assertions()
+print("Current assertions:")
+for a in assertions:
+    print(f"  {a}")
+
+# Number of assertions
+print(f"Total: {len(assertions)} assertions")
+```
+
+## SMT-LIB Output
+
+Export solver state to SMT-LIB format:
+
+```python
+from z3 import *
+
+x, y = Ints('x y')
+s = Solver()
+
+s.add(x > 0)
+s.add(y > x)
+
+# Convert to SMT-LIB format
+smt2_str = s.to_smt2()
+print(smt2_str)
+
+# Output:
+# (declare-fun x () Int)
+# (declare-fun y () Int)  
+# (assert (> x 0))
+# (assert (> y x))
+# (check-sat)
+```
+
+## Consequences
+
+Compute logical consequences from assumptions:
+
+```python
+from z3 import *
+
+A, B, C = Bools('A B C')
+s = Solver()
+
+s.add(Implies(A, B))
+s.add(Implies(B, C))
+
+# What can we conclude if C is false?
+assumptions = [Not(C)]
+variables = [A, B, C]
+consequences = s.consequences(assumptions, variables)
+
+print(consequences)
+# Can conclude: A is false, B is false
+```
+
+## Solver from Tactic
+
+Create specialized solvers using tactics (see [Tactics](/concepts/tactics)):
+
+```python
+from z3 import *
+
+# Build custom solver pipeline
+t = Then(
+    'simplify',
+    'solve-eqs',
+    'bit-blast',
+    'sat'
+)
+
+s = t.solver()
+
+x = BitVec('x', 32)
+y = BitVec('y', 32)
+
+s.add(x * 32 + y == 13)
+s.add((x & y) < 10)
+
+print(s.check())
+if s.check() == sat:
+    print(s.model())
+```
+
+## Advanced: Solver Callbacks
+
+<Note>
+Z3 supports user propagators for custom theory reasoning. This is an advanced feature for extending Z3 with domain-specific reasoning.
+</Note>
+
+See `examples/userPropagator/` for examples.
+
+## Performance Tips
+
+<AccordionGroup>
+  <Accordion title="Use push/pop wisely">
+    Push/pop has overhead. For simple backtracking, consider using assumptions instead.
+  </Accordion>
+  
+  <Accordion title="Batch assertions">
+    Add multiple constraints at once when possible:
+    ```python
+    s.add(c1, c2, c3)  # Better than three separate calls
+    ```
+  </Accordion>
+  
+  <Accordion title="Set appropriate timeouts">
+    Prevent indefinite solving with `timeout` parameter.
+  </Accordion>
+  
+  <Accordion title="Use specific logics">
+    Specifying a logic (e.g., QF_LIA) can improve performance:
+    ```python
+    s = Solver(logics="QF_LIA")
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Related Topics
+
+<CardGroup cols={3}>
+  <Card title="SMT Solving" href="/concepts/smt-solving">
+    Core SMT concepts
+  </Card>
+  <Card title="Tactics" href="/concepts/tactics">
+    Custom solver strategies
+  </Card>
+  <Card title="Models" href="/concepts/models">
+    Working with solutions
+  </Card>
+</CardGroup>
+
+## References
+
+- Z3 API: `src/api/api_solver.cpp`
+- Solver interface: `src/api/z3_api.h`  
+- Examples: `examples/c++/example.cpp:862-922`

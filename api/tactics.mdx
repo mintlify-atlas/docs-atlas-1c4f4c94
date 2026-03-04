@@ -1,0 +1,601 @@
+---
+title: Tactics API
+description: Goal transformation and solving strategies
+---
+
+## Overview
+
+The Tactics API provides a framework for building custom solvers through composable transformations. Tactics transform goals (sets of formulas) into simpler subgoals.
+
+## Types
+
+### Z3_tactic
+
+Basic building block for creating custom solvers for specific problem domains.
+
+### Z3_probe
+
+Function/predicate used to inspect a goal and collect information for deciding which tactic to use.
+
+### Z3_goal
+
+Set of formulas that can be solved or transformed using tactics.
+
+### Z3_apply_result
+
+Collection of subgoals resulting from applying a tactic to a goal.
+
+## Tactic Creation
+
+### Z3_mk_tactic
+
+```c
+Z3_tactic Z3_API Z3_mk_tactic(Z3_context c, Z3_string name);
+```
+
+Create a tactic by name.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="name" type="Z3_string">
+  Tactic name (e.g., "simplify", "smt", "qe")
+</ParamField>
+
+<ResponseField name="return" type="Z3_tactic">
+  Tactic object
+</ResponseField>
+
+**Common Tactics:**
+
+- `"simplify"` - Apply simplification rules
+- `"solve-eqs"` - Solve for variables
+- `"smt"` - Apply SMT solver
+- `"qe"` - Quantifier elimination
+- `"sat"` - SAT solver
+- `"ctx-solver-simplify"` - Contextual simplification
+- `"purify-arith"` - Purify arithmetic expressions
+- `"split-clause"` - Split clauses
+
+**Example:**
+
+```c
+Z3_tactic simplify = Z3_mk_tactic(ctx, "simplify");
+Z3_tactic smt = Z3_mk_tactic(ctx, "smt");
+```
+
+### Z3_tactic_inc_ref
+
+```c
+void Z3_API Z3_tactic_inc_ref(Z3_context c, Z3_tactic t);
+```
+
+Increment the reference counter of a tactic.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="t" type="Z3_tactic">
+  Tactic
+</ParamField>
+
+### Z3_tactic_dec_ref
+
+```c
+void Z3_API Z3_tactic_dec_ref(Z3_context c, Z3_tactic t);
+```
+
+Decrement the reference counter of a tactic.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="t" type="Z3_tactic">
+  Tactic
+</ParamField>
+
+## Tactic Combinators
+
+### Z3_tactic_and_then
+
+```c
+Z3_tactic Z3_API Z3_tactic_and_then(Z3_context c, Z3_tactic t1, Z3_tactic t2);
+```
+
+Create a tactic that applies t1 followed by t2.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="t1" type="Z3_tactic">
+  First tactic
+</ParamField>
+
+<ParamField name="t2" type="Z3_tactic">
+  Second tactic
+</ParamField>
+
+<ResponseField name="return" type="Z3_tactic">
+  Sequential composition tactic
+</ResponseField>
+
+**Example:**
+
+```c
+Z3_tactic t = Z3_tactic_and_then(
+    ctx,
+    Z3_mk_tactic(ctx, "simplify"),
+    Z3_mk_tactic(ctx, "solve-eqs")
+);
+```
+
+### Z3_tactic_or_else
+
+```c
+Z3_tactic Z3_API Z3_tactic_or_else(Z3_context c, Z3_tactic t1, Z3_tactic t2);
+```
+
+Create a tactic that tries t1, and if it fails, tries t2.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="t1" type="Z3_tactic">
+  Primary tactic
+</ParamField>
+
+<ParamField name="t2" type="Z3_tactic">
+  Fallback tactic
+</ParamField>
+
+<ResponseField name="return" type="Z3_tactic">
+  Or-else combinator
+</ResponseField>
+
+### Z3_tactic_par_or
+
+```c
+Z3_tactic Z3_API Z3_tactic_par_or(Z3_context c, unsigned num, Z3_tactic const ts[]);
+```
+
+Create a tactic that applies tactics in parallel, returning the first result.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="num" type="unsigned">
+  Number of tactics
+</ParamField>
+
+<ParamField name="ts" type="Z3_tactic const[]">
+  Array of tactics
+</ParamField>
+
+<ResponseField name="return" type="Z3_tactic">
+  Parallel-or combinator
+</ResponseField>
+
+### Z3_tactic_par_and_then
+
+```c
+Z3_tactic Z3_API Z3_tactic_par_and_then(Z3_context c, Z3_tactic t1, Z3_tactic t2);
+```
+
+Create a tactic that applies t1 to the goal and t2 to subgoals in parallel.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="t1" type="Z3_tactic">
+  First tactic
+</ParamField>
+
+<ParamField name="t2" type="Z3_tactic">
+  Second tactic (applied to subgoals in parallel)
+</ParamField>
+
+<ResponseField name="return" type="Z3_tactic">
+  Parallel composition
+</ResponseField>
+
+### Z3_tactic_try_for
+
+```c
+Z3_tactic Z3_API Z3_tactic_try_for(Z3_context c, Z3_tactic t, unsigned ms);
+```
+
+Create a tactic that applies t with a time limit.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="t" type="Z3_tactic">
+  Tactic
+</ParamField>
+
+<ParamField name="ms" type="unsigned">
+  Timeout in milliseconds
+</ParamField>
+
+<ResponseField name="return" type="Z3_tactic">
+  Tactic with timeout
+</ResponseField>
+
+**Example:**
+
+```c
+Z3_tactic t = Z3_tactic_try_for(ctx, Z3_mk_tactic(ctx, "smt"), 5000);
+```
+
+### Z3_tactic_repeat
+
+```c
+Z3_tactic Z3_API Z3_tactic_repeat(Z3_context c, Z3_tactic t, unsigned max);
+```
+
+Create a tactic that repeatedly applies t until fixpoint or max iterations.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="t" type="Z3_tactic">
+  Tactic to repeat
+</ParamField>
+
+<ParamField name="max" type="unsigned">
+  Maximum iterations (0 = unbounded)
+</ParamField>
+
+<ResponseField name="return" type="Z3_tactic">
+  Repeat combinator
+</ResponseField>
+
+### Z3_tactic_when
+
+```c
+Z3_tactic Z3_API Z3_tactic_when(Z3_context c, Z3_probe p, Z3_tactic t);
+```
+
+Create a tactic that applies t only when probe p evaluates to true.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="p" type="Z3_probe">
+  Probe condition
+</ParamField>
+
+<ParamField name="t" type="Z3_tactic">
+  Tactic to apply
+</ParamField>
+
+<ResponseField name="return" type="Z3_tactic">
+  Conditional tactic
+</ResponseField>
+
+### Z3_tactic_cond
+
+```c
+Z3_tactic Z3_API Z3_tactic_cond(
+    Z3_context c, 
+    Z3_probe p, 
+    Z3_tactic t1, 
+    Z3_tactic t2
+);
+```
+
+Create a tactic that applies t1 if probe p is true, otherwise t2.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="p" type="Z3_probe">
+  Probe condition
+</ParamField>
+
+<ParamField name="t1" type="Z3_tactic">
+  Tactic if true
+</ParamField>
+
+<ParamField name="t2" type="Z3_tactic">
+  Tactic if false
+</ParamField>
+
+<ResponseField name="return" type="Z3_tactic">
+  If-then-else tactic
+</ResponseField>
+
+**Example:**
+
+```c
+Z3_probe is_qflia = Z3_mk_probe(ctx, "is-qflia");
+Z3_tactic t = Z3_tactic_cond(
+    ctx,
+    is_qflia,
+    Z3_mk_tactic(ctx, "qflia"),
+    Z3_mk_tactic(ctx, "smt")
+);
+```
+
+## Probes
+
+### Z3_mk_probe
+
+```c
+Z3_probe Z3_API Z3_mk_probe(Z3_context c, Z3_string name);
+```
+
+Create a probe by name.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="name" type="Z3_string">
+  Probe name
+</ParamField>
+
+<ResponseField name="return" type="Z3_probe">
+  Probe object
+</ResponseField>
+
+**Common Probes:**
+
+- `"is-qflia"` - Linear integer arithmetic
+- `"is-qfbv"` - Bit-vectors
+- `"is-propositional"` - Pure Boolean
+- `"num-consts"` - Number of constants
+- `"size"` - Goal size
+- `"depth"` - Expression depth
+
+**Example:**
+
+```c
+Z3_probe is_propositional = Z3_mk_probe(ctx, "is-propositional");
+```
+
+### Z3_probe_inc_ref
+
+```c
+void Z3_API Z3_probe_inc_ref(Z3_context c, Z3_probe p);
+```
+
+Increment reference counter of a probe.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="p" type="Z3_probe">
+  Probe
+</ParamField>
+
+### Z3_probe_dec_ref
+
+```c
+void Z3_API Z3_probe_dec_ref(Z3_context c, Z3_probe p);
+```
+
+Decrement reference counter of a probe.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="p" type="Z3_probe">
+  Probe
+</ParamField>
+
+## Goals
+
+### Z3_mk_goal
+
+```c
+Z3_goal Z3_API Z3_mk_goal(
+    Z3_context c,
+    bool models,
+    bool unsat_cores,
+    bool proofs
+);
+```
+
+Create a goal (collection of formulas).
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="models" type="bool">
+  Enable model construction
+</ParamField>
+
+<ParamField name="unsat_cores" type="bool">
+  Enable unsat core extraction
+</ParamField>
+
+<ParamField name="proofs" type="bool">
+  Enable proof generation
+</ParamField>
+
+<ResponseField name="return" type="Z3_goal">
+  Goal object
+</ResponseField>
+
+**Example:**
+
+```c
+Z3_goal goal = Z3_mk_goal(ctx, true, false, false);
+```
+
+### Z3_goal_assert
+
+```c
+void Z3_API Z3_goal_assert(Z3_context c, Z3_goal g, Z3_ast a);
+```
+
+Add a formula to the goal.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="g" type="Z3_goal">
+  Goal
+</ParamField>
+
+<ParamField name="a" type="Z3_ast">
+  Formula to add
+</ParamField>
+
+### Z3_tactic_apply
+
+```c
+Z3_apply_result Z3_API Z3_tactic_apply(Z3_context c, Z3_tactic t, Z3_goal g);
+```
+
+Apply a tactic to a goal.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="t" type="Z3_tactic">
+  Tactic
+</ParamField>
+
+<ParamField name="g" type="Z3_goal">
+  Goal
+</ParamField>
+
+<ResponseField name="return" type="Z3_apply_result">
+  Result containing subgoals
+</ResponseField>
+
+### Z3_apply_result_get_num_subgoals
+
+```c
+unsigned Z3_API Z3_apply_result_get_num_subgoals(
+    Z3_context c,
+    Z3_apply_result r
+);
+```
+
+Return the number of subgoals in the result.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="r" type="Z3_apply_result">
+  Apply result
+</ParamField>
+
+<ResponseField name="return" type="unsigned">
+  Number of subgoals
+</ResponseField>
+
+### Z3_apply_result_get_subgoal
+
+```c
+Z3_goal Z3_API Z3_apply_result_get_subgoal(
+    Z3_context c,
+    Z3_apply_result r,
+    unsigned i
+);
+```
+
+Return the i-th subgoal.
+
+<ParamField name="c" type="Z3_context">
+  Context
+</ParamField>
+
+<ParamField name="r" type="Z3_apply_result">
+  Apply result
+</ParamField>
+
+<ParamField name="i" type="unsigned">
+  Subgoal index
+</ParamField>
+
+<ResponseField name="return" type="Z3_goal">
+  Subgoal
+</ResponseField>
+
+## Complete Example
+
+```c
+#include <z3.h>
+#include <stdio.h>
+
+int main() {
+    Z3_config cfg = Z3_mk_config();
+    Z3_context ctx = Z3_mk_context(cfg);
+    Z3_del_config(cfg);
+    
+    // Create goal
+    Z3_goal goal = Z3_mk_goal(ctx, true, false, false);
+    Z3_goal_inc_ref(ctx, goal);
+    
+    // Add formulas
+    Z3_sort int_sort = Z3_mk_int_sort(ctx);
+    Z3_ast x = Z3_mk_const(ctx, Z3_mk_string_symbol(ctx, "x"), int_sort);
+    Z3_ast y = Z3_mk_const(ctx, Z3_mk_string_symbol(ctx, "y"), int_sort);
+    
+    Z3_ast args[2] = {x, y};
+    Z3_ast sum = Z3_mk_add(ctx, 2, args);
+    Z3_ast ten = Z3_mk_int(ctx, 10, int_sort);
+    
+    Z3_goal_assert(ctx, goal, Z3_mk_eq(ctx, sum, ten));
+    
+    // Create and apply tactic
+    Z3_tactic simplify = Z3_mk_tactic(ctx, "simplify");
+    Z3_tactic_inc_ref(ctx, simplify);
+    
+    Z3_tactic smt = Z3_mk_tactic(ctx, "smt");
+    Z3_tactic_inc_ref(ctx, smt);
+    
+    // Compose: simplify then smt
+    Z3_tactic combined = Z3_tactic_and_then(ctx, simplify, smt);
+    Z3_tactic_inc_ref(ctx, combined);
+    
+    // Apply tactic
+    Z3_apply_result result = Z3_tactic_apply(ctx, combined, goal);
+    Z3_apply_result_inc_ref(ctx, result);
+    
+    printf("Number of subgoals: %u\n",
+           Z3_apply_result_get_num_subgoals(ctx, result));
+    
+    // Convert to solver
+    Z3_solver solver = Z3_mk_solver_from_tactic(ctx, combined);
+    Z3_solver_inc_ref(ctx, solver);
+    
+    Z3_solver_assert(ctx, solver, Z3_mk_eq(ctx, sum, ten));
+    
+    if (Z3_solver_check(ctx, solver) == Z3_L_TRUE) {
+        printf("Satisfiable\n");
+    }
+    
+    // Cleanup
+    Z3_solver_dec_ref(ctx, solver);
+    Z3_apply_result_dec_ref(ctx, result);
+    Z3_tactic_dec_ref(ctx, combined);
+    Z3_tactic_dec_ref(ctx, smt);
+    Z3_tactic_dec_ref(ctx, simplify);
+    Z3_goal_dec_ref(ctx, goal);
+    Z3_del_context(ctx);
+    
+    return 0;
+}
+```

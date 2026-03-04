@@ -1,0 +1,426 @@
+---
+title: 'Java API Getting Started'
+description: 'Learn the basics of using Z3 from Java'
+---
+
+The Z3 Java API provides an object-oriented interface to Z3, making it easy to use from Java applications.
+
+## Basic Workflow
+
+A typical Z3 Java program follows this pattern:
+
+1. Create a `Context` (manages all Z3 objects)
+2. Create expressions and constraints
+3. Create a `Solver` and add assertions
+4. Check satisfiability
+5. Extract results (models, proofs, etc.)
+6. Dispose the context
+
+## Hello Z3
+
+Let's start with a minimal example:
+
+```java
+import com.microsoft.z3.*;
+
+public class HelloZ3 {
+    public static void main(String[] args) {
+        try (Context ctx = new Context()) {
+            System.out.println("Z3 version: " + Version.getFullVersion());
+            System.out.println("Context created successfully!");
+        }
+    }
+}
+```
+
+<Note>
+  The `Context` implements `AutoCloseable`, so use try-with-resources to ensure proper cleanup.
+</Note>
+
+## Creating a Context
+
+The `Context` is the central object that manages all Z3 operations:
+
+```java
+// Basic context
+try (Context ctx = new Context()) {
+    // Use Z3...
+}
+
+// Context with custom configuration
+import java.util.HashMap;
+
+HashMap<String, String> cfg = new HashMap<>();
+cfg.put("model", "true");      // Enable model generation
+cfg.put("proof", "false");     // Disable proof generation
+cfg.put("timeout", "1000");    // Set timeout to 1 second
+
+try (Context ctx = new Context(cfg)) {
+    // Use Z3...
+}
+```
+
+## Creating Expressions
+
+### Boolean Expressions
+
+```java
+try (Context ctx = new Context()) {
+    // Boolean constants
+    BoolExpr bTrue = ctx.mkTrue();
+    BoolExpr bFalse = ctx.mkFalse();
+    
+    // Boolean variables
+    BoolExpr x = ctx.mkBoolConst("x");
+    BoolExpr y = ctx.mkBoolConst("y");
+    
+    // Logical operations
+    BoolExpr notX = ctx.mkNot(x);
+    BoolExpr xAndY = ctx.mkAnd(x, y);
+    BoolExpr xOrY = ctx.mkOr(x, y);
+    BoolExpr xImpliesY = ctx.mkImplies(x, y);
+    BoolExpr xIffY = ctx.mkIff(x, y);
+}
+```
+
+### Integer Expressions
+
+```java
+try (Context ctx = new Context()) {
+    // Integer constants
+    IntExpr zero = ctx.mkInt(0);
+    IntExpr five = ctx.mkInt(5);
+    
+    // Integer variables
+    IntExpr x = ctx.mkIntConst("x");
+    IntExpr y = ctx.mkIntConst("y");
+    
+    // Arithmetic operations
+    ArithExpr xPlusY = ctx.mkAdd(x, y);
+    ArithExpr xMinusY = ctx.mkSub(x, y);
+    ArithExpr xTimesY = ctx.mkMul(x, y);
+    IntExpr xDivY = ctx.mkDiv(x, y);
+    IntExpr xModY = ctx.mkMod(x, y);
+    
+    // Comparisons
+    BoolExpr xEqY = ctx.mkEq(x, y);
+    BoolExpr xLtY = ctx.mkLt(x, y);
+    BoolExpr xLeY = ctx.mkLe(x, y);
+    BoolExpr xGtY = ctx.mkGt(x, y);
+    BoolExpr xGeY = ctx.mkGe(x, y);
+}
+```
+
+### Real Expressions
+
+```java
+try (Context ctx = new Context()) {
+    // Real constants
+    RealExpr half = ctx.mkReal(1, 2);  // 1/2
+    RealExpr pi = ctx.mkReal("3.14159");
+    
+    // Real variables
+    RealExpr x = ctx.mkRealConst("x");
+    RealExpr y = ctx.mkRealConst("y");
+    
+    // Operations work similarly to integers
+    ArithExpr sum = ctx.mkAdd(x, y);
+    ArithExpr product = ctx.mkMul(x, y);
+}
+```
+
+## Using Solvers
+
+### Basic Solving
+
+```java
+import com.microsoft.z3.*;
+
+public class BasicSolving {
+    public static void main(String[] args) {
+        try (Context ctx = new Context()) {
+            // Create variables
+            IntExpr x = ctx.mkIntConst("x");
+            IntExpr y = ctx.mkIntConst("y");
+            
+            // Create constraints: x > 0 AND y > x
+            BoolExpr c1 = ctx.mkGt(x, ctx.mkInt(0));
+            BoolExpr c2 = ctx.mkGt(y, x);
+            
+            // Create solver and add constraints
+            Solver solver = ctx.mkSolver();
+            solver.add(c1);
+            solver.add(c2);
+            
+            // Check satisfiability
+            Status result = solver.check();
+            
+            if (result == Status.SATISFIABLE) {
+                System.out.println("SAT");
+                Model model = solver.getModel();
+                System.out.println("Model: " + model);
+                
+                // Evaluate expressions in the model
+                System.out.println("x = " + model.evaluate(x, false));
+                System.out.println("y = " + model.evaluate(y, false));
+            } else if (result == Status.UNSATISFIABLE) {
+                System.out.println("UNSAT");
+            } else {
+                System.out.println("UNKNOWN");
+            }
+        }
+    }
+}
+```
+
+### Incremental Solving with Push/Pop
+
+```java
+try (Context ctx = new Context()) {
+    IntExpr x = ctx.mkIntConst("x");
+    Solver solver = ctx.mkSolver();
+    
+    // Add base constraint
+    solver.add(ctx.mkGt(x, ctx.mkInt(0)));
+    
+    // Push: save state
+    solver.push();
+    solver.add(ctx.mkLt(x, ctx.mkInt(5)));
+    System.out.println("Check 1: " + solver.check());  // SAT: x in (0, 5)
+    
+    // Pop: restore state
+    solver.pop();
+    
+    // Add different constraint
+    solver.push();
+    solver.add(ctx.mkGt(x, ctx.mkInt(100)));
+    System.out.println("Check 2: " + solver.check());  // SAT: x > 100
+    solver.pop();
+}
+```
+
+## Complete Example: Proving De Morgan's Law
+
+Prove that `¬(x ∧ y) ⟺ (¬x ∨ ¬y)`:
+
+```java
+import com.microsoft.z3.*;
+
+public class DeMorgan {
+    public static void main(String[] args) {
+        try (Context ctx = new Context()) {
+            // Create boolean variables
+            BoolExpr x = ctx.mkBoolConst("x");
+            BoolExpr y = ctx.mkBoolConst("y");
+            
+            // Build the formula: ¬(x ∧ y) ⟺ (¬x ∨ ¬y)
+            BoolExpr leftSide = ctx.mkNot(ctx.mkAnd(x, y));
+            BoolExpr rightSide = ctx.mkOr(ctx.mkNot(x), ctx.mkNot(y));
+            BoolExpr conjecture = ctx.mkIff(leftSide, rightSide);
+            
+            // To prove, we show the negation is unsatisfiable
+            BoolExpr negation = ctx.mkNot(conjecture);
+            
+            Solver solver = ctx.mkSolver();
+            solver.add(negation);
+            
+            Status result = solver.check();
+            
+            if (result == Status.UNSATISFIABLE) {
+                System.out.println("De Morgan's law is valid!");
+            } else {
+                System.out.println("De Morgan's law is not valid (unexpected)");
+            }
+        }
+    }
+}
+```
+
+## Complete Example: Solving Equations
+
+Find values satisfying a system of equations:
+
+```java
+import com.microsoft.z3.*;
+
+public class SolveEquations {
+    public static void main(String[] args) {
+        try (Context ctx = new Context()) {
+            // Variables
+            IntExpr x = ctx.mkIntConst("x");
+            IntExpr y = ctx.mkIntConst("y");
+            
+            // Equations:
+            // x + y > 5
+            // x - y < 2
+            // x > 0
+            BoolExpr eq1 = ctx.mkGt(ctx.mkAdd(x, y), ctx.mkInt(5));
+            BoolExpr eq2 = ctx.mkLt(ctx.mkSub(x, y), ctx.mkInt(2));
+            BoolExpr eq3 = ctx.mkGt(x, ctx.mkInt(0));
+            
+            Solver solver = ctx.mkSolver();
+            solver.add(eq1, eq2, eq3);
+            
+            if (solver.check() == Status.SATISFIABLE) {
+                Model model = solver.getModel();
+                System.out.println("Solution found:");
+                System.out.println("x = " + model.evaluate(x, false));
+                System.out.println("y = " + model.evaluate(y, false));
+                
+                // Verify
+                int xVal = ((IntNum) model.evaluate(x, false)).getInt();
+                int yVal = ((IntNum) model.evaluate(y, false)).getInt();
+                System.out.println("\nVerification:");
+                System.out.println("x + y = " + (xVal + yVal) + " > 5? " + (xVal + yVal > 5));
+                System.out.println("x - y = " + (xVal - yVal) + " < 2? " + (xVal - yVal < 2));
+                System.out.println("x = " + xVal + " > 0? " + (xVal > 0));
+            } else {
+                System.out.println("No solution found");
+            }
+        }
+    }
+}
+```
+
+## Working with Arrays
+
+```java
+try (Context ctx = new Context()) {
+    // Create array sort: Int -> Int
+    Sort intSort = ctx.getIntSort();
+    ArraySort arraySort = ctx.mkArraySort(intSort, intSort);
+    
+    // Create array variable
+    ArrayExpr a = (ArrayExpr) ctx.mkConst("a", arraySort);
+    
+    // Select element at index 0
+    IntExpr elem0 = (IntExpr) ctx.mkSelect(a, ctx.mkInt(0));
+    
+    // Store value 42 at index 0
+    ArrayExpr a2 = ctx.mkStore(a, ctx.mkInt(0), ctx.mkInt(42));
+    
+    // Create constraint: a2[0] == 42
+    Solver solver = ctx.mkSolver();
+    solver.add(ctx.mkEq(ctx.mkSelect(a2, ctx.mkInt(0)), ctx.mkInt(42)));
+    
+    System.out.println(solver.check());  // SAT
+}
+```
+
+## Working with Quantifiers
+
+```java
+try (Context ctx = new Context()) {
+    // Create a universal quantifier: forall x. x >= 0 => x + 1 > 0
+    IntExpr x = ctx.mkIntConst("x");
+    BoolExpr body = ctx.mkImplies(
+        ctx.mkGe(x, ctx.mkInt(0)),
+        ctx.mkGt(ctx.mkAdd(x, ctx.mkInt(1)), ctx.mkInt(0))
+    );
+    
+    BoolExpr forall = ctx.mkForall(
+        new Expr[] { x },           // Quantified variables
+        body,                        // Body
+        1,                           // Weight
+        null,                        // Patterns
+        null,                        // No-patterns
+        null,                        // Quantifier ID
+        null                         // Skolem ID
+    );
+    
+    // Prove the formula
+    Solver solver = ctx.mkSolver();
+    solver.add(ctx.mkNot(forall));
+    
+    if (solver.check() == Status.UNSATISFIABLE) {
+        System.out.println("Formula is valid!");
+    }
+}
+```
+
+## Exception Handling
+
+```java
+import com.microsoft.z3.*;
+
+public class ExceptionHandling {
+    public static void main(String[] args) {
+        try (Context ctx = new Context()) {
+            Solver solver = ctx.mkSolver();
+            
+            try {
+                // Your Z3 operations
+                IntExpr x = ctx.mkIntConst("x");
+                solver.add(ctx.mkGt(x, ctx.mkInt(0)));
+                
+                Status result = solver.check();
+                System.out.println("Result: " + result);
+                
+            } catch (Z3Exception e) {
+                System.err.println("Z3 error: " + e.getMessage());
+                e.printStackTrace();
+            }
+        } catch (Exception e) {
+            System.err.println("General error: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+}
+```
+
+## Printing and Debugging
+
+```java
+try (Context ctx = new Context()) {
+    IntExpr x = ctx.mkIntConst("x");
+    IntExpr y = ctx.mkIntConst("y");
+    BoolExpr formula = ctx.mkGt(ctx.mkAdd(x, y), ctx.mkInt(5));
+    
+    // Print expressions
+    System.out.println("Formula: " + formula);
+    System.out.println("S-expression: " + formula.getSExpr());
+    
+    // Print solver state
+    Solver solver = ctx.mkSolver();
+    solver.add(formula);
+    System.out.println("Solver: " + solver);
+    
+    // Print model
+    if (solver.check() == Status.SATISFIABLE) {
+        Model model = solver.getModel();
+        System.out.println("Model: " + model);
+        
+        // Print all constants in the model
+        for (FuncDecl decl : model.getConstDecls()) {
+            System.out.println(decl.getName() + " = " + model.getConstInterp(decl));
+        }
+    }
+}
+```
+
+## Best Practices
+
+1. **Always use try-with-resources** for Context to ensure proper cleanup
+2. **Enable model generation** if you need to extract solutions: `cfg.put("model", "true")`
+3. **Use typed expressions** (`IntExpr`, `BoolExpr`, etc.) for type safety
+4. **Check solver status** before accessing models or proofs
+5. **Use push/pop** for incremental solving to avoid recreating contexts
+6. **Handle Z3Exception** in production code
+
+<Warning>
+  Always check the solver status before calling `getModel()`. Calling it on an unsatisfiable result will throw an exception.
+</Warning>
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="API Reference" icon="book" href="/bindings/java/api-reference">
+    Explore the complete Java API
+  </Card>
+  <Card title="Java Examples" icon="code" href="https://github.com/Z3Prover/z3/tree/master/examples/java">
+    View more examples on GitHub
+  </Card>
+  <Card title="Z3 Guide" icon="book-open" href="https://microsoft.github.io/z3guide/">
+    Interactive Z3 tutorial
+  </Card>
+</CardGroup>

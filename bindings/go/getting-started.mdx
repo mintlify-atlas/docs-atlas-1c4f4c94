@@ -1,0 +1,541 @@
+---
+title: Getting Started
+description: Quick start guide for Z3 Go bindings
+icon: rocket
+---
+
+The Z3 Go bindings provide a comprehensive interface to Z3's powerful SMT solving capabilities. This guide will help you get started with basic usage patterns.
+
+## Quick Start
+
+Here's a simple Z3 program in Go:
+
+```go main.go
+package main
+
+import (
+    "fmt"
+    "github.com/Z3Prover/z3/src/api/go"
+)
+
+func main() {
+    // Create a Z3 context
+    ctx := z3.NewContext()
+    
+    // Create an integer variable
+    x := ctx.MkIntConst("x")
+    
+    // Create constraint: x > 0
+    zero := ctx.MkInt(0, ctx.MkIntSort())
+    constraint := ctx.MkGt(x, zero)
+    
+    // Create solver and add constraint
+    solver := ctx.NewSolver()
+    solver.Assert(constraint)
+    
+    // Check satisfiability
+    if solver.Check() == z3.Satisfiable {
+        model := solver.Model()
+        if val, ok := model.Eval(x, true); ok {
+            fmt.Println("x =", val.String())
+        }
+    }
+}
+```
+
+## Core Concepts
+
+### Context
+
+All Z3 operations require a context. Create one at the start of your program:
+
+```go
+ctx := z3.NewContext()
+```
+
+<Note>
+  Contexts are not thread-safe. Each goroutine should use its own context or implement proper synchronization.
+</Note>
+
+With configuration:
+
+```go
+config := z3.NewConfig()
+config.SetParam("timeout", "5000") // 5 second timeout
+ctx := z3.NewContextWithConfig(config)
+```
+
+### Creating Variables
+
+<CodeGroup>
+```go Integer Variables
+x := ctx.MkIntConst("x")
+y := ctx.MkIntConst("y")
+z := ctx.MkIntConst("z")
+```
+
+```go Real Variables
+a := ctx.MkRealConst("a")
+b := ctx.MkRealConst("b")
+```
+
+```go Boolean Variables
+p := ctx.MkBoolConst("p")
+q := ctx.MkBoolConst("q")
+```
+
+```go Bit-Vector Variables
+bv8 := ctx.MkBVConst("bv8", 8)   // 8-bit
+bv32 := ctx.MkBVConst("bv32", 32) // 32-bit
+```
+</CodeGroup>
+
+### Creating Constants
+
+```go
+intSort := ctx.MkIntSort()
+ten := ctx.MkInt(10, intSort)
+
+realSort := ctx.MkRealSort()
+half := ctx.MkReal(1, 2) // 1/2
+
+boolTrue := ctx.MkTrue()
+boolFalse := ctx.MkFalse()
+
+bv255 := ctx.MkBV(255, 8) // 255 as 8-bit vector
+```
+
+### Building Expressions
+
+<Tabs>
+  <Tab title="Arithmetic">
+    ```go
+    x := ctx.MkIntConst("x")
+    y := ctx.MkIntConst("y")
+    
+    sum := ctx.MkAdd(x, y)              // x + y
+    diff := ctx.MkSub(x, y)             // x - y
+    prod := ctx.MkMul(x, y)             // x * y
+    quot := ctx.MkDiv(x, y)             // x / y (integer division)
+    mod := ctx.MkMod(x, y)              // x % y
+    
+    // Multiple arguments
+    sum3 := ctx.MkAdd(x, y, ctx.MkInt(5, ctx.MkIntSort()))
+    ```
+  </Tab>
+
+  <Tab title="Comparisons">
+    ```go
+    x := ctx.MkIntConst("x")
+    y := ctx.MkIntConst("y")
+    
+    eq := ctx.MkEq(x, y)    // x == y
+    neq := ctx.MkNot(eq)    // x != y
+    lt := ctx.MkLt(x, y)    // x < y
+    le := ctx.MkLe(x, y)    // x <= y
+    gt := ctx.MkGt(x, y)    // x > y
+    ge := ctx.MkGe(x, y)    // x >= y
+    
+    // Distinct values
+    z := ctx.MkIntConst("z")
+    allDifferent := ctx.MkDistinct(x, y, z)
+    ```
+  </Tab>
+
+  <Tab title="Boolean Logic">
+    ```go
+    p := ctx.MkBoolConst("p")
+    q := ctx.MkBoolConst("q")
+    r := ctx.MkBoolConst("r")
+    
+    and := ctx.MkAnd(p, q)              // p ∧ q
+    or := ctx.MkOr(p, q)                // p ∨ q
+    not := ctx.MkNot(p)                 // ¬p
+    implies := ctx.MkImplies(p, q)      // p → q
+    iff := ctx.MkIff(p, q)              // p ↔ q
+    xor := ctx.MkXor(p, q)              // p ⊕ q
+    
+    // Multiple arguments
+    andMany := ctx.MkAnd(p, q, r)
+    ```
+  </Tab>
+</Tabs>
+
+### Solving Constraints
+
+```go
+solver := ctx.NewSolver()
+
+// Add constraints
+solver.Assert(constraint1)
+solver.Assert(constraint2)
+
+// Check satisfiability
+result := solver.Check()
+
+switch result {
+case z3.Satisfiable:
+    fmt.Println("SAT - solution exists")
+    model := solver.Model()
+    // Use model...
+case z3.Unsatisfiable:
+    fmt.Println("UNSAT - no solution")
+case z3.Unknown:
+    fmt.Println("Unknown - timeout or resource limit")
+}
+```
+
+## Examples from Source
+
+### Example 1: System of Equations
+
+From [basic_example.go](/home/daytona/workspace/source/examples/go/basic_example.go:1):
+
+```go
+package main
+
+import (
+    "fmt"
+    "github.com/Z3Prover/z3/src/api/go"
+)
+
+func main() {
+    ctx := z3.NewContext()
+    
+    // Solve: x + y = 10 ∧ x - y = 2
+    x := ctx.MkIntConst("x")
+    y := ctx.MkIntConst("y")
+    ten := ctx.MkInt(10, ctx.MkIntSort())
+    two := ctx.MkInt(2, ctx.MkIntSort())
+    
+    solver := ctx.NewSolver()
+    solver.Assert(ctx.MkEq(ctx.MkAdd(x, y), ten))
+    solver.Assert(ctx.MkEq(ctx.MkSub(x, y), two))
+    
+    if solver.Check() == z3.Satisfiable {
+        model := solver.Model()
+        if xVal, ok := model.Eval(x, true); ok {
+            fmt.Println("x =", xVal.String()) // x = 6
+        }
+        if yVal, ok := model.Eval(y, true); ok {
+            fmt.Println("y =", yVal.String()) // y = 4
+        }
+    }
+}
+```
+
+### Example 2: Boolean Satisfiability
+
+Solve: (p ∨ q) ∧ (¬p ∨ ¬q)
+
+```go
+ctx := z3.NewContext()
+p := ctx.MkBoolConst("p")
+q := ctx.MkBoolConst("q")
+
+formula := ctx.MkAnd(
+    ctx.MkOr(p, q),
+    ctx.MkOr(ctx.MkNot(p), ctx.MkNot(q)),
+)
+
+solver := ctx.NewSolver()
+solver.Assert(formula)
+
+if solver.Check() == z3.Satisfiable {
+    model := solver.Model()
+    if pVal, ok := model.Eval(p, true); ok {
+        fmt.Println("p =", pVal.String())
+    }
+    if qVal, ok := model.Eval(q, true); ok {
+        fmt.Println("q =", qVal.String())
+    }
+}
+```
+
+### Example 3: Bit-Vector Operations
+
+From [advanced_example.go](/home/daytona/workspace/source/examples/go/advanced_example.go:13):
+
+```go
+ctx := z3.NewContext()
+
+// 8-bit vectors
+x := ctx.MkBVConst("x", 8)
+y := ctx.MkBVConst("y", 8)
+
+// x + y == 255 && x > y (unsigned)
+sum := ctx.MkBVAdd(x, y)
+ff := ctx.MkBV(255, 8)
+
+solver := ctx.NewSolver()
+solver.Assert(ctx.MkEq(sum, ff))
+solver.Assert(ctx.MkBVUGT(x, y)) // unsigned greater than
+
+if solver.Check() == z3.Satisfiable {
+    model := solver.Model()
+    if xVal, ok := model.Eval(x, true); ok {
+        fmt.Println("x =", xVal.String())
+    }
+    if yVal, ok := model.Eval(y, true); ok {
+        fmt.Println("y =", yVal.String())
+    }
+}
+```
+
+### Example 4: String Operations
+
+```go
+ctx := z3.NewContext()
+
+s1 := ctx.MkConst(ctx.MkStringSymbol("s1"), ctx.MkStringSort())
+s2 := ctx.MkConst(ctx.MkStringSymbol("s2"), ctx.MkStringSort())
+
+// s1 contains "hello" && length(s1) < 20
+hello := ctx.MkString("hello")
+solver := ctx.NewSolver()
+solver.Assert(ctx.MkSeqContains(s1, hello))
+
+len1 := ctx.MkSeqLength(s1)
+twenty := ctx.MkInt(20, ctx.MkIntSort())
+solver.Assert(ctx.MkLt(len1, twenty))
+
+// s2 is s1 + " world"
+world := ctx.MkString(" world")
+solver.Assert(ctx.MkEq(s2, ctx.MkSeqConcat(s1, world)))
+
+if solver.Check() == z3.Satisfiable {
+    model := solver.Model()
+    if s1Val, ok := model.Eval(s1, true); ok {
+        fmt.Println("s1 =", s1Val.String())
+    }
+    if s2Val, ok := model.Eval(s2, true); ok {
+        fmt.Println("s2 =", s2Val.String())
+    }
+}
+```
+
+### Example 5: Datatypes (Lists)
+
+```go
+ctx := z3.NewContext()
+intSort := ctx.MkIntSort()
+
+// Create list datatype
+listSort, nilDecl, consDecl, _, _, headDecl, tailDecl := 
+    ctx.MkListSort("IntList", intSort)
+
+// Create list: cons(1, cons(2, nil))
+nil := ctx.MkApp(nilDecl)
+one := ctx.MkInt(1, intSort)
+two := ctx.MkInt(2, intSort)
+
+list2 := ctx.MkApp(consDecl, two, nil)
+list12 := ctx.MkApp(consDecl, one, list2)
+
+// Extract head
+head := ctx.MkApp(headDecl, list12)
+
+solver := ctx.NewSolver()
+solver.Assert(ctx.MkEq(head, one))
+
+if solver.Check() == z3.Satisfiable {
+    fmt.Println("List head is 1")
+}
+```
+
+## Solver Features
+
+### Backtracking with Push/Pop
+
+```go
+solver := ctx.NewSolver()
+
+// Base constraints
+solver.Assert(x.gt(0))
+
+// Create checkpoint
+solver.Push()
+
+// Add more constraints
+solver.Assert(x.lt(10))
+result1 := solver.Check() // Checks x > 0 AND x < 10
+
+// Backtrack
+solver.Pop(1)
+
+// Only checks x > 0 now
+result2 := solver.Check()
+```
+
+### Unsat Core
+
+Find which constraints are conflicting:
+
+```go
+solver := ctx.NewSolver()
+
+// Track assertions
+c1 := ctx.MkBoolConst("c1")
+c2 := ctx.MkBoolConst("c2")
+c3 := ctx.MkBoolConst("c3")
+
+solver.AssertAndTrack(ctx.MkGt(x, ctx.MkInt(10, intSort)), c1)
+solver.AssertAndTrack(ctx.MkLt(x, ctx.MkInt(5, intSort)), c2)
+solver.AssertAndTrack(ctx.MkGt(y, ctx.MkInt(0, intSort)), c3)
+
+if solver.Check() == z3.Unsatisfiable {
+    core := solver.UnsatCore()
+    fmt.Println("Conflicting constraints:", core.String())
+}
+```
+
+### Statistics
+
+```go
+result := solver.Check()
+stats := solver.Statistics()
+fmt.Println("Solver statistics:")
+fmt.Println(stats.String())
+```
+
+## Working with Models
+
+```go
+if solver.Check() == z3.Satisfiable {
+    model := solver.Model()
+    
+    // Evaluate expression
+    if val, ok := model.Eval(x, true); ok {
+        fmt.Println("x =", val.String())
+    }
+    
+    // Number of constants
+    numConsts := model.NumConsts()
+    fmt.Println("Model has", numConsts, "constants")
+    
+    // Iterate constants
+    for i := 0; i < numConsts; i++ {
+        decl := model.ConstDecl(i)
+        interp := model.ConstInterp(decl)
+        fmt.Printf("%s = %s\n", decl.Name(), interp.String())
+    }
+    
+    // Full model string
+    fmt.Println("Complete model:")
+    fmt.Println(model.String())
+}
+```
+
+## Optimization
+
+Solve optimization problems:
+
+```go
+opt := ctx.NewOptimize()
+
+x := ctx.MkIntConst("x")
+y := ctx.MkIntConst("y")
+
+// Constraints
+opt.Assert(ctx.MkGe(x, ctx.MkInt(0, intSort)))
+opt.Assert(ctx.MkGe(y, ctx.MkInt(0, intSort)))
+opt.Assert(ctx.MkLe(ctx.MkAdd(x, y), ctx.MkInt(10, intSort)))
+
+// Maximize x + 2*y
+obj := ctx.MkAdd(x, ctx.MkMul(ctx.MkInt(2, intSort), y))
+opt.Maximize(obj)
+
+if opt.Check() == z3.Satisfiable {
+    model := opt.Model()
+    fmt.Println("Optimal solution:")
+    fmt.Println("x =", model.Eval(x, true))
+    fmt.Println("y =", model.Eval(y, true))
+}
+```
+
+## Tactics
+
+Use tactics for specific solving strategies:
+
+```go
+tactic := ctx.MkTactic("simplify")
+goal := ctx.MkGoal(false, false, false)
+
+goal.Assert(ctx.MkAnd(x.gt(0), y.lt(10)))
+result := tactic.Apply(goal)
+
+fmt.Println("Simplified goal:")
+for i := 0; i < result.NumSubgoals(); i++ {
+    fmt.Println(result.Subgoal(i).String())
+}
+```
+
+## Memory Management
+
+<Info>
+  The Go bindings use `runtime.SetFinalizer` to automatically manage Z3 reference counts. You don't need to manually call inc_ref/dec_ref.
+</Info>
+
+<Warning>
+  Finalizers run during garbage collection, so resources may not be freed immediately. For long-running applications, consider periodically creating fresh contexts.
+</Warning>
+
+## Error Handling
+
+```go
+ctx := z3.NewContext()
+if ctx == nil {
+    log.Fatal("Failed to create Z3 context")
+}
+
+solver := ctx.NewSolver()
+if solver == nil {
+    log.Fatal("Failed to create solver")
+}
+```
+
+## Thread Safety
+
+<Warning>
+  Z3 contexts are **not thread-safe**. Each goroutine should use its own context or implement proper synchronization.
+</Warning>
+
+```go
+// Good: Each goroutine has its own context
+var wg sync.WaitGroup
+for i := 0; i < 10; i++ {
+    wg.Add(1)
+    go func() {
+        defer wg.Done()
+        ctx := z3.NewContext()
+        // Use ctx...
+    }()
+}
+wg.Wait()
+
+// Bad: Sharing context without synchronization
+ctx := z3.NewContext()
+for i := 0; i < 10; i++ {
+    go func() {
+        // Race condition!
+        x := ctx.MkIntConst("x")
+    }()
+}
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="API Reference" icon="book" href="/bindings/go/api-reference">
+    Complete API documentation
+  </Card>
+  <Card title="Examples" icon="code" href="https://github.com/Z3Prover/z3/tree/master/examples/go">
+    More example programs
+  </Card>
+  <Card title="Z3 Guide" icon="graduation-cap" href="https://microsoft.github.io/z3guide/">
+    In-depth Z3 tutorial
+  </Card>
+  <Card title="C API Reference" icon="terminal" href="https://z3prover.github.io/api/html/index.html">
+    Underlying C API docs
+  </Card>
+</CardGroup>

@@ -1,0 +1,243 @@
+---
+title: Constraint Solving
+description: Using Z3 for scheduling, planning, and configuration problems
+---
+
+Z3 excels at solving constraint satisfaction problems (CSPs) where you need to find values that satisfy a set of constraints. This use case is fundamental to scheduling, resource allocation, planning, and configuration management.
+
+## When to Use Constraint Solving
+
+Use Z3 for constraint solving when you have:
+
+- **Scheduling problems**: Assign tasks to time slots or resources
+- **Planning problems**: Find sequences of actions to achieve a goal
+- **Configuration problems**: Determine valid system configurations
+- **Resource allocation**: Distribute limited resources optimally
+- **Puzzle solving**: Sudoku, n-queens, graph coloring, etc.
+
+## Core Concepts
+
+Constraint solving in Z3 involves:
+
+1. **Variables**: Declare decision variables with appropriate types (Int, Bool, BitVec, etc.)
+2. **Domains**: Specify the valid range of values for each variable
+3. **Constraints**: Express relationships between variables
+4. **Solver**: Check satisfiability and extract solutions
+
+## Example: Sudoku Solver
+
+Sudoku is a classic constraint satisfaction problem where you fill a 9×9 grid with digits 1-9 such that each row, column, and 3×3 box contains all digits exactly once.
+
+```python
+from z3 import *
+
+# Create 9x9 matrix of integer variables
+X = [[Int(f"x_{i}_{j}") for j in range(9)] for i in range(9)]
+
+s = Solver()
+
+# Each cell contains a value in {1, ..., 9}
+for i in range(9):
+    for j in range(9):
+        s.add(And(1 <= X[i][j], X[i][j] <= 9))
+
+# Each row contains distinct values
+for i in range(9):
+    s.add(Distinct(X[i]))
+
+# Each column contains distinct values
+for j in range(9):
+    s.add(Distinct([X[i][j] for i in range(9)]))
+
+# Each 3x3 square contains distinct values
+for i0 in range(3):
+    for j0 in range(3):
+        square = [X[3*i0 + i][3*j0 + j] for i in range(3) for j in range(3)]
+        s.add(Distinct(square))
+
+# Add initial values (puzzle instance)
+instance = [
+    [0, 0, 0, 0, 9, 4, 0, 3, 0],
+    [0, 0, 0, 5, 1, 0, 0, 0, 7],
+    # ... more rows
+]
+
+for i in range(9):
+    for j in range(9):
+        if instance[i][j] != 0:
+            s.add(X[i][j] == instance[i][j])
+
+# Solve and extract solution
+if s.check() == sat:
+    m = s.model()
+    for i in range(9):
+        for j in range(9):
+            print(m.evaluate(X[i][j]), end=" ")
+        print()
+```
+
+## Example: Scheduling Problem
+
+Schedule tasks with dependencies and resource constraints:
+
+```python
+from z3 import *
+
+# Task durations
+tasks = {
+    'A': 3,  # Task A takes 3 time units
+    'B': 2,
+    'C': 4,
+    'D': 1
+}
+
+# Task start times (decision variables)
+start = {name: Int(f"start_{name}") for name in tasks}
+
+s = Solver()
+
+# Tasks must start at non-negative times
+for name in tasks:
+    s.add(start[name] >= 0)
+
+# Precedence constraints: B must follow A
+s.add(start['B'] >= start['A'] + tasks['A'])
+
+# Resource constraints: B and C cannot overlap (same resource)
+s.add(Or(
+    start['B'] + tasks['B'] <= start['C'],
+    start['C'] + tasks['C'] <= start['B']
+))
+
+# Minimize total completion time
+completion_time = Int('completion_time')
+for name in tasks:
+    s.add(completion_time >= start[name] + tasks[name])
+
+if s.check() == sat:
+    m = s.model()
+    print("Schedule:")
+    for name in tasks:
+        print(f"Task {name}: start at {m.evaluate(start[name])}")
+    print(f"Total time: {m.evaluate(completion_time)}")
+```
+
+## Example: All-Interval Series
+
+The [All-Interval Series Problem](http://www.csplib.org/Problems/prob007/) finds sequences where adjacent differences form a permutation:
+
+```python
+from z3 import *
+
+def all_interval_series(n):
+    # Create boolean variables x[i][j]: integer i is at position j
+    xij = [[Bool(f"x_{i}_{j}") for j in range(n)] for i in range(n)]
+    
+    s = SolverFor("QF_FD")  # Finite domain solver
+    
+    # Each position has exactly one integer
+    for i in range(n):
+        s.add(AtMost(xij[i] + [1]))  # At most one true
+        s.add(Or(xij[i]))             # At least one true
+    
+    # Each integer appears exactly once
+    for j in range(n):
+        xi = [xij[i][j] for i in range(n)]
+        s.add(AtMost(xi + [1]))
+        s.add(Or(xi))
+    
+    # Constraint on differences between adjacent positions
+    def diff_at_j_is_i(xs, j, i):
+        return Or(
+            [And(xs[j][k], xs[j+1][k-i]) for k in range(i, n)] +
+            [And(xs[j][k], xs[j+1][k+i]) for k in range(0, n-i)]
+        )
+    
+    dji = [[diff_at_j_is_i(xij, j, i+1) for i in range(n-1)] 
+           for j in range(n-1)]
+    
+    # Each difference appears exactly once
+    for j in range(n-1):
+        s.add(AtMost(dji[j] + [1]))
+        s.add(Or(dji[j]))
+    
+    for i in range(n-1):
+        dj = [dji[j][i] for j in range(n-1)]
+        s.add(AtMost(dj + [1]))
+        s.add(Or(dj))
+    
+    return s, xij
+
+s, xij = all_interval_series(8)
+if s.check() == sat:
+    m = s.model()
+    sequence = []
+    for i in range(8):
+        for j in range(8):
+            if is_true(m.eval(xij[i][j])):
+                sequence.append(j)
+    print(f"Solution: {sequence}")
+```
+
+## Choosing the Right Solver
+
+Z3 provides specialized solvers for different constraint types:
+
+- **`Solver()`**: General-purpose SMT solver
+- **`SolverFor("QF_FD")`**: Finite domain solver for Boolean, bit-vector, and bounded integer constraints
+- **`Optimize()`**: For optimization problems with objective functions
+
+For pure constraint satisfaction with finite domains, use `SolverFor("QF_FD")` for better performance.
+
+## Optimization Techniques
+
+### Breaking Symmetries
+
+Add constraints to eliminate symmetric solutions:
+
+```python
+# For n-queens, fix first queen position
+s.add(queens[0] == 0)
+```
+
+### Using Cardinality Constraints
+
+Use `AtMost`, `AtLeast`, and `PbEq` for efficient encoding:
+
+```python
+# Exactly k of the booleans must be true
+s.add(PbEq([(b, 1) for b in bools], k))
+```
+
+### Incremental Solving
+
+Use push/pop for exploring variations:
+
+```python
+s.push()
+s.add(additional_constraint)
+if s.check() == sat:
+    # Process solution
+s.pop()
+```
+
+## Related Theory Solvers
+
+- [Integer Arithmetic](/api/theories/arithmetic): For numeric constraints
+- [Bit-vectors](/api/theories/bitvectors): For fixed-width integers
+- [Arrays](/api/theories/arrays): For indexed data structures
+- [Datatypes](/api/theories/datatypes): For structured domains
+
+## Related Concepts
+
+- [Solvers](/concepts/solvers): Understanding solver APIs
+- [Models](/concepts/models): Extracting and interpreting solutions
+- [Tactics](/concepts/tactics): Solver strategies and preprocessing
+
+## Further Examples
+
+See the Z3 repository for more constraint solving examples:
+
+- `examples/python/trafficjam.py`: Rush Hour puzzle solver using Datalog
+- `examples/python/all_interval_series.py`: Complete implementation
+- `examples/java/JavaExample.java`: Sudoku solver in Java

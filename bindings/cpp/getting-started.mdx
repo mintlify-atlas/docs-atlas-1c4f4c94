@@ -1,0 +1,352 @@
+---
+title: 'C++ API Getting Started'
+description: 'Learn the basics of using Z3 from C++'
+---
+
+# Getting Started with Z3 C++ API
+
+This guide introduces the core concepts and classes of the Z3 C++ API with practical examples.
+
+## Basic Concepts
+
+The Z3 C++ API is built around a few key classes:
+
+- **`z3::context`** - Manages all Z3 objects and configuration
+- **`z3::solver`** - The satisfiability solver
+- **`z3::expr`** - Represents expressions (formulas and terms)
+- **`z3::sort`** - Represents types (Bool, Int, Real, etc.)
+
+## Your First Z3 Program
+
+Let's start with a simple satisfiability problem:
+
+```cpp
+#include <iostream>
+#include <z3++.h>
+
+int main() {
+    z3::context c;
+    
+    // Create Boolean variables
+    z3::expr x = c.bool_const("x");
+    z3::expr y = c.bool_const("y");
+    
+    // Create a solver
+    z3::solver s(c);
+    
+    // Add constraints
+    s.add(x || y);      // x OR y
+    s.add(!x || !y);    // NOT x OR NOT y
+    
+    // Check satisfiability
+    if (s.check() == z3::sat) {
+        std::cout << "sat\n";
+        std::cout << s.get_model() << "\n";
+    } else {
+        std::cout << "unsat\n";
+    }
+    
+    return 0;
+}
+```
+
+**Output:**
+```
+sat
+x -> false
+y -> true
+```
+
+## Working with the Context
+
+The `z3::context` is the foundation of all Z3 operations. Every Z3 object is associated with a context.
+
+```cpp
+z3::context c;
+
+// Create different sorts
+z3::sort bool_sort = c.bool_sort();
+z3::sort int_sort = c.int_sort();
+z3::sort real_sort = c.real_sort();
+z3::sort bv_sort = c.bv_sort(32);  // 32-bit bitvector
+```
+
+### Creating Constants
+
+```cpp
+z3::context c;
+
+// Boolean constant
+z3::expr b = c.bool_const("b");
+
+// Integer constant
+z3::expr x = c.int_const("x");
+
+// Real constant
+z3::expr r = c.real_const("r");
+
+// Bitvector constant (32-bit)
+z3::expr bv = c.bv_const("bv", 32);
+```
+
+### Creating Values
+
+```cpp
+z3::context c;
+
+// Boolean values
+z3::expr t = c.bool_val(true);
+z3::expr f = c.bool_val(false);
+
+// Integer values
+z3::expr zero = c.int_val(0);
+z3::expr forty_two = c.int_val(42);
+
+// Real values
+z3::expr pi = c.real_val("3.14159");
+z3::expr half = c.real_val(1, 2);  // 1/2 as a fraction
+```
+
+## Using the Solver
+
+The `z3::solver` is used to check satisfiability of formulas.
+
+### Basic Solver Operations
+
+```cpp
+z3::context c;
+z3::solver s(c);
+
+z3::expr x = c.int_const("x");
+z3::expr y = c.int_const("y");
+
+// Add constraints
+s.add(x > 0);
+s.add(x < 10);
+s.add(y == x + 3);
+
+// Check satisfiability
+z3::check_result result = s.check();
+
+if (result == z3::sat) {
+    z3::model m = s.get_model();
+    std::cout << "x = " << m.eval(x) << "\n";
+    std::cout << "y = " << m.eval(y) << "\n";
+}
+```
+
+### Possible Results
+
+The `check()` method returns one of three values:
+- `z3::sat` - The constraints are satisfiable
+- `z3::unsat` - The constraints are unsatisfiable
+- `z3::unknown` - Z3 could not determine satisfiability
+
+### Extracting Models
+
+When a formula is satisfiable, you can extract a model:
+
+```cpp
+z3::context c;
+z3::solver s(c);
+
+z3::expr x = c.int_const("x");
+z3::expr y = c.int_const("y");
+
+s.add(x >= 1);
+s.add(y < x + 3);
+
+if (s.check() == z3::sat) {
+    z3::model m = s.get_model();
+    
+    // Evaluate expressions in the model
+    std::cout << "x = " << m.eval(x) << "\n";
+    std::cout << "y = " << m.eval(y) << "\n";
+    std::cout << "x + y = " << m.eval(x + y) << "\n";
+}
+```
+
+## Building Expressions
+
+The C++ API provides operator overloading for building expressions naturally.
+
+### Boolean Operations
+
+```cpp
+z3::context c;
+z3::expr p = c.bool_const("p");
+z3::expr q = c.bool_const("q");
+
+z3::expr not_p = !p;
+z3::expr p_and_q = p && q;
+z3::expr p_or_q = p || q;
+z3::expr p_implies_q = implies(p, q);
+z3::expr p_iff_q = p == q;
+```
+
+### Arithmetic Operations
+
+```cpp
+z3::context c;
+z3::expr x = c.int_const("x");
+z3::expr y = c.int_const("y");
+
+z3::expr sum = x + y;
+z3::expr diff = x - y;
+z3::expr prod = x * y;
+z3::expr quot = x / y;
+z3::expr negation = -x;
+```
+
+### Comparison Operations
+
+```cpp
+z3::context c;
+z3::expr x = c.int_const("x");
+z3::expr y = c.int_const("y");
+
+z3::expr eq = (x == y);
+z3::expr neq = (x != y);
+z3::expr lt = (x < y);
+z3::expr le = (x <= y);
+z3::expr gt = (x > y);
+z3::expr ge = (x >= y);
+```
+
+## Common Examples
+
+### Solving Linear Constraints
+
+```cpp
+#include <iostream>
+#include <z3++.h>
+
+int main() {
+    z3::context c;
+    z3::solver s(c);
+    
+    z3::expr x = c.int_const("x");
+    z3::expr y = c.int_const("y");
+    
+    // Find values satisfying: 2x + 3y = 10 and x >= 0
+    s.add(2 * x + 3 * y == 10);
+    s.add(x >= 0);
+    s.add(y >= 0);
+    
+    if (s.check() == z3::sat) {
+        z3::model m = s.get_model();
+        std::cout << "x = " << m.eval(x) << "\n";
+        std::cout << "y = " << m.eval(y) << "\n";
+    }
+    
+    return 0;
+}
+```
+
+### Proving a Theorem
+
+To prove a theorem, we check if its negation is unsatisfiable:
+
+```cpp
+#include <iostream>
+#include <z3++.h>
+
+int main() {
+    z3::context c;
+    z3::solver s(c);
+    
+    z3::expr x = c.bool_const("x");
+    z3::expr y = c.bool_const("y");
+    
+    // Prove De Morgan's law: not(x and y) == (not x) or (not y)
+    z3::expr conjecture = (!(x && y)) == (!x || !y);
+    
+    // Add the negation
+    s.add(!conjecture);
+    
+    if (s.check() == z3::unsat) {
+        std::cout << "Theorem proved!\n";
+    } else {
+        std::cout << "Counterexample found\n";
+    }
+    
+    return 0;
+}
+```
+
+### Using Push/Pop for Incremental Solving
+
+The solver maintains a stack of assertions:
+
+```cpp
+z3::context c;
+z3::solver s(c);
+
+z3::expr x = c.int_const("x");
+
+s.add(x > 0);
+std::cout << s.check() << "\n";  // sat
+
+// Create backtracking point
+s.push();
+
+s.add(x < 0);
+std::cout << s.check() << "\n";  // unsat
+
+// Restore to backtracking point
+s.pop();
+
+std::cout << s.check() << "\n";  // sat again
+```
+
+### Working with Bitvectors
+
+```cpp
+z3::context c;
+z3::solver s(c);
+
+z3::expr x = c.bv_const("x", 32);  // 32-bit bitvector
+z3::expr y = c.bv_const("y", 32);
+
+// Bitwise operations
+s.add((x ^ y) - 103 == x * y);
+
+if (s.check() == z3::sat) {
+    z3::model m = s.get_model();
+    std::cout << "x = " << m.eval(x) << "\n";
+    std::cout << "y = " << m.eval(y) << "\n";
+}
+```
+
+## Error Handling
+
+The C++ API throws exceptions on errors:
+
+```cpp
+try {
+    z3::context c;
+    z3::expr x = c.bool_const("x");
+    
+    // This will throw - can't add boolean and integer
+    z3::expr bad = x + 1;
+} catch (z3::exception& e) {
+    std::cout << "Error: " << e << "\n";
+}
+```
+
+## Configuration
+
+You can configure Z3 through the context:
+
+```cpp
+z3::config cfg;
+cfg.set("auto_config", true);
+cfg.set("timeout", 30000);  // 30 seconds
+
+z3::context c(cfg);
+```
+
+## Next Steps
+
+- [API Reference](/bindings/cpp/api-reference) - Detailed documentation of all classes
+- [Examples](https://github.com/Z3Prover/z3/tree/master/examples/c%2B%2B) - More complex examples

@@ -1,0 +1,553 @@
+---
+title: 'Simplifiers'
+description: 'Simplify formulas before solving with Z3 simplifiers'
+icon: 'wand-magic-sparkles'
+---
+
+## Overview
+
+Z3 simplifiers are lightweight formula transformations that reduce formula complexity before solving. Unlike tactics (which are heavy preprocessing pipelines), simplifiers are fast, composable transformations that can significantly improve solver performance.
+
+## Understanding Simplifiers
+
+### Simplifiers vs. Tactics
+
+**Simplifiers:**
+- Lightweight transformations
+- Fast and incremental
+- Compose naturally with `and-then`
+- Applied before solving
+- Don't change the solver strategy
+
+**Tactics:**
+- Heavy preprocessing pipelines
+- Complete solving strategies
+- Transform goals into subgoals
+- May apply multiple techniques
+
+### When to Use Simplifiers
+
+Use simplifiers when you want to:
+- Preprocess formulas before solving
+- Eliminate redundant constraints
+- Propagate constants and bounds
+- Simplify arithmetic expressions
+- Improve solver performance without changing strategy
+
+## Creating and Using Simplifiers
+
+### Basic Simplifier Usage
+
+```c
+// Create a simplifier
+Z3_simplifier simp = Z3_mk_simplifier(ctx, "simplify");
+Z3_simplifier_inc_ref(ctx, simp);
+
+// Create solver with simplifier
+Z3_solver solver = Z3_mk_solver(ctx);
+Z3_solver_inc_ref(ctx, solver);
+
+Z3_solver new_solver = Z3_solver_add_simplifier(ctx, solver, simp);
+Z3_solver_inc_ref(ctx, new_solver);
+
+// Use the new solver
+Z3_solver_assert(ctx, new_solver, formula);
+Z3_lbool result = Z3_solver_check(ctx, new_solver);
+
+// Cleanup
+Z3_solver_dec_ref(ctx, new_solver);
+Z3_solver_dec_ref(ctx, solver);
+Z3_simplifier_dec_ref(ctx, simp);
+```
+
+### Listing Available Simplifiers
+
+```c
+unsigned num_simplifiers = Z3_get_num_simplifiers(ctx);
+printf("Available simplifiers: %u\n", num_simplifiers);
+
+for (unsigned i = 0; i < num_simplifiers; i++) {
+    Z3_string name = Z3_get_simplifier_name(ctx, i);
+    Z3_string descr = Z3_simplifier_get_descr(ctx, name);
+    printf("  [%u] %s: %s\n", i, name, descr);
+}
+```
+
+## Common Simplifiers
+
+### Core Simplifiers
+
+#### `simplify`
+General-purpose simplification:
+
+```c
+Z3_simplifier simp = Z3_mk_simplifier(ctx, "simplify");
+Z3_simplifier_inc_ref(ctx, simp);
+
+// Simplifies:
+// - (and true p) => p
+// - (+ 0 x) => x
+// - (not (not p)) => p
+// - Constant folding and propagation
+
+Z3_solver solver = Z3_mk_solver(ctx);
+Z3_solver new_solver = Z3_solver_add_simplifier(ctx, solver, simp);
+
+Z3_simplifier_dec_ref(ctx, simp);
+```
+
+#### `propagate-values`
+Propagates constants and simplifies based on known values:
+
+```c
+Z3_simplifier simp = Z3_mk_simplifier(ctx, "propagate-values");
+Z3_simplifier_inc_ref(ctx, simp);
+
+// Propagates:
+// x = 5, y = x + 3 => y = 8
+// b = true, (and b c) => c
+
+Z3_solver new_solver = Z3_solver_add_simplifier(ctx, solver, simp);
+
+Z3_simplifier_dec_ref(ctx, simp);
+```
+
+#### `solve-eqs`
+Solves for variables in equations and substitutes:
+
+```c
+Z3_simplifier simp = Z3_mk_simplifier(ctx, "solve-eqs");
+Z3_simplifier_inc_ref(ctx, simp);
+
+// Transforms:
+// (and (= x (+ y 1)) (> x 10)) => (> (+ y 1) 10)
+// Eliminates variables by solving equations
+
+Z3_solver new_solver = Z3_solver_add_simplifier(ctx, solver, simp);
+
+Z3_simplifier_dec_ref(ctx, simp);
+```
+
+#### `elim-uncnstr`
+Eliminates unconstrained variables:
+
+```c
+Z3_simplifier simp = Z3_mk_simplifier(ctx, "elim-uncnstr");
+Z3_simplifier_inc_ref(ctx, simp);
+
+// Removes variables that don't affect satisfiability
+// Example: (and (> x 0) (> y 0)) where x is unconstrained
+// Can eliminate x if it appears only in that constraint
+
+Z3_solver new_solver = Z3_solver_add_simplifier(ctx, solver, simp);
+
+Z3_simplifier_dec_ref(ctx, simp);
+```
+
+### Arithmetic Simplifiers
+
+#### `normalize-bounds`
+Normalizes arithmetic bounds:
+
+```c
+Z3_simplifier simp = Z3_mk_simplifier(ctx, "normalize-bounds");
+Z3_simplifier_inc_ref(ctx, simp);
+
+// Normalizes:
+// (>= x 5) and (>= x 3) => (>= x 5)
+// Combines and simplifies bound constraints
+
+Z3_solver new_solver = Z3_solver_add_simplifier(ctx, solver, simp);
+
+Z3_simplifier_dec_ref(ctx, simp);
+```
+
+#### `lia2pb`
+Converts linear integer arithmetic to pseudo-boolean:
+
+```c
+Z3_simplifier simp = Z3_mk_simplifier(ctx, "lia2pb");
+Z3_simplifier_inc_ref(ctx, simp);
+
+// Converts linear arithmetic to bit-vector representation
+// Useful for bounded integer problems
+
+Z3_solver new_solver = Z3_solver_add_simplifier(ctx, solver, simp);
+
+Z3_simplifier_dec_ref(ctx, simp);
+```
+
+### Boolean Simplifiers
+
+#### `propagate-ineqs`
+Propagates inequalities:
+
+```c
+Z3_simplifier simp = Z3_mk_simplifier(ctx, "propagate-ineqs");
+Z3_simplifier_inc_ref(ctx, simp);
+
+// Propagates:
+// x < y, y < z => x < z
+// Derives implied inequalities
+
+Z3_solver new_solver = Z3_solver_add_simplifier(ctx, solver, simp);
+
+Z3_simplifier_dec_ref(ctx, simp);
+```
+
+#### `ctx-solver-simplify`
+Context-aware simplification using solver state:
+
+```c
+Z3_simplifier simp = Z3_mk_simplifier(ctx, "ctx-solver-simplify");
+Z3_simplifier_inc_ref(ctx, simp);
+
+// Uses solver context to simplify formulas
+// More powerful but slower than basic simplify
+
+Z3_solver new_solver = Z3_solver_add_simplifier(ctx, solver, simp);
+
+Z3_simplifier_dec_ref(ctx, simp);
+```
+
+## Composing Simplifiers
+
+### Sequential Composition
+
+Chain simplifiers using `and-then`:
+
+```c
+// Create individual simplifiers
+Z3_simplifier s1 = Z3_mk_simplifier(ctx, "propagate-values");
+Z3_simplifier_inc_ref(ctx, s1);
+
+Z3_simplifier s2 = Z3_mk_simplifier(ctx, "solve-eqs");
+Z3_simplifier_inc_ref(ctx, s2);
+
+Z3_simplifier s3 = Z3_mk_simplifier(ctx, "simplify");
+Z3_simplifier_inc_ref(ctx, s3);
+
+// Compose: first propagate values, then solve equations, then simplify
+Z3_simplifier composed1 = Z3_simplifier_and_then(ctx, s1, s2);
+Z3_simplifier_inc_ref(ctx, composed1);
+
+Z3_simplifier composed2 = Z3_simplifier_and_then(ctx, composed1, s3);
+Z3_simplifier_inc_ref(ctx, composed2);
+
+// Use composed simplifier
+Z3_solver solver = Z3_mk_solver(ctx);
+Z3_solver new_solver = Z3_solver_add_simplifier(ctx, solver, composed2);
+
+// Cleanup
+Z3_simplifier_dec_ref(ctx, composed2);
+Z3_simplifier_dec_ref(ctx, composed1);
+Z3_simplifier_dec_ref(ctx, s3);
+Z3_simplifier_dec_ref(ctx, s2);
+Z3_simplifier_dec_ref(ctx, s1);
+```
+
+### Building a Simplification Pipeline
+
+```c
+Z3_simplifier build_simplification_pipeline(Z3_context ctx) {
+    // Stage 1: Propagate known values
+    Z3_simplifier s1 = Z3_mk_simplifier(ctx, "propagate-values");
+    Z3_simplifier_inc_ref(ctx, s1);
+    
+    // Stage 2: Solve for variables
+    Z3_simplifier s2 = Z3_mk_simplifier(ctx, "solve-eqs");
+    Z3_simplifier_inc_ref(ctx, s2);
+    
+    // Stage 3: Eliminate unconstrained
+    Z3_simplifier s3 = Z3_mk_simplifier(ctx, "elim-uncnstr");
+    Z3_simplifier_inc_ref(ctx, s3);
+    
+    // Stage 4: Final simplification
+    Z3_simplifier s4 = Z3_mk_simplifier(ctx, "simplify");
+    Z3_simplifier_inc_ref(ctx, s4);
+    
+    // Compose pipeline
+    Z3_simplifier p1 = Z3_simplifier_and_then(ctx, s1, s2);
+    Z3_simplifier_inc_ref(ctx, p1);
+    Z3_simplifier p2 = Z3_simplifier_and_then(ctx, p1, s3);
+    Z3_simplifier_inc_ref(ctx, p2);
+    Z3_simplifier result = Z3_simplifier_and_then(ctx, p2, s4);
+    Z3_simplifier_inc_ref(ctx, result);
+    
+    // Cleanup intermediate simplifiers
+    Z3_simplifier_dec_ref(ctx, p2);
+    Z3_simplifier_dec_ref(ctx, p1);
+    Z3_simplifier_dec_ref(ctx, s4);
+    Z3_simplifier_dec_ref(ctx, s3);
+    Z3_simplifier_dec_ref(ctx, s2);
+    Z3_simplifier_dec_ref(ctx, s1);
+    
+    return result;
+}
+```
+
+## Configuring Simplifiers with Parameters
+
+### Setting Simplifier Parameters
+
+```c
+// Create simplifier
+Z3_simplifier simp = Z3_mk_simplifier(ctx, "simplify");
+Z3_simplifier_inc_ref(ctx, simp);
+
+// Create parameters
+Z3_params params = Z3_mk_params(ctx);
+Z3_params_inc_ref(ctx, params);
+
+// Configure simplifier behavior
+Z3_symbol max_steps = Z3_mk_string_symbol(ctx, "max_steps");
+Z3_params_set_uint(ctx, params, max_steps, 10000);
+
+Z3_symbol max_memory = Z3_mk_string_symbol(ctx, "max_memory");
+Z3_params_set_uint(ctx, params, max_memory, 100);
+
+// Create parameterized simplifier
+Z3_simplifier param_simp = Z3_simplifier_using_params(ctx, simp, params);
+Z3_simplifier_inc_ref(ctx, param_simp);
+
+// Use parameterized simplifier
+Z3_solver solver = Z3_mk_solver(ctx);
+Z3_solver new_solver = Z3_solver_add_simplifier(ctx, solver, param_simp);
+
+// Cleanup
+Z3_simplifier_dec_ref(ctx, param_simp);
+Z3_params_dec_ref(ctx, params);
+Z3_simplifier_dec_ref(ctx, simp);
+```
+
+### Discovering Simplifier Parameters
+
+```c
+Z3_simplifier simp = Z3_mk_simplifier(ctx, "simplify");
+Z3_simplifier_inc_ref(ctx, simp);
+
+// Get parameter descriptions
+Z3_param_descrs descrs = Z3_simplifier_get_param_descrs(ctx, simp);
+Z3_param_descrs_inc_ref(ctx, descrs);
+
+printf("Parameters for 'simplify' simplifier:\n");
+unsigned size = Z3_param_descrs_size(ctx, descrs);
+for (unsigned i = 0; i < size; i++) {
+    Z3_symbol name = Z3_param_descrs_get_name(ctx, descrs, i);
+    Z3_param_kind kind = Z3_param_descrs_get_kind(ctx, descrs, name);
+    Z3_string doc = Z3_param_descrs_get_documentation(ctx, descrs, name);
+    
+    printf("  %s: %s\n", Z3_get_symbol_string(ctx, name), doc);
+}
+
+Z3_param_descrs_dec_ref(ctx, descrs);
+Z3_simplifier_dec_ref(ctx, simp);
+```
+
+### Getting Simplifier Help
+
+```c
+Z3_simplifier simp = Z3_mk_simplifier(ctx, "simplify");
+Z3_simplifier_inc_ref(ctx, simp);
+
+// Get help text
+Z3_string help = Z3_simplifier_get_help(ctx, simp);
+printf("Simplifier help:\n%s\n", help);
+
+Z3_simplifier_dec_ref(ctx, simp);
+```
+
+## Domain-Specific Simplification
+
+### Bit-Vector Simplification
+
+```c
+Z3_simplifier build_bv_pipeline(Z3_context ctx) {
+    // Bit-vector specific simplifications
+    Z3_simplifier s1 = Z3_mk_simplifier(ctx, "simplify");
+    Z3_simplifier_inc_ref(ctx, s1);
+    
+    Z3_simplifier s2 = Z3_mk_simplifier(ctx, "propagate-values");
+    Z3_simplifier_inc_ref(ctx, s2);
+    
+    Z3_simplifier result = Z3_simplifier_and_then(ctx, s1, s2);
+    Z3_simplifier_inc_ref(ctx, result);
+    
+    Z3_simplifier_dec_ref(ctx, s2);
+    Z3_simplifier_dec_ref(ctx, s1);
+    
+    return result;
+}
+```
+
+### Arithmetic Simplification
+
+```c
+Z3_simplifier build_arithmetic_pipeline(Z3_context ctx) {
+    // Arithmetic-focused pipeline
+    Z3_simplifier s1 = Z3_mk_simplifier(ctx, "normalize-bounds");
+    Z3_simplifier_inc_ref(ctx, s1);
+    
+    Z3_simplifier s2 = Z3_mk_simplifier(ctx, "propagate-ineqs");
+    Z3_simplifier_inc_ref(ctx, s2);
+    
+    Z3_simplifier s3 = Z3_mk_simplifier(ctx, "solve-eqs");
+    Z3_simplifier_inc_ref(ctx, s3);
+    
+    Z3_simplifier p1 = Z3_simplifier_and_then(ctx, s1, s2);
+    Z3_simplifier_inc_ref(ctx, p1);
+    
+    Z3_simplifier result = Z3_simplifier_and_then(ctx, p1, s3);
+    Z3_simplifier_inc_ref(ctx, result);
+    
+    Z3_simplifier_dec_ref(ctx, p1);
+    Z3_simplifier_dec_ref(ctx, s3);
+    Z3_simplifier_dec_ref(ctx, s2);
+    Z3_simplifier_dec_ref(ctx, s1);
+    
+    return result;
+}
+```
+
+## Performance Considerations
+
+### Simplifier Overhead
+
+```c
+// Measure simplification overhead
+void measure_simplification(Z3_context ctx, Z3_ast formula) {
+    // Without simplification
+    Z3_solver s1 = Z3_mk_solver(ctx);
+    Z3_solver_inc_ref(ctx, s1);
+    Z3_solver_assert(ctx, s1, formula);
+    
+    clock_t start1 = clock();
+    Z3_solver_check(ctx, s1);
+    clock_t end1 = clock();
+    double time1 = (double)(end1 - start1) / CLOCKS_PER_SEC;
+    
+    // With simplification
+    Z3_simplifier simp = Z3_mk_simplifier(ctx, "simplify");
+    Z3_simplifier_inc_ref(ctx, simp);
+    
+    Z3_solver s2 = Z3_mk_solver(ctx);
+    Z3_solver s2_simp = Z3_solver_add_simplifier(ctx, s2, simp);
+    Z3_solver_inc_ref(ctx, s2_simp);
+    Z3_solver_assert(ctx, s2_simp, formula);
+    
+    clock_t start2 = clock();
+    Z3_solver_check(ctx, s2_simp);
+    clock_t end2 = clock();
+    double time2 = (double)(end2 - start2) / CLOCKS_PER_SEC;
+    
+    printf("Without simplification: %.3f seconds\n", time1);
+    printf("With simplification: %.3f seconds\n", time2);
+    printf("Speedup: %.2fx\n", time1 / time2);
+    
+    // Cleanup
+    Z3_solver_dec_ref(ctx, s2_simp);
+    Z3_simplifier_dec_ref(ctx, simp);
+    Z3_solver_dec_ref(ctx, s1);
+}
+```
+
+## Best Practices
+
+### When to Use Simplifiers
+
+**Use simplifiers when:**
+- Formulas contain obvious redundancies
+- Constants can be propagated
+- Variables can be eliminated
+- Bounds can be normalized
+- You want to improve performance without changing solver strategy
+
+**Avoid simplifiers when:**
+- Formulas are already in optimal form
+- Simplification overhead exceeds benefits
+- Debugging and need to preserve original formula structure
+
+### Recommended Pipelines
+
+**Lightweight preprocessing:**
+```c
+// Fast, minimal overhead
+Z3_simplifier s1 = Z3_mk_simplifier(ctx, "propagate-values");
+Z3_simplifier s2 = Z3_mk_simplifier(ctx, "simplify");
+Z3_simplifier pipeline = Z3_simplifier_and_then(ctx, s1, s2);
+```
+
+**Aggressive preprocessing:**
+```c
+// More thorough, higher overhead
+Z3_simplifier s1 = Z3_mk_simplifier(ctx, "propagate-values");
+Z3_simplifier s2 = Z3_mk_simplifier(ctx, "solve-eqs");
+Z3_simplifier s3 = Z3_mk_simplifier(ctx, "elim-uncnstr");
+Z3_simplifier s4 = Z3_mk_simplifier(ctx, "simplify");
+// Compose all four...
+```
+
+### Common Pitfalls
+
+1. **Adding simplifier after assertions**: Simplifiers must be added before assertions
+2. **Over-simplification**: Too many simplifiers can increase overhead
+3. **Wrong simplifier order**: Order matters in composition
+4. **Forgetting reference counting**: Always pair inc_ref with dec_ref
+
+## Limitations
+
+### Simplifier Restrictions
+
+```c
+// ERROR: Cannot add simplifier after assertions
+Z3_solver solver = Z3_mk_solver(ctx);
+Z3_solver_assert(ctx, solver, formula);  // Assertion added
+
+Z3_simplifier simp = Z3_mk_simplifier(ctx, "simplify");
+// This will fail:
+Z3_solver new_solver = Z3_solver_add_simplifier(ctx, solver, simp);
+```
+
+**Workaround**: Add simplifier first, then make assertions:
+
+```c
+Z3_solver solver = Z3_mk_solver(ctx);
+Z3_simplifier simp = Z3_mk_simplifier(ctx, "simplify");
+Z3_solver new_solver = Z3_solver_add_simplifier(ctx, solver, simp);
+// Now add assertions
+Z3_solver_assert(ctx, new_solver, formula);
+```
+
+## API Reference
+
+### Simplifier Creation
+
+- `Z3_mk_simplifier` - Create simplifier by name (api_tactic.cpp:533)
+- `Z3_simplifier_inc_ref` - Increment reference counter (api_tactic.cpp:549)
+- `Z3_simplifier_dec_ref` - Decrement reference counter (api_tactic.cpp:557)
+
+### Simplifier Discovery
+
+- `Z3_get_num_simplifiers` - Get number of available simplifiers (api_tactic.cpp:565)
+- `Z3_get_simplifier_name` - Get simplifier name by index (api_tactic.cpp:573)
+- `Z3_simplifier_get_descr` - Get simplifier description (api_tactic.cpp:657)
+
+### Simplifier Composition
+
+- `Z3_simplifier_and_then` - Sequential composition (api_tactic.cpp:585)
+- `Z3_simplifier_using_params` - Add parameters to simplifier (api_tactic.cpp:601)
+
+### Simplifier Information
+
+- `Z3_simplifier_get_help` - Get help text (api_tactic.cpp:625)
+- `Z3_simplifier_get_param_descrs` - Get parameter descriptions (api_tactic.cpp:641)
+
+### Solver Integration
+
+- `Z3_solver_add_simplifier` - Attach simplifier to solver (api_solver.cpp:244)
+
+## See Also
+
+- [Parameters](/api/advanced/parameters) - Configuring simplifiers
+- [Solver API](/api/solver) - Using solvers with simplifiers
+- [Tactics](/api/tactics) - Heavy preprocessing strategies

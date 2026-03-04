@@ -1,0 +1,357 @@
+---
+title: Fixedpoint and Datalog
+description: Use Z3's fixedpoint engine for Datalog queries, Horn clauses, and program verification with PDR/IC3
+---
+
+The Z3 fixedpoint engine supports Datalog queries, Horn clause solving, and verification using algorithms like PDR (Property Directed Reachability, also known as IC3). This is particularly useful for program analysis, static verification, and reachability problems.
+
+## Overview
+
+Z3's fixedpoint context provides:
+- **Datalog queries** over finite and infinite domains
+- **Horn clause** satisfaction
+- **PDR/IC3** for safety verification
+- **Inductive invariant** generation
+- **Trace extraction** for debugging
+
+## Basic Datalog Example
+
+### Simple Reachability
+
+```python
+from z3 import *
+
+# Create fixedpoint context
+fp = Fixedpoint()
+fp.set(engine='datalog')
+
+# Declare relation: edge(node, node)
+node = BitVecSort(3)
+edge = Function('edge', node, node, BoolSort())
+reachable = Function('reachable', node, node, BoolSort())
+
+# Register relations
+fp.register_relation(edge)
+fp.register_relation(reachable)
+
+# Declare variables
+x, y, z = Consts('x y z', node)
+fp.declare_var(x, y, z)
+
+# Facts: graph edges
+for (i, j) in [(0,1), (1,2), (2,3)]:
+    fp.fact(edge(BitVecVal(i, node), BitVecVal(j, node)))
+
+# Rules: transitive closure
+# reachable(x,y) :- edge(x,y)
+fp.rule(reachable(x, y), edge(x, y))
+
+# reachable(x,z) :- edge(x,y), reachable(y,z)
+fp.rule(reachable(x, z), [edge(x, y), reachable(y, z)])
+
+# Query: is node 0 reachable from node 3?
+result = fp.query(reachable(BitVecVal(0, node), BitVecVal(3, node)))
+
+if result == sat:
+    print("Reachable!")
+    print(fp.get_answer())
+else:
+    print("Not reachable")
+```
+
+### Family Relations Example
+
+```python
+from z3 import *
+
+fp = Fixedpoint()
+fp.set(engine='datalog')
+
+# Person sort
+Person = DeclareSort('Person')
+
+# Relations
+parent = Function('parent', Person, Person, BoolSort())
+ancestor = Function('ancestor', Person, Person, BoolSort())
+
+fp.register_relation(parent)
+fp.register_relation(ancestor)
+
+# Variables
+x, y, z = Consts('x y z', Person)
+fp.declare_var(x, y, z)
+
+# People
+alice, bob, charlie, diana = Consts('alice bob charlie diana', Person)
+
+# Facts: parent relationships
+fp.fact(parent(alice, bob))
+fp.fact(parent(bob, charlie))
+fp.fact(parent(charlie, diana))
+
+# Rules: ancestor is transitive closure of parent
+fp.rule(ancestor(x, y), parent(x, y))
+fp.rule(ancestor(x, z), [parent(x, y), ancestor(y, z)])
+
+# Query: is Alice an ancestor of Diana?
+if fp.query(ancestor(alice, diana)) == sat:
+    print("Alice is an ancestor of Diana")
+    print(fp.get_answer())
+```
+
+## Horn Clauses
+
+Horn clauses are implications with at most one positive literal, widely used in program verification.
+
+### Horn Clause Format
+
+```python
+from z3 import *
+
+fp = Fixedpoint()
+fp.set(engine='datalog')
+
+# Invariant predicate
+Inv = Function('Inv', IntSort(), BoolSort())
+fp.register_relation(Inv)
+
+n = Int('n')
+next_n = Int('next_n')
+fp.declare_var(n, next_n)
+
+# Initial state: Inv(0)
+fp.rule(Inv(0), [])
+
+# Transition: Inv(n) and n < 10 => Inv(n+1)
+fp.rule(Inv(next_n), [Inv(n), n < 10, next_n == n + 1])
+
+# Safety property: check if Inv(n) => n <= 10
+safety = Implies(Inv(n), n <= 10)
+
+# Query the negation (looking for counterexample)
+if fp.query(And(Inv(n), n > 10)) == unsat:
+    print("Property holds!")
+else:
+    print("Property violated")
+    print(fp.get_answer())
+```
+
+## Program Verification with PDR
+
+PDR (Property Directed Reachability) is effective for verifying safety properties of transition systems.
+
+### Transition System Example
+
+```python
+from z3 import *
+
+fp = Fixedpoint()
+fp.set(engine='pdr')  # Use PDR instead of Datalog
+
+# State variables
+x = Int('x')
+x_next = Int('x_next')
+
+# State predicate
+State = Function('State', IntSort(), BoolSort())
+fp.register_relation(State)
+fp.declare_var(x, x_next)
+
+# Initial condition: x = 0
+fp.rule(State(0), [])
+
+# Transition relation: x' = x + 1, x < 100
+fp.rule(State(x_next), [State(x), x < 100, x_next == x + 1])
+
+# Safety property: x <= 100 (should hold)
+if fp.query(And(State(x), x > 100)) == unsat:
+    print("Safe: x never exceeds 100")
+    # Can extract inductive invariant
+    print("Invariant:", fp.get_answer())
+else:
+    print("Unsafe: found counterexample")
+```
+
+## Practical Example: Traffic Jam Puzzle
+
+Here's a real-world example solving a traffic jam puzzle using fixedpoint:
+
+```python
+from z3 import *
+
+class Car:
+    def __init__(self, is_vertical, base_pos, length, start, color):
+        self.is_vertical = is_vertical
+        self.base = base_pos
+        self.length = length
+        self.start = start
+        self.color = color
+
+dimension = 6
+red_car = Car(False, 2, 2, 3, "red")
+cars = [
+    Car(True, 0, 3, 0, 'yellow'),
+    Car(False, 3, 3, 0, 'blue'),
+    red_car,
+    # ... more cars
+]
+
+num_cars = len(cars)
+bv3 = BitVecSort(3)
+
+# State: position of each car
+state = Function('state', [bv3] * num_cars + [BoolSort()])
+
+fp = Fixedpoint()
+fp.set('fp.engine', 'datalog')
+fp.set('datalog.generate_explanations', True)
+
+# Declare variables for each car position
+bounds = [Const(cars[i].color, bv3) for i in range(num_cars)]
+fp.declare_var(*bounds)
+fp.register_relation(state)
+
+# Initial state
+fp.fact(state([BitVecVal(cars[i].start, bv3) for i in range(num_cars)]))
+
+# Transition rules: move each car
+def mk_state(car, value):
+    return state([BitVecVal(value, bv3) if cars[i] == car else bounds[i] 
+                  for i in range(num_cars)])
+
+# Add rules for moving cars (with collision detection)
+# ... add transition rules ...
+
+# Goal: red car at position 4
+goal = state([BitVecVal(4, bv3) if cars[i] == red_car else bounds[i] 
+              for i in range(num_cars)])
+
+if fp.query(goal) == sat:
+    print("Solution found!")
+    # Extract trace
+    answer = fp.get_answer()
+    print(answer)
+```
+
+## Configuration Parameters
+
+### Datalog Engine
+
+```python
+fp.set('fp.engine', 'datalog')  # Use Datalog engine
+fp.set('datalog.generate_explanations', True)  # Generate proof traces
+fp.set('datalog.default_relation', 'doc')  # Relation implementation
+```
+
+### PDR Engine
+
+```python
+fp.set('fp.engine', 'pdr')  # Use PDR/IC3 engine
+fp.set('pdr.flexible_trace', True)  # More flexible trace generation
+fp.set('pdr.utvpi', False)  # UTVPI domain
+fp.set('fp.validate', True)  # Validate results
+```
+
+## Advanced Features
+
+### Adding Constraints
+
+Background axioms (PDR mode only):
+
+```python
+fp = Fixedpoint()
+fp.set(engine='pdr')
+
+x = Int('x')
+State = Function('State', IntSort(), BoolSort())
+
+# Background constraint (not a rule)
+fp.assert_expr(x >= 0)  # All states must satisfy x >= 0
+```
+
+### Multiple Queries
+
+```python
+# Query multiple relations at once
+rel1 = Function('rel1', IntSort(), BoolSort())
+rel2 = Function('rel2', IntSort(), BoolSort())
+
+fp.register_relation(rel1)
+fp.register_relation(rel2)
+
+# Query both relations
+result = fp.query([rel1, rel2])
+```
+
+### Statistics
+
+```python
+fp.query(goal)
+stats = fp.statistics()
+print(stats)
+```
+
+## C API Reference
+
+The fixedpoint API in C:
+
+```c
+#include <z3.h>
+
+Z3_context ctx = Z3_mk_context(cfg);
+Z3_fixedpoint fp = Z3_mk_fixedpoint(ctx);
+
+// Set engine
+Z3_params params = Z3_mk_params(ctx);
+Z3_params_set_symbol(ctx, params, Z3_mk_string_symbol(ctx, "engine"),
+                     Z3_mk_string_symbol(ctx, "datalog"));
+Z3_fixedpoint_set_params(ctx, fp, params);
+
+// Register relation
+Z3_func_decl edge_decl = ...;  // Declare edge relation
+Z3_fixedpoint_register_relation(ctx, fp, edge_decl);
+
+// Add fact
+Z3_ast fact = Z3_mk_app(ctx, edge_decl, 2, args);
+Z3_fixedpoint_add_fact(ctx, fp, edge_decl, 2, arg_values);
+
+// Add rule
+Z3_fixedpoint_add_rule(ctx, fp, rule, Z3_mk_string_symbol(ctx, "rule1"));
+
+// Query
+Z3_ast query_expr = ...;
+Z3_lbool result = Z3_fixedpoint_query(ctx, fp, query_expr);
+
+if (result == Z3_L_TRUE) {
+    Z3_ast answer = Z3_fixedpoint_get_answer(ctx, fp);
+}
+
+Z3_fixedpoint_dec_ref(ctx, fp);
+```
+
+## Key Functions
+
+| Function | Description |
+|----------|-------------|
+| `Z3_mk_fixedpoint` | Create fixedpoint context |
+| `Z3_fixedpoint_register_relation` | Register a relation |
+| `Z3_fixedpoint_add_rule` | Add Horn clause rule |
+| `Z3_fixedpoint_add_fact` | Add ground fact |
+| `Z3_fixedpoint_query` | Pose query |
+| `Z3_fixedpoint_get_answer` | Get satisfying assignment/trace |
+| `Z3_fixedpoint_assert` | Add background axiom (PDR) |
+| `Z3_fixedpoint_set_params` | Configure parameters |
+
+## Use Cases
+
+- **Static program analysis**: Dataflow analysis, points-to analysis
+- **Verification**: Safety properties, invariant generation
+- **Reachability**: Graph queries, state space exploration
+- **Logic programming**: Prolog-style queries
+- **Model checking**: Transition systems, temporal properties
+
+## See Also
+
+- [API Reference](/api-reference/fixedpoint) - Complete Fixedpoint API
+- [Horn Clauses](https://microsoft.github.io/z3guide/docs/logic/Horn%20Clauses/) - Z3 Guide on Horn clauses
+- [PDR/IC3](https://theory.stanford.edu/~nikolaj/programmingz3.html) - Property Directed Reachability

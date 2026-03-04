@@ -1,0 +1,543 @@
+---
+title: 'C API Reference'
+description: 'Complete reference for the Z3 C API'
+---
+
+The Z3 C API is the foundational interface to Z3. All other language bindings are built on top of it.
+
+## Core Types
+
+The Z3 C API uses opaque pointer types for all objects:
+
+### Fundamental Types
+
+<ResponseField name="Z3_config" type="opaque pointer">
+  Configuration object used to initialize contexts. Set parameters before creating a context.
+</ResponseField>
+
+<ResponseField name="Z3_context" type="opaque pointer">
+  Manager of all Z3 objects. Required for all API calls. Stores global configuration and manages memory.
+</ResponseField>
+
+<ResponseField name="Z3_symbol" type="opaque pointer">
+  Lisp-like symbol used to name types, constants, and functions. Can be created from strings or integers.
+</ResponseField>
+
+<ResponseField name="Z3_ast" type="opaque pointer">
+  Abstract syntax tree node representing terms, formulas, and types. Base type for all expressions.
+</ResponseField>
+
+<ResponseField name="Z3_sort" type="opaque pointer">
+  Kind of AST representing types (Int, Real, Bool, etc.).
+</ResponseField>
+
+<ResponseField name="Z3_func_decl" type="opaque pointer">
+  Function declaration (symbol with signature).
+</ResponseField>
+
+<ResponseField name="Z3_app" type="opaque pointer">
+  Function application (function symbol applied to arguments).
+</ResponseField>
+
+### Solver Types
+
+<ResponseField name="Z3_solver" type="opaque pointer">
+  Incremental solver for checking satisfiability of formulas.
+</ResponseField>
+
+<ResponseField name="Z3_model" type="opaque pointer">
+  Model (satisfying assignment) for satisfiable formulas.
+</ResponseField>
+
+<ResponseField name="Z3_params" type="opaque pointer">
+  Parameter set for configuring solvers, tactics, and other components.
+</ResponseField>
+
+### Advanced Types
+
+<ResponseField name="Z3_tactic" type="opaque pointer">
+  Building block for custom solvers.
+</ResponseField>
+
+<ResponseField name="Z3_goal" type="opaque pointer">
+  Set of formulas that can be solved or transformed.
+</ResponseField>
+
+<ResponseField name="Z3_fixedpoint" type="opaque pointer">
+  Context for the recursive predicate solver (Datalog engine).
+</ResponseField>
+
+<ResponseField name="Z3_optimize" type="opaque pointer">
+  Context for solving optimization queries (maximize/minimize).
+</ResponseField>
+
+## Enumerations
+
+### Z3_lbool
+
+Lifted Boolean type for satisfiability results:
+
+```c
+typedef enum {
+    Z3_L_FALSE = -1,  // Formula is unsatisfiable
+    Z3_L_UNDEF,       // Result is unknown
+    Z3_L_TRUE         // Formula is satisfiable
+} Z3_lbool;
+```
+
+### Z3_sort_kind
+
+The different kinds of sorts (types):
+
+```c
+typedef enum {
+    Z3_UNINTERPRETED_SORT,    // Uninterpreted sort
+    Z3_BOOL_SORT,             // Boolean
+    Z3_INT_SORT,              // Integer
+    Z3_REAL_SORT,             // Real
+    Z3_BV_SORT,               // Bit-vector
+    Z3_ARRAY_SORT,            // Array
+    Z3_DATATYPE_SORT,         // Datatype
+    Z3_RELATION_SORT,         // Relation
+    Z3_FINITE_DOMAIN_SORT,    // Finite domain
+    Z3_FLOATING_POINT_SORT,   // Floating-point
+    Z3_ROUNDING_MODE_SORT,    // Rounding mode
+    Z3_SEQ_SORT,              // Sequence
+    Z3_RE_SORT,               // Regular expression
+    Z3_CHAR_SORT,             // Character
+    Z3_TYPE_VAR,              // Type variable
+    Z3_UNKNOWN_SORT = 1000
+} Z3_sort_kind;
+```
+
+## Context Management
+
+### Creating Contexts
+
+<ParamField path="Z3_mk_config" type="function">
+  ```c
+  Z3_config Z3_mk_config(void);
+  ```
+  Create a configuration object. Use `Z3_set_param_value` to set parameters.
+</ParamField>
+
+<ParamField path="Z3_del_config" type="function">
+  ```c
+  void Z3_del_config(Z3_config c);
+  ```
+  Delete configuration object. Call after creating context.
+</ParamField>
+
+<ParamField path="Z3_set_param_value" type="function">
+  ```c
+  void Z3_set_param_value(Z3_config c, const char *param_id, const char *param_value);
+  ```
+  Set a configuration parameter. Common parameters:
+  - `"model"`: `"true"` to enable model generation
+  - `"proof"`: `"true"` to enable proof generation
+  - `"timeout"`: milliseconds (e.g., `"1000"`)
+</ParamField>
+
+<ParamField path="Z3_mk_context" type="function">
+  ```c
+  Z3_context Z3_mk_context(Z3_config c);
+  ```
+  Create a context using the given configuration.
+</ParamField>
+
+<ParamField path="Z3_del_context" type="function">
+  ```c
+  void Z3_del_context(Z3_context c);
+  ```
+  Delete context and all associated objects.
+</ParamField>
+
+### Version Information
+
+<ParamField path="Z3_get_version" type="function">
+  ```c
+  void Z3_get_version(unsigned *major, unsigned *minor, unsigned *build, unsigned *revision);
+  ```
+  Get Z3 version numbers.
+</ParamField>
+
+## Symbols
+
+<ParamField path="Z3_mk_string_symbol" type="function">
+  ```c
+  Z3_symbol Z3_mk_string_symbol(Z3_context c, const char *s);
+  ```
+  Create a symbol from a string.
+</ParamField>
+
+<ParamField path="Z3_mk_int_symbol" type="function">
+  ```c
+  Z3_symbol Z3_mk_int_symbol(Z3_context c, int i);
+  ```
+  Create a symbol from an integer.
+</ParamField>
+
+## Sorts (Types)
+
+### Basic Sorts
+
+<ParamField path="Z3_mk_bool_sort" type="function">
+  ```c
+  Z3_sort Z3_mk_bool_sort(Z3_context c);
+  ```
+  Create Boolean sort.
+</ParamField>
+
+<ParamField path="Z3_mk_int_sort" type="function">
+  ```c
+  Z3_sort Z3_mk_int_sort(Z3_context c);
+  ```
+  Create integer sort.
+</ParamField>
+
+<ParamField path="Z3_mk_real_sort" type="function">
+  ```c
+  Z3_sort Z3_mk_real_sort(Z3_context c);
+  ```
+  Create real sort.
+</ParamField>
+
+<ParamField path="Z3_mk_bv_sort" type="function">
+  ```c
+  Z3_sort Z3_mk_bv_sort(Z3_context c, unsigned sz);
+  ```
+  Create bit-vector sort of size `sz`.
+</ParamField>
+
+### Array Sorts
+
+<ParamField path="Z3_mk_array_sort" type="function">
+  ```c
+  Z3_sort Z3_mk_array_sort(Z3_context c, Z3_sort domain, Z3_sort range);
+  ```
+  Create array sort (maps from `domain` to `range`).
+</ParamField>
+
+## Constants and Variables
+
+<ParamField path="Z3_mk_const" type="function">
+  ```c
+  Z3_ast Z3_mk_const(Z3_context c, Z3_symbol s, Z3_sort ty);
+  ```
+  Create a constant (0-arity function) with given symbol and type.
+</ParamField>
+
+<ParamField path="Z3_mk_int" type="function">
+  ```c
+  Z3_ast Z3_mk_int(Z3_context c, int v, Z3_sort ty);
+  ```
+  Create an integer numeral.
+</ParamField>
+
+<ParamField path="Z3_mk_real" type="function">
+  ```c
+  Z3_ast Z3_mk_real(Z3_context c, int num, int den);
+  ```
+  Create a real numeral `num/den`.
+</ParamField>
+
+## Boolean Operations
+
+<ParamField path="Z3_mk_true" type="function">
+  ```c
+  Z3_ast Z3_mk_true(Z3_context c);
+  ```
+  Create the `true` constant.
+</ParamField>
+
+<ParamField path="Z3_mk_false" type="function">
+  ```c
+  Z3_ast Z3_mk_false(Z3_context c);
+  ```
+  Create the `false` constant.
+</ParamField>
+
+<ParamField path="Z3_mk_not" type="function">
+  ```c
+  Z3_ast Z3_mk_not(Z3_context c, Z3_ast a);
+  ```
+  Create NOT expression.
+</ParamField>
+
+<ParamField path="Z3_mk_and" type="function">
+  ```c
+  Z3_ast Z3_mk_and(Z3_context c, unsigned num_args, Z3_ast const args[]);
+  ```
+  Create n-ary AND expression.
+</ParamField>
+
+<ParamField path="Z3_mk_or" type="function">
+  ```c
+  Z3_ast Z3_mk_or(Z3_context c, unsigned num_args, Z3_ast const args[]);
+  ```
+  Create n-ary OR expression.
+</ParamField>
+
+<ParamField path="Z3_mk_implies" type="function">
+  ```c
+  Z3_ast Z3_mk_implies(Z3_context c, Z3_ast t1, Z3_ast t2);
+  ```
+  Create implication `t1 => t2`.
+</ParamField>
+
+<ParamField path="Z3_mk_iff" type="function">
+  ```c
+  Z3_ast Z3_mk_iff(Z3_context c, Z3_ast t1, Z3_ast t2);
+  ```
+  Create bi-implication (equivalence) `t1 <=> t2`.
+</ParamField>
+
+## Arithmetic Operations
+
+<ParamField path="Z3_mk_add" type="function">
+  ```c
+  Z3_ast Z3_mk_add(Z3_context c, unsigned num_args, Z3_ast const args[]);
+  ```
+  Create n-ary addition.
+</ParamField>
+
+<ParamField path="Z3_mk_sub" type="function">
+  ```c
+  Z3_ast Z3_mk_sub(Z3_context c, unsigned num_args, Z3_ast const args[]);
+  ```
+  Create n-ary subtraction.
+</ParamField>
+
+<ParamField path="Z3_mk_mul" type="function">
+  ```c
+  Z3_ast Z3_mk_mul(Z3_context c, unsigned num_args, Z3_ast const args[]);
+  ```
+  Create n-ary multiplication.
+</ParamField>
+
+<ParamField path="Z3_mk_div" type="function">
+  ```c
+  Z3_ast Z3_mk_div(Z3_context c, Z3_ast t1, Z3_ast t2);
+  ```
+  Create division (real division or integer division).
+</ParamField>
+
+<ParamField path="Z3_mk_mod" type="function">
+  ```c
+  Z3_ast Z3_mk_mod(Z3_context c, Z3_ast t1, Z3_ast t2);
+  ```
+  Create modulo operation.
+</ParamField>
+
+## Comparison Operations
+
+<ParamField path="Z3_mk_eq" type="function">
+  ```c
+  Z3_ast Z3_mk_eq(Z3_context c, Z3_ast l, Z3_ast r);
+  ```
+  Create equality `l = r`.
+</ParamField>
+
+<ParamField path="Z3_mk_distinct" type="function">
+  ```c
+  Z3_ast Z3_mk_distinct(Z3_context c, unsigned num_args, Z3_ast const args[]);
+  ```
+  Create distinct constraint (all arguments pairwise different).
+</ParamField>
+
+<ParamField path="Z3_mk_lt" type="function">
+  ```c
+  Z3_ast Z3_mk_lt(Z3_context c, Z3_ast t1, Z3_ast t2);
+  ```
+  Create less-than `t1 < t2`.
+</ParamField>
+
+<ParamField path="Z3_mk_le" type="function">
+  ```c
+  Z3_ast Z3_mk_le(Z3_context c, Z3_ast t1, Z3_ast t2);
+  ```
+  Create less-than-or-equal `t1 <= t2`.
+</ParamField>
+
+<ParamField path="Z3_mk_gt" type="function">
+  ```c
+  Z3_ast Z3_mk_gt(Z3_context c, Z3_ast t1, Z3_ast t2);
+  ```
+  Create greater-than `t1 > t2`.
+</ParamField>
+
+<ParamField path="Z3_mk_ge" type="function">
+  ```c
+  Z3_ast Z3_mk_ge(Z3_context c, Z3_ast t1, Z3_ast t2);
+  ```
+  Create greater-than-or-equal `t1 >= t2`.
+</ParamField>
+
+## Solver API
+
+### Creating Solvers
+
+<ParamField path="Z3_mk_solver" type="function">
+  ```c
+  Z3_solver Z3_mk_solver(Z3_context c);
+  ```
+  Create a new solver instance.
+</ParamField>
+
+<ParamField path="Z3_solver_inc_ref" type="function">
+  ```c
+  void Z3_solver_inc_ref(Z3_context c, Z3_solver s);
+  ```
+  Increment solver reference count.
+</ParamField>
+
+<ParamField path="Z3_solver_dec_ref" type="function">
+  ```c
+  void Z3_solver_dec_ref(Z3_context c, Z3_solver s);
+  ```
+  Decrement solver reference count.
+</ParamField>
+
+### Adding Constraints
+
+<ParamField path="Z3_solver_assert" type="function">
+  ```c
+  void Z3_solver_assert(Z3_context c, Z3_solver s, Z3_ast a);
+  ```
+  Assert constraint to the solver.
+</ParamField>
+
+<ParamField path="Z3_solver_push" type="function">
+  ```c
+  void Z3_solver_push(Z3_context c, Z3_solver s);
+  ```
+  Create a backtracking point (save state).
+</ParamField>
+
+<ParamField path="Z3_solver_pop" type="function">
+  ```c
+  void Z3_solver_pop(Z3_context c, Z3_solver s, unsigned n);
+  ```
+  Backtrack `n` scopes.
+</ParamField>
+
+### Checking Satisfiability
+
+<ParamField path="Z3_solver_check" type="function">
+  ```c
+  Z3_lbool Z3_solver_check(Z3_context c, Z3_solver s);
+  ```
+  Check satisfiability of assertions. Returns `Z3_L_TRUE`, `Z3_L_FALSE`, or `Z3_L_UNDEF`.
+</ParamField>
+
+<ParamField path="Z3_solver_check_assumptions" type="function">
+  ```c
+  Z3_lbool Z3_solver_check_assumptions(Z3_context c, Z3_solver s,
+                                       unsigned num_assumptions,
+                                       Z3_ast const assumptions[]);
+  ```
+  Check satisfiability under given assumptions.
+</ParamField>
+
+### Getting Results
+
+<ParamField path="Z3_solver_get_model" type="function">
+  ```c
+  Z3_model Z3_solver_get_model(Z3_context c, Z3_solver s);
+  ```
+  Get model for last satisfiable check. Requires `"model"` parameter to be `"true"`.
+</ParamField>
+
+<ParamField path="Z3_solver_get_proof" type="function">
+  ```c
+  Z3_ast Z3_solver_get_proof(Z3_context c, Z3_solver s);
+  ```
+  Get proof for last unsatisfiable check. Requires `"proof"` parameter to be `"true"`.
+</ParamField>
+
+<ParamField path="Z3_solver_get_unsat_core" type="function">
+  ```c
+  Z3_ast_vector Z3_solver_get_unsat_core(Z3_context c, Z3_solver s);
+  ```
+  Get unsat core (subset of assertions that are unsatisfiable).
+</ParamField>
+
+## Model API
+
+<ParamField path="Z3_model_inc_ref" type="function">
+  ```c
+  void Z3_model_inc_ref(Z3_context c, Z3_model m);
+  ```
+  Increment model reference count.
+</ParamField>
+
+<ParamField path="Z3_model_dec_ref" type="function">
+  ```c
+  void Z3_model_dec_ref(Z3_context c, Z3_model m);
+  ```
+  Decrement model reference count.
+</ParamField>
+
+<ParamField path="Z3_model_eval" type="function">
+  ```c
+  Z3_bool Z3_model_eval(Z3_context c, Z3_model m, Z3_ast t,
+                        Z3_bool model_completion, Z3_ast *v);
+  ```
+  Evaluate expression `t` in model `m`. Result stored in `v`.
+</ParamField>
+
+## String Conversion
+
+<ParamField path="Z3_ast_to_string" type="function">
+  ```c
+  Z3_string Z3_ast_to_string(Z3_context c, Z3_ast a);
+  ```
+  Convert AST to string (S-expression format).
+</ParamField>
+
+<ParamField path="Z3_solver_to_string" type="function">
+  ```c
+  Z3_string Z3_solver_to_string(Z3_context c, Z3_solver s);
+  ```
+  Convert solver state to string.
+</ParamField>
+
+<ParamField path="Z3_model_to_string" type="function">
+  ```c
+  Z3_string Z3_model_to_string(Z3_context c, Z3_model m);
+  ```
+  Convert model to string.
+</ParamField>
+
+## SMT-LIB Parsing
+
+<ParamField path="Z3_parse_smtlib2_string" type="function">
+  ```c
+  Z3_ast_vector Z3_parse_smtlib2_string(Z3_context c,
+                                        const char *str,
+                                        unsigned num_sorts,
+                                        Z3_symbol const sort_names[],
+                                        Z3_sort const sorts[],
+                                        unsigned num_decls,
+                                        Z3_symbol const decl_names[],
+                                        Z3_func_decl const decls[]);
+  ```
+  Parse SMT-LIB2 string with custom sorts and declarations.
+</ParamField>
+
+## Resources
+
+<CardGroup cols={2}>
+  <Card title="Full C API Documentation" icon="external-link" href="https://z3prover.github.io/api/html/group__capi.html">
+    Official Z3 C API reference
+  </Card>
+  <Card title="C Examples" icon="code" href="https://github.com/Z3Prover/z3/tree/master/examples/c">
+    Complete examples in the Z3 repository
+  </Card>
+  <Card title="Header File" icon="file-code" href="https://github.com/Z3Prover/z3/blob/master/src/api/z3.h">
+    Browse the z3.h header file
+  </Card>
+  <Card title="Getting Started" icon="rocket" href="/bindings/c/getting-started">
+    Learn the basics of the C API
+  </Card>
+</CardGroup>

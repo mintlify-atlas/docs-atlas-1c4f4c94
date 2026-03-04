@@ -1,80 +1,294 @@
 ---
-title: "Quickstart"
-description: "Start building awesome documentation in minutes"
+title: Quickstart
+description: Get started with Z3 in under 5 minutes
 ---
 
-## Get started in three steps
+This quickstart guide will help you install Z3 and solve your first constraint problem. By the end, you'll have Z3 running and understand the basics of SMT solving.
 
-Get your documentation site running locally and make your first customization.
+## What you'll build
 
-### Step 1: Set up your local environment
+You'll create a simple Python script that uses Z3 to solve a system of constraints. The solver will find values for variables that satisfy all constraints simultaneously.
 
-<AccordionGroup>
-  <Accordion icon="copy" title="Clone your docs locally">
-    During the onboarding process, you created a GitHub repository with your docs content if you didn't already have one. You can find a link to this repository in your [dashboard](https://dashboard.mintlify.com).
+<Steps>
+  <Step title="Install Z3">
+    The easiest way to get started is to install Z3 via a package manager. Choose your preferred language:
     
-    To clone the repository locally so that you can make and preview changes to your docs, follow the [Cloning a repository](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) guide in the GitHub docs.
-  </Accordion>
-  <Accordion icon="rectangle-terminal" title="Start the preview server">
-    1. Install the Mintlify CLI: `npm i -g mint`
-    2. Navigate to your docs directory and run: `mint dev`
-    3. Open `http://localhost:3000` to see your docs live!
+    <Tabs>
+      <Tab title="Python">
+        Install the Python bindings using pip:
+        
+        ```bash
+        pip install z3-solver
+        ```
+        
+        This installs both the Z3 library and Python bindings.
+      </Tab>
+      
+      <Tab title="JavaScript/TypeScript">
+        Install the npm package:
+        
+        ```bash
+        npm install z3-solver
+        ```
+      </Tab>
+      
+      <Tab title=".NET">
+        Install the NuGet package:
+        
+        ```bash
+        dotnet add package Microsoft.Z3
+        ```
+      </Tab>
+      
+      <Tab title="Java">
+        Add to your Maven `pom.xml`:
+        
+        ```xml
+        <dependency>
+          <groupId>tools.aqua</groupId>
+          <artifactId>z3-turnkey</artifactId>
+          <version>4.12.2.1</version>
+        </dependency>
+        ```
+      </Tab>
+    </Tabs>
     
-    <Tip>Your preview updates automatically as you edit files.</Tip>
-  </Accordion>
-</AccordionGroup>
-
-### Step 2: Deploy your changes
-
-<AccordionGroup>
-  <Accordion icon="github" title="Install our GitHub app">
-    Install the Mintlify GitHub app from your [dashboard](https://dashboard.mintlify.com/settings/organization/github-app).
+    <Tip>
+      For other installation methods, including building from source, see the [installation guide](/installation).
+    </Tip>
+  </Step>
+  
+  <Step title="Write your first Z3 program">
+    Create a file called `first_solve.py` with the following code:
     
-    Our GitHub app automatically deploys your changes to your docs site, so you don't need to manage deployments yourself.
-</Accordion>
-<Accordion icon="palette" title="Update your site name and colors">
-    For a first change, let's update the name and colors of your docs site.
+    ```python first_solve.py
+    from z3 import *
 
-    1. Open `docs.json` in your editor.
-    2. Change the `"name"` field to your project name.
-    3. Update the `"colors"` to match your brand.
-    4. Save and see your changes instantly at `http://localhost:3000`.
+    # Create symbolic variables
+    x = Real('x')
+    y = Real('y')
 
-    <Tip>Try changing the primary color to see an immediate difference!</Tip>
-  </Accordion>
-</AccordionGroup>
+    # Create a solver instance
+    s = Solver()
 
-### Step 3: Go live
+    # Add constraints
+    s.add(x + y > 5)  # x + y must be greater than 5
+    s.add(x > 1)      # x must be greater than 1
+    s.add(y > 1)      # y must be greater than 1
 
-<Accordion icon="rocket" title="Publish your docs">
-  1. Commit and push your changes.
-  2. Your docs will update and be live in moments!
-</Accordion>
+    # Check if constraints are satisfiable
+    print(s.check())
+
+    # Get a model (solution)
+    print(s.model())
+    ```
+    
+    This program:
+    1. Creates two real-valued variables `x` and `y`
+    2. Adds constraints that define valid values
+    3. Checks if the constraints can be satisfied
+    4. Prints a model showing values that satisfy all constraints
+  </Step>
+  
+  <Step title="Run the program">
+    Execute your script:
+    
+    ```bash
+    python first_solve.py
+    ```
+    
+    You should see output like:
+    
+    ```
+    sat
+    [y = 2, x = 4]
+    ```
+    
+    <Info>
+      The output `sat` means the constraints are satisfiable. The model shows one possible solution: `x = 4` and `y = 2`. Note that `4 + 2 > 5`, `4 > 1`, and `2 > 1`, so all constraints are satisfied.
+    </Info>
+  </Step>
+  
+  <Step title="Experiment with unsatisfiable constraints">
+    Try adding a conflicting constraint to see what happens when no solution exists:
+    
+    ```python
+    from z3 import *
+
+    x = Real('x')
+    y = Real('y')
+    s = Solver()
+
+    s.add(x + y > 5)
+    s.add(x > 1)
+    s.add(y > 1)
+    s.add(x + y < 3)  # Conflicts with x + y > 5
+
+    result = s.check()
+    print(result)
+
+    if result == sat:
+        print(s.model())
+    else:
+        print("No solution exists!")
+    ```
+    
+    This will output:
+    
+    ```
+    unsat
+    No solution exists!
+    ```
+    
+    The solver correctly identifies that no values can satisfy both `x + y > 5` and `x + y < 3` simultaneously.
+  </Step>
+  
+  <Step title="Try a logic puzzle">
+    Let's solve a more interesting problem: the classic Socrates syllogism.
+    
+    ```python socrates.py
+    from z3 import *
+
+    # Declare a sort (type) for objects
+    Object = DeclareSort('Object')
+
+    # Declare predicates
+    Human = Function('Human', Object, BoolSort())
+    Mortal = Function('Mortal', Object, BoolSort())
+
+    # Declare Socrates as a constant of type Object
+    socrates = Const('socrates', Object)
+
+    # Variables for quantifiers must be declared as Const
+    x = Const('x', Object)
+
+    # Add axioms
+    s = Solver()
+    s.add(ForAll([x], Implies(Human(x), Mortal(x))))  # All humans are mortal
+    s.add(Human(socrates))  # Socrates is human
+
+    # Check if axioms are consistent
+    print("Axioms consistent:", s.check())
+
+    # Try to prove Socrates is mortal (via refutation)
+    s.add(Not(Mortal(socrates)))
+    result = s.check()
+
+    if result == unsat:
+        print("Proved: Socrates is mortal")
+    else:
+        print("Could not prove Socrates is mortal")
+    ```
+    
+    Output:
+    
+    ```
+    Axioms consistent: sat
+    Proved: Socrates is mortal
+    ```
+    
+    <Note>
+      This demonstrates proof by refutation: we prove Socrates is mortal by showing that assuming the opposite (Socrates is not mortal) leads to unsatisfiability.
+    </Note>
+  </Step>
+</Steps>
+
+## Understanding the results
+
+Z3 returns one of three results:
+
+<CardGroup cols={3}>
+  <Card title="sat" icon="check">
+    Constraints are satisfiable. A model (solution) is available.
+  </Card>
+  <Card title="unsat" icon="xmark">
+    No solution exists. The constraints are contradictory.
+  </Card>
+  <Card title="unknown" icon="question">
+    The solver couldn't determine satisfiability (usually due to timeouts or resource limits).
+  </Card>
+</CardGroup>
+
+## Common patterns
+
+Here are some patterns you'll use frequently:
+
+### Declaring variables
+
+<CodeGroup>
+```python Integers
+x = Int('x')
+y = Int('y')
+```
+
+```python Real numbers
+x = Real('x')
+y = Real('y')
+```
+
+```python Booleans
+a = Bool('a')
+b = Bool('b')
+```
+
+```python Bit-vectors
+x = BitVec('x', 32)  # 32-bit
+y = BitVec('y', 64)  # 64-bit
+```
+</CodeGroup>
+
+### Adding constraints
+
+```python
+s = Solver()
+
+# Arithmetic
+s.add(x + y == 10)
+s.add(x * 2 > y)
+
+# Boolean logic
+s.add(Or(a, b))
+s.add(Implies(a, Not(b)))
+
+# Comparisons
+s.add(x >= 0)
+s.add(y < 100)
+```
+
+### Checking and retrieving models
+
+```python
+result = s.check()
+
+if result == sat:
+    m = s.model()
+    print(f"x = {m[x]}")
+    print(f"y = {m[y]}")
+elif result == unsat:
+    print("No solution")
+else:
+    print("Unknown")
+```
 
 ## Next steps
 
-Now that you have your docs running, explore these key features:
+Now that you've solved your first problems with Z3, explore these resources:
 
 <CardGroup cols={2}>
-
-<Card title="Write Content" icon="pen-to-square" href="/essentials/markdown">
-  Learn MDX syntax and start writing your documentation.
-</Card>
-
-<Card title="Customize style" icon="palette" href="/essentials/settings">
-  Make your docs match your brand perfectly.
-</Card>
-
-<Card title="Add code examples" icon="square-code" href="/essentials/code">
-  Include syntax-highlighted code blocks.
-</Card>
-
-<Card title="API documentation" icon="code" href="/api-reference/introduction">
-  Auto-generate API docs from OpenAPI specs.
-</Card>
-
+  <Card title="Core concepts" icon="book" href="/concepts/smt-solving">
+    Learn about SMT solving, expressions, and solvers
+  </Card>
+  <Card title="Python API" icon="python" href="/bindings/python/getting-started">
+    Comprehensive guide to the Python bindings
+  </Card>
+  <Card title="Examples" icon="code" href="/examples/basic-solving">
+    Browse practical examples and tutorials
+  </Card>
+  <Card title="Optimization" icon="chart-line" href="/guides/optimization">
+    Learn how to optimize objectives with Z3
+  </Card>
 </CardGroup>
 
-<Note>
-  **Need help?** See our [full documentation](https://mintlify.com/docs) or join our [community](https://mintlify.com/community).
-</Note>
+<Warning>
+  If you encounter import errors, make sure Z3 is installed in your current Python environment. You can verify with `pip list | grep z3`.
+</Warning>
