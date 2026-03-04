@@ -1,0 +1,216 @@
+{
+  "projectType": "sdk-library",
+  "projectName": "Z3 Theorem Prover",
+  "projectDescription": "High-performance SMT solver and theorem prover with multi-language bindings",
+  "theme": "aspen",
+  "primaryColor": "#646464",
+  "lightColor": "#d39a13",
+  "darkColor": "#f9f9f4",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Getting Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "installation"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/smt-solving",
+              "concepts/expressions",
+              "concepts/solvers",
+              "concepts/tactics",
+              "concepts/models",
+              "concepts/quantifiers"
+            ]
+          },
+          {
+            "group": "Building Z3",
+            "pages": [
+              "building/cmake",
+              "building/make",
+              "building/visual-studio",
+              "building/bazel"
+            ]
+          },
+          {
+            "group": "Guides",
+            "pages": [
+              "guides/optimization",
+              "guides/fixedpoint",
+              "guides/floating-point",
+              "guides/finite-sets",
+              "guides/sequences-strings"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Language Bindings",
+        "groups": [
+          {
+            "group": "Python",
+            "pages": [
+              "bindings/python/installation",
+              "bindings/python/getting-started",
+              "bindings/python/api-reference"
+            ]
+          },
+          {
+            "group": "C++",
+            "pages": [
+              "bindings/cpp/installation",
+              "bindings/cpp/getting-started",
+              "bindings/cpp/api-reference"
+            ]
+          },
+          {
+            "group": "C",
+            "pages": [
+              "bindings/c/installation",
+              "bindings/c/getting-started",
+              "bindings/c/api-reference"
+            ]
+          },
+          {
+            "group": "Java",
+            "pages": [
+              "bindings/java/installation",
+              "bindings/java/getting-started",
+              "bindings/java/api-reference"
+            ]
+          },
+          {
+            "group": ".NET",
+            "pages": [
+              "bindings/dotnet/installation",
+              "bindings/dotnet/getting-started",
+              "bindings/dotnet/api-reference"
+            ]
+          },
+          {
+            "group": "JavaScript/TypeScript",
+            "pages": [
+              "bindings/javascript/installation",
+              "bindings/javascript/getting-started",
+              "bindings/javascript/api-reference"
+            ]
+          },
+          {
+            "group": "Go",
+            "pages": [
+              "bindings/go/installation",
+              "bindings/go/getting-started",
+              "bindings/go/api-reference"
+            ]
+          },
+          {
+            "group": "OCaml",
+            "pages": [
+              "bindings/ocaml/installation",
+              "bindings/ocaml/getting-started"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Core API",
+            "pages": [
+              "api/context",
+              "api/expressions",
+              "api/sorts",
+              "api/solver",
+              "api/model",
+              "api/tactics",
+              "api/optimize",
+              "api/fixedpoint"
+            ]
+          },
+          {
+            "group": "Theory Solvers",
+            "pages": [
+              "api/theories/arithmetic",
+              "api/theories/bitvectors",
+              "api/theories/arrays",
+              "api/theories/datatypes",
+              "api/theories/floating-point",
+              "api/theories/sequences",
+              "api/theories/finite-sets"
+            ]
+          },
+          {
+            "group": "Advanced",
+            "pages": [
+              "api/advanced/parameters",
+              "api/advanced/statistics",
+              "api/advanced/proofs",
+              "api/advanced/simplifiers"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Examples",
+        "groups": [
+          {
+            "group": "Tutorials",
+            "pages": [
+              "examples/basic-solving",
+              "examples/sudoku-solver",
+              "examples/optimization-problems",
+              "examples/program-verification"
+            ]
+          },
+          {
+            "group": "Use Cases",
+            "pages": [
+              "examples/constraint-solving",
+              "examples/model-checking",
+              "examples/automated-testing",
+              "examples/symbolic-execution"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "High-performance SMT solving with support for multiple theories",
+    "Native bindings for Python, C++, C, Java, .NET, JavaScript, Go, and OCaml",
+    "Tactics and strategies for customizable solving approaches",
+    "Optimization solver for MaxSMT and weighted constraints",
+    "Fixedpoint engine for Datalog and Horn clauses",
+    "Comprehensive theory support: arithmetic, bitvectors, arrays, datatypes, strings, floating-point, finite sets"
+  ],
+  "publicApiSurface": [
+    "Z3_context",
+    "Z3_solver",
+    "Z3_ast",
+    "Z3_sort",
+    "Z3_model",
+    "Z3_tactic",
+    "Z3_optimize",
+    "Z3_fixedpoint",
+    "z3::context",
+    "z3::solver",
+    "z3::expr",
+    "Context (Python)",
+    "Solver (Python)",
+    "Context (Java)",
+    "Solver (Java)",
+    "Context (.NET)",
+    "Solver (.NET)",
+    "init() (JavaScript)",
+    "Context (Go)",
+    "Solver (Go)"
+  ]
+}
